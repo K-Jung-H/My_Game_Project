@@ -429,7 +429,7 @@ void Renderer::ClearGBuffer()
     }
 }
 
-void Renderer::ClearBackBuffer()
+void Renderer::ClearBackBuffer(float clear_color[4])
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
@@ -439,8 +439,8 @@ void Renderer::ClearBackBuffer()
     D3D12_CPU_DESCRIPTOR_HANDLE dsv = mDsvHandles[mFrameIndex];
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
 
-    const float clearColor[] = { 0.1f, 0.3f, 0.6f, 1.0f };
-    mCommandList->ClearRenderTargetView(rtv, clearColor, 0, nullptr);
+
+    mCommandList->ClearRenderTargetView(rtv, clear_color, 0, nullptr);
     mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
@@ -466,33 +466,38 @@ void Renderer::PresentFrame()
     mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
 }
 
-
 void Renderer::Render()
 {
+    static float clear_color[4] = { 0.45f, 0.55f, 0.60f, 1.00f };
+
     PrepareCommandList();
     ClearGBuffer();
-    ClearBackBuffer();
+    ClearBackBuffer(clear_color);
 
+    // ImGui 시작
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
-    ImGui::DockSpaceOverViewport(ImGui::GetMainViewport()->ID); 
 
-    ImGui::Begin("Inspector");
-    ImGui::Text("Hello World");
+
+    ImGui::Begin("Color Controller");
+    ImGui::ColorEdit4("MyColor RGBA", clear_color);
     ImGui::End();
 
-    // UI 빌드 + 드로우
+
     ImGui::Render();
 
+
+
+    // ---- ImGui 드로우 ----
     ID3D12DescriptorHeap* heaps[] = { mImguiSrvHeap.Get() };
     mCommandList->SetDescriptorHeaps(1, heaps);
-    mCommandList->OMSetRenderTargets(1, &mBackBufferRtvHandles[mFrameIndex], FALSE, &mDsvHandles[mFrameIndex]);
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+    mCommandList->OMSetRenderTargets(
+        1, &mBackBufferRtvHandles[mFrameIndex], FALSE, &mDsvHandles[mFrameIndex]);
 
     ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
 
-    // Multi-Viewport 추가 처리
+    // Viewport 지원
     ImGuiIO& io = ImGui::GetIO();
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
@@ -500,7 +505,6 @@ void Renderer::Render()
         ImGui::RenderPlatformWindowsDefault();
     }
 
-    // Present 준비
     TransitionBackBufferToPresent();
     mCommandList->Close();
     PresentFrame();

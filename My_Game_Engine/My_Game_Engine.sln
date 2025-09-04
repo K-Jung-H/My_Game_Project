@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.14.36414.22 d17.14
+VisualStudioVersion = 17.14.36414.22
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "My_Game_Engine", "My_Game_Engine\My_Game_Engine.vcxproj", "{D13715F5-69F9-4D8C-A25F-95D44C357F01}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "My_Game_Project", "My_Game_Engine\My_Game_Engine.vcxproj", "{D13715F5-69F9-4D8C-A25F-95D44C357F01}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Editor_Source", "Editor_Source\Editor_Source.vcxproj", "{A4AAF596-2895-45B8-A458-372C524CB005}"
 EndProject

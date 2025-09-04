@@ -134,7 +134,7 @@ private:
     // === Rendering steps ===
     void PrepareCommandList();
     void ClearGBuffer();
-    void ClearBackBuffer();
+    void ClearBackBuffer(float clear_color[4]);
     void TransitionBackBufferToPresent();
     void PresentFrame();
 

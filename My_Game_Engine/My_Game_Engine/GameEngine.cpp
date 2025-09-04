@@ -11,6 +11,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+	io.ConfigFlags |= ImGuiDockNodeFlags_PassthruCentralNode;
 
 	ImGui::StyleColorsDark();
 
