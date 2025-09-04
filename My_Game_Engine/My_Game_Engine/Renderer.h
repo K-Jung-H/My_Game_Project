@@ -53,7 +53,7 @@ struct FrameResource
 };
 
 
-class Renderer
+class DX12_Renderer
 {
 public:
     bool Initialize(HWND hWnd, UINT width, UINT height);

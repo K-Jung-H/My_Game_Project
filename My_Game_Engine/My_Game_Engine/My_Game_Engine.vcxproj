@@ -82,6 +82,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -98,6 +99,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -112,6 +114,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -128,6 +131,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -135,6 +139,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Engine\Components\CameraComponent.h" />
+    <ClInclude Include="Engine\Components\ColliderComponent.h" />
+    <ClInclude Include="Engine\Components\MeshRendererComponent.h" />
+    <ClInclude Include="Engine\Components\TransformComponent.h" />
+    <ClInclude Include="Engine\Core\Component.h" />
+    <ClInclude Include="Engine\Core\ComponentRegistry.h" />
+    <ClInclude Include="Engine\Core\Entity.h" />
+    <ClInclude Include="Engine\Managers\PhysicsManager.h" />
+    <ClInclude Include="Engine\Managers\RendererManager.h" />
     <ClInclude Include="GameEngine.h" />
     <ClInclude Include="My_Game_Project.h" />
     <ClInclude Include="pch.h" />
@@ -142,6 +155,15 @@
     <ClInclude Include="Resource.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Engine\Components\CameraComponent.cpp" />
+    <ClCompile Include="Engine\Components\ColliderComponent.cpp" />
+    <ClCompile Include="Engine\Components\MeshRendererComponent.cpp" />
+    <ClCompile Include="Engine\Components\TransformComponent.cpp" />
+    <ClCompile Include="Engine\Core\Component.cpp" />
+    <ClCompile Include="Engine\Core\ComponentRegistry.cpp" />
+    <ClCompile Include="Engine\Core\Entity.cpp" />
+    <ClCompile Include="Engine\Managers\PhysicsManager.cpp" />
+    <ClCompile Include="Engine\Managers\RendererManager.cpp" />
     <ClCompile Include="GameEngine.cpp" />
     <ClCompile Include="My_Game_Project.cpp" />
     <ClCompile Include="pch.cpp">

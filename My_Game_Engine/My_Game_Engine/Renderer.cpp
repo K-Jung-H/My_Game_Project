@@ -29,7 +29,7 @@ void ResourceStateTracker::Transition(ID3D12GraphicsCommandList* cmdList, ID3D12
 
 //=======================================================================
 
-bool Renderer::Initialize(HWND hWnd, UINT width, UINT height)
+bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
 {
 
 #if defined(_DEBUG)
@@ -71,7 +71,7 @@ bool Renderer::Initialize(HWND hWnd, UINT width, UINT height)
     return true;
 }
 
-bool Renderer::CreateDeviceAndFactory()
+bool DX12_Renderer::CreateDeviceAndFactory()
 {
     UINT dxgiFactoryFlags = 0;
 
@@ -114,7 +114,7 @@ bool Renderer::CreateDeviceAndFactory()
     return true;
 }
 
-bool Renderer::CheckMsaaSupport()
+bool DX12_Renderer::CheckMsaaSupport()
 {
     D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msaaLevels = {};
     msaaLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -133,7 +133,7 @@ bool Renderer::CheckMsaaSupport()
 }
 
 
-bool Renderer::CreateCommandQueue()
+bool DX12_Renderer::CreateCommandQueue()
 {
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
@@ -141,7 +141,7 @@ bool Renderer::CreateCommandQueue()
     return SUCCEEDED(mDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
 }
 
-bool Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
+bool DX12_Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
 {
     DXGI_SWAP_CHAIN_DESC1 desc = {};
     desc.BufferCount = FrameCount;
@@ -164,7 +164,7 @@ bool Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
     return true;
 }
 
-bool Renderer::CreateRTVHeap()
+bool DX12_Renderer::CreateRTVHeap()
 {
     UINT rtvCount = FrameCount + FrameCount * (UINT)GBufferType::Count;
 
@@ -180,7 +180,7 @@ bool Renderer::CreateRTVHeap()
     return true;
 }
 
-bool Renderer::CreateDSVHeap()
+bool DX12_Renderer::CreateDSVHeap()
 {
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
     desc.NumDescriptors = FrameCount;
@@ -194,7 +194,7 @@ bool Renderer::CreateDSVHeap()
     return true;
 }
 
-bool Renderer::CreateDescriptorHeaps()
+bool DX12_Renderer::CreateDescriptorHeaps()
 {
     if (!CreateRTVHeap()) return false;
     if (!CreateDSVHeap()) return false;
@@ -202,7 +202,7 @@ bool Renderer::CreateDescriptorHeaps()
 }
 
 
-bool Renderer::CreateFrameResources()
+bool DX12_Renderer::CreateFrameResources()
 {
     for (UINT i = 0; i < FrameCount; i++)
     {
@@ -216,7 +216,7 @@ bool Renderer::CreateFrameResources()
     return true;
 }
 
-bool Renderer::CreateCommandAllocator(FrameResource& fr)
+bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
 {
     return SUCCEEDED(mDevice->CreateCommandAllocator(
         D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -224,7 +224,7 @@ bool Renderer::CreateCommandAllocator(FrameResource& fr)
 }
 
 
-bool Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
 {
     if (FAILED(mSwapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&fr.RenderTarget))))
         return false;
@@ -242,7 +242,7 @@ bool Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
     return true;
 }
 
-bool Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
+bool DX12_Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -272,7 +272,7 @@ bool Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
     return true;
 }
 
-bool Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
 {
     if (!CreateGBuffer(fr, mWidth, mHeight)) return false;
 
@@ -293,7 +293,7 @@ bool Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
     return true;
 }
 
-bool Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT height)
+bool DX12_Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT height)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -318,7 +318,7 @@ bool Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT height)
     return true;
 }
 
-bool Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
 {
     if (!CreateDepthStencil(fr, mWidth, mHeight)) return false;
 
@@ -333,7 +333,7 @@ bool Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
     return true;
 }
 
-bool Renderer::CreateCommandList()
+bool DX12_Renderer::CreateCommandList()
 {
     if (FAILED(mDevice->CreateCommandList(
         0, D3D12_COMMAND_LIST_TYPE_DIRECT,
@@ -345,7 +345,7 @@ bool Renderer::CreateCommandList()
     return true;
 }
 
-bool Renderer::CreateFenceObjects()
+bool DX12_Renderer::CreateFenceObjects()
 {
     if (FAILED(mDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence))))
         return false;
@@ -355,7 +355,7 @@ bool Renderer::CreateFenceObjects()
     return (mFenceEvent != nullptr);
 }
 
-bool Renderer::OnResize(UINT newWidth, UINT newHeight)
+bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
 {
     if (!mDevice || !mSwapChain) return false;
 
@@ -383,7 +383,7 @@ bool Renderer::OnResize(UINT newWidth, UINT newHeight)
 
 // ------------------- Rendering Steps -------------------
 
-FrameResource& Renderer::GetCurrentFrameResource()
+FrameResource& DX12_Renderer::GetCurrentFrameResource()
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
@@ -397,7 +397,7 @@ FrameResource& Renderer::GetCurrentFrameResource()
     return fr;
 }
 
-void Renderer::PrepareCommandList()
+void DX12_Renderer::PrepareCommandList()
 {
     FrameResource& fr = GetCurrentFrameResource();
 
@@ -405,7 +405,7 @@ void Renderer::PrepareCommandList()
     mCommandList->Reset(fr.CommandAllocator.Get(), nullptr);
 }
 
-void Renderer::ClearGBuffer()
+void DX12_Renderer::ClearGBuffer()
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     auto& rtvs = mGBufferRtvHandles[mFrameIndex];
@@ -429,7 +429,7 @@ void Renderer::ClearGBuffer()
     }
 }
 
-void Renderer::ClearBackBuffer(float clear_color[4])
+void DX12_Renderer::ClearBackBuffer(float clear_color[4])
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
@@ -444,14 +444,14 @@ void Renderer::ClearBackBuffer(float clear_color[4])
     mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
-void Renderer::TransitionBackBufferToPresent()
+void DX12_Renderer::TransitionBackBufferToPresent()
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.RenderTarget.Get(), D3D12_RESOURCE_STATE_PRESENT);
 }
 
-void Renderer::PresentFrame()
+void DX12_Renderer::PresentFrame()
 {
     ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(1, cmdLists);
@@ -462,11 +462,11 @@ void Renderer::PresentFrame()
     mCommandQueue->Signal(mFence.Get(), currentFence);
 
     mFrameFenceValues[mFrameIndex] = currentFence;
-
+    
     mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
 }
 
-void Renderer::Render()
+void DX12_Renderer::Render()
 {
     static float clear_color[4] = { 0.45f, 0.55f, 0.60f, 1.00f };
 
@@ -511,7 +511,7 @@ void Renderer::Render()
 }
 
 // ------------------- Utility -------------------
-void Renderer::WaitForFrame(UINT64 fenceValue)
+void DX12_Renderer::WaitForFrame(UINT64 fenceValue)
 {
     if (fenceValue == 0) return;
     if (mFence->GetCompletedValue() < fenceValue)
@@ -521,14 +521,14 @@ void Renderer::WaitForFrame(UINT64 fenceValue)
     }
 }
 
-void Renderer::Cleanup()
+void DX12_Renderer::Cleanup()
 {
     for (UINT i = 0; i < FrameCount; i++)
         WaitForFrame(mFrameResources[i].FenceValue);
     CloseHandle(mFenceEvent);
 }
 
-ImGui_ImplDX12_InitInfo Renderer::GetImGuiInitInfo() const
+ImGui_ImplDX12_InitInfo DX12_Renderer::GetImGuiInitInfo() const
 {
     ImGui_ImplDX12_InitInfo init_info = {};
     init_info.Device = mDevice.Get();

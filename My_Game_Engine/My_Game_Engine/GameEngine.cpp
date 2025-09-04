@@ -3,7 +3,8 @@
 
 void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 {
-	mRenderer.Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
+	mRenderer = std::make_unique<DX12_Renderer>();
+	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	// ImGui ÃÊ±âÈ­
 	IMGUI_CHECKVERSION();
@@ -24,17 +25,17 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 
 	ImGui_ImplWin32_Init(hMainWnd);
 
-	ImGui_ImplDX12_InitInfo init_info = mRenderer.GetImGuiInitInfo();
+	ImGui_ImplDX12_InitInfo init_info = mRenderer->GetImGuiInitInfo();
 	ImGui_ImplDX12_Init(&init_info);
 }
 void GameEngine::OnDestroy()
 {
-	mRenderer.Cleanup();
+	mRenderer->Cleanup();
 }
 
 void GameEngine::FrameAdvance()
 {
-	mRenderer.Render();
+	mRenderer->Render();
 }
 
 void GameEngine::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
