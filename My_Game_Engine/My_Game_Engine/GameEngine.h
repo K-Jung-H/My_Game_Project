@@ -3,6 +3,10 @@
 #include "Engine/Managers/PhysicsManager.h"
 #include "Engine/Managers/RendererManager.h"
 
+#include "Engine/Resource/ResourceRegistry.h"
+#include "Engine/Resource/ResourceManager.h"
+
+
 class GameEngine
 {
 private:
@@ -10,6 +14,8 @@ private:
 	std::unique_ptr<PhysicsManager> physics_manager;
 	std::unique_ptr<RendererManager> renderer_manager;
 
+	std::unique_ptr <ResourceManager>resource_manager;
+	
 public:
 	void OnCreate(HINSTANCE hInstance, HWND hMainWnd);
 	void OnDestroy();

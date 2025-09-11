@@ -1,7 +1,8 @@
 #pragma once
 #include "Component.h"
 
-class ComponentRegistry {
+class ComponentRegistry 
+{
 public:
     void Notify(GameEngine& engine, Component* comp);
 };

@@ -19,7 +19,10 @@
     <Filter Include="Components">
       <UniqueIdentifier>{9c93f76b-176d-4e03-b970-3225c1ed07f7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Managers">
+    <Filter Include="Resource">
+      <UniqueIdentifier>{572d3ccb-92a1-434a-9a01-6b7262fc9fb2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Component_Managers">
       <UniqueIdentifier>{16579667-0328-4af5-b109-fdd940bf7050}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
@@ -61,10 +64,28 @@
       <Filter>Components</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Managers\PhysicsManager.h">
-      <Filter>Managers</Filter>
+      <Filter>Component_Managers</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Managers\RendererManager.h">
-      <Filter>Managers</Filter>
+      <Filter>Component_Managers</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Resource\Mesh.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Resource\ResourceManager.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Resource\Game_Resource.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Resource\ResourceRegistry.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Resource\Texture.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Resource\Material.h">
+      <Filter>Resource</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -102,10 +123,28 @@
       <Filter>Components</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Managers\PhysicsManager.cpp">
-      <Filter>Managers</Filter>
+      <Filter>Component_Managers</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Managers\RendererManager.cpp">
-      <Filter>Managers</Filter>
+      <Filter>Component_Managers</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\Mesh.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\ResourceManager.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\Game_Resource.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\ResourceRegistry.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\Texture.cpp">
+      <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\Material.cpp">
+      <Filter>Resource</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

@@ -525,6 +525,11 @@ void DX12_Renderer::Cleanup()
 {
     for (UINT i = 0; i < FrameCount; i++)
         WaitForFrame(mFrameResources[i].FenceValue);
+
+    ImGui_ImplDX12_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
+
     CloseHandle(mFenceEvent);
 }
 

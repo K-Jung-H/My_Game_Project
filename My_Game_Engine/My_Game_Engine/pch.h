@@ -17,6 +17,8 @@
 #include <tchar.h>
 
 #include <string>
+#include <string_view>
+
 #include <vector>
 #include <array>
 #include <map>
@@ -40,6 +42,15 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
+
+
+//==============================================================
+// FBX Reading
+//==============================================================
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 
 //==============================================================
 // DirectX 12 Core

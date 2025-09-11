@@ -83,6 +83,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -100,6 +101,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -115,6 +117,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -132,6 +135,7 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <AdditionalIncludeDirectories>$(ProjectDir)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -148,6 +152,12 @@
     <ClInclude Include="Engine\Core\Entity.h" />
     <ClInclude Include="Engine\Managers\PhysicsManager.h" />
     <ClInclude Include="Engine\Managers\RendererManager.h" />
+    <ClInclude Include="Engine\Resource\Material.h" />
+    <ClInclude Include="Engine\Resource\Mesh.h" />
+    <ClInclude Include="Engine\Resource\Game_Resource.h" />
+    <ClInclude Include="Engine\Resource\ResourceManager.h" />
+    <ClInclude Include="Engine\Resource\ResourceRegistry.h" />
+    <ClInclude Include="Engine\Resource\Texture.h" />
     <ClInclude Include="GameEngine.h" />
     <ClInclude Include="My_Game_Project.h" />
     <ClInclude Include="pch.h" />
@@ -164,6 +174,12 @@
     <ClCompile Include="Engine\Core\Entity.cpp" />
     <ClCompile Include="Engine\Managers\PhysicsManager.cpp" />
     <ClCompile Include="Engine\Managers\RendererManager.cpp" />
+    <ClCompile Include="Engine\Resource\Material.cpp" />
+    <ClCompile Include="Engine\Resource\Mesh.cpp" />
+    <ClCompile Include="Engine\Resource\Game_Resource.cpp" />
+    <ClCompile Include="Engine\Resource\ResourceManager.cpp" />
+    <ClCompile Include="Engine\Resource\ResourceRegistry.cpp" />
+    <ClCompile Include="Engine\Resource\Texture.cpp" />
     <ClCompile Include="GameEngine.cpp" />
     <ClCompile Include="My_Game_Project.cpp" />
     <ClCompile Include="pch.cpp">
