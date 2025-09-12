@@ -19,12 +19,12 @@
 //--------------------------------------------------------------------------------------
 
 #pragma once
+#include "pch.h"
 #include <assert.h>
 #include <algorithm>
 #include <memory>
 #include <wrl.h>
 
-#include "d3dx12.h"
 
 namespace DirectX
 {

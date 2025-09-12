@@ -1,5 +1,6 @@
 #pragma once
 #include "pch.h"
+#include "DescriptorManager.h"
 
 struct MRTTargetDesc
 {
@@ -52,6 +53,13 @@ struct FrameResource
     ResourceStateTracker StateTracker;
 };
 
+struct RendererContext
+{
+    ID3D12Device* device;
+    ID3D12GraphicsCommandList* cmdList;
+    DescriptorManager* resourceHeap;
+};
+
 
 class DX12_Renderer
 {
@@ -62,6 +70,7 @@ public:
     void Render();
     void Cleanup();
 
+    RendererContext GetContext() const;
 private:
 
     UINT mWidth = 0;
@@ -82,13 +91,9 @@ private:
     ComPtr<ID3D12GraphicsCommandList> mCommandList;
     ComPtr<IDXGISwapChain3>        mSwapChain;
 
-    // RTV Heap
-    ComPtr<ID3D12DescriptorHeap> mRtvHeap;
-    UINT mRtvDescriptorSize = 0;
-
-    // DSV Heap
-    ComPtr<ID3D12DescriptorHeap> mDsvHeap;
-    UINT mDsvDescriptorSize = 0;
+    std::unique_ptr<DescriptorManager> mRtvManager;
+    std::unique_ptr<DescriptorManager> mDsvManager;
+    std::unique_ptr<DescriptorManager> mResource_Heap_Manager;
 
     // Frame resources
     static const UINT FrameCount = 3; // Triple buffering
@@ -125,6 +130,8 @@ private:
     // Helpers (府家胶 积己)
     bool CreateRTVHeap();
     bool CreateDSVHeap();
+    bool CreateResourceHeap();
+
     bool CreateGBuffer(FrameResource& fr, UINT width, UINT height);
     bool CreateDepthStencil(FrameResource& fr, UINT width, UINT height);    
     

@@ -25,6 +25,9 @@
     <Filter Include="Component_Managers">
       <UniqueIdentifier>{16579667-0328-4af5-b109-fdd940bf7050}</UniqueIdentifier>
     </Filter>
+    <Filter Include="DX_Graphics">
+      <UniqueIdentifier>{118fcaf8-6336-4840-8e7f-48ca2c448ec5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Resource.h">
@@ -37,9 +40,6 @@
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="GameEngine.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
-    <ClInclude Include="Renderer.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Core\Component.h">
@@ -87,6 +87,21 @@
     <ClInclude Include="Engine\Resource\Material.h">
       <Filter>Resource</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\Renderer.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\WICTextureLoader12.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\ResourceUtils.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="My_Game_Project.cpp">
@@ -96,9 +111,6 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="GameEngine.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
-    <ClCompile Include="Renderer.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Core\Component.cpp">
@@ -145,6 +157,21 @@
     </ClCompile>
     <ClCompile Include="Engine\Resource\Material.cpp">
       <Filter>Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\DescriptorManager.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\Renderer.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\DDSTextureLoader12.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\WICTextureLoader12.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\ResourceUtils.cpp">
+      <Filter>DX_Graphics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

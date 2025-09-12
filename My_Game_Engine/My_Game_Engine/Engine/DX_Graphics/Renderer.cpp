@@ -167,37 +167,28 @@ bool DX12_Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
 bool DX12_Renderer::CreateRTVHeap()
 {
     UINT rtvCount = FrameCount + FrameCount * (UINT)GBufferType::Count;
-
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.NumDescriptors = rtvCount;
-    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-    if (FAILED(mDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&mRtvHeap))))
-        return false;
-
-    mRtvDescriptorSize = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    mRtvManager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtvCount);
     return true;
 }
 
 bool DX12_Renderer::CreateDSVHeap()
 {
-    D3D12_DESCRIPTOR_HEAP_DESC desc = {};
-    desc.NumDescriptors = FrameCount;
-    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
-
-    if (FAILED(mDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&mDsvHeap))))
-        return false;
-
-    mDsvDescriptorSize = mDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+    mDsvManager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, FrameCount);
     return true;
 }
+
+bool DX12_Renderer::CreateResourceHeap()
+{
+    mResource_Heap_Manager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, MAX_RESOURCE_HEAP_SIZE);
+    return true;
+}
+
 
 bool DX12_Renderer::CreateDescriptorHeaps()
 {
     if (!CreateRTVHeap()) return false;
     if (!CreateDSVHeap()) return false;
+    if(!CreateResourceHeap()) return false;
     return true;
 }
 
@@ -218,9 +209,7 @@ bool DX12_Renderer::CreateFrameResources()
 
 bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
 {
-    return SUCCEEDED(mDevice->CreateCommandAllocator(
-        D3D12_COMMAND_LIST_TYPE_DIRECT,
-        IID_PPV_ARGS(&fr.CommandAllocator)));
+    return SUCCEEDED(mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&fr.CommandAllocator)));
 }
 
 
@@ -229,13 +218,12 @@ bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
     if (FAILED(mSwapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&fr.RenderTarget))))
         return false;
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
-        mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
-        frameIndex,
-        mRtvDescriptorSize);
+    UINT slot = mRtvManager->Allocate();
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = mRtvManager->GetCpuHandle(slot);
 
     mDevice->CreateRenderTargetView(fr.RenderTarget.Get(), nullptr, handle);
     mBackBufferRtvHandles[frameIndex] = handle;
+
 
     fr.StateTracker.Register(fr.RenderTarget.Get(), D3D12_RESOURCE_STATE_PRESENT);
 
@@ -282,10 +270,8 @@ bool DX12_Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
 
     for (UINT g = 0; g < (UINT)GBufferType::Count; g++)
     {
-        CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
-            mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
-            baseIndex + g,
-            mRtvDescriptorSize);
+        UINT slot = mRtvManager->Allocate();
+        D3D12_CPU_DESCRIPTOR_HANDLE handle = mRtvManager->GetCpuHandle(slot);
 
         mDevice->CreateRenderTargetView(fr.gbuffer.targets[g].Get(), nullptr, handle);
         mGBufferRtvHandles[frameIndex][g] = handle;
@@ -322,10 +308,8 @@ bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
 {
     if (!CreateDepthStencil(fr, mWidth, mHeight)) return false;
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
-        mDsvHeap->GetCPUDescriptorHandleForHeapStart(),
-        frameIndex,
-        mDsvDescriptorSize);
+    UINT slot = mDsvManager->Allocate();
+    D3D12_CPU_DESCRIPTOR_HANDLE handle = mDsvManager->GetCpuHandle(slot);
 
     mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), nullptr, handle);
     mDsvHandles[frameIndex] = handle;
@@ -394,6 +378,9 @@ FrameResource& DX12_Renderer::GetCurrentFrameResource()
         WaitForSingleObject(mFenceEvent, INFINITE);
     }
 
+    mRtvManager->Update();
+    mDsvManager->Update();
+    mResource_Heap_Manager->Update();
     return fr;
 }
 
@@ -474,6 +461,9 @@ void DX12_Renderer::Render()
     ClearGBuffer();
     ClearBackBuffer(clear_color);
 
+    ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
+    mCommandList->SetDescriptorHeaps(1, heaps);
+
     // ImGui 시작
     ImGui_ImplDX12_NewFrame();
     ImGui_ImplWin32_NewFrame();
@@ -490,8 +480,8 @@ void DX12_Renderer::Render()
 
 
     // ---- ImGui 드로우 ----
-    ID3D12DescriptorHeap* heaps[] = { mImguiSrvHeap.Get() };
-    mCommandList->SetDescriptorHeaps(1, heaps);
+    ID3D12DescriptorHeap* imgui_heaps[] = { mImguiSrvHeap.Get() };
+    mCommandList->SetDescriptorHeaps(1, imgui_heaps);
     mCommandList->OMSetRenderTargets(
         1, &mBackBufferRtvHandles[mFrameIndex], FALSE, &mDsvHandles[mFrameIndex]);
 
@@ -532,6 +522,16 @@ void DX12_Renderer::Cleanup()
 
     CloseHandle(mFenceEvent);
 }
+
+RendererContext DX12_Renderer::GetContext() const
+{
+    RendererContext ctx = {};
+    ctx.device = mDevice.Get();
+    ctx.cmdList = mCommandList.Get();
+    ctx.resourceHeap = mResource_Heap_Manager.get();
+    return ctx;
+}
+
 
 ImGui_ImplDX12_InitInfo DX12_Renderer::GetImGuiInitInfo() const
 {

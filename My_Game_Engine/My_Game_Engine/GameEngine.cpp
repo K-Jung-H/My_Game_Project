@@ -3,6 +3,8 @@
 
 void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 {
+	CoInitialize(NULL);
+
 	mRenderer = std::make_unique<DX12_Renderer>();
 	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
 
@@ -27,7 +29,20 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 
 	ImGui_ImplDX12_InitInfo init_info = mRenderer->GetImGuiInitInfo();
 	ImGui_ImplDX12_Init(&init_info);
+
+	physics_manager = std::make_unique<PhysicsManager>();
+	renderer_manager = std::make_unique<RendererManager>();
+	resource_manager = std::make_unique<ResourceManager>();
+
+	auto ctx = mRenderer->GetContext();
+	const std::string path = "assets/CP_100_0002_63.fbx";
+	
+	LoadResult result = ResourceRegistry::Instance().Load(*resource_manager, path, "test", ctx);
+
+
+
 }
+
 void GameEngine::OnDestroy()
 {
 	mRenderer->Cleanup();

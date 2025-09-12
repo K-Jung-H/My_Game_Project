@@ -9,7 +9,7 @@ Material::Material() : Game_Resource()
     metallicTexId = INVALID_ID;
 }
 
-bool Material::LoadFromFile(std::string_view path)
+bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
 {
     return false;
 }

@@ -150,6 +150,11 @@
     <ClInclude Include="Engine\Core\Component.h" />
     <ClInclude Include="Engine\Core\ComponentRegistry.h" />
     <ClInclude Include="Engine\Core\Entity.h" />
+    <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h" />
+    <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h" />
+    <ClInclude Include="Engine\DX_Graphics\Renderer.h" />
+    <ClInclude Include="Engine\DX_Graphics\ResourceUtils.h" />
+    <ClInclude Include="Engine\DX_Graphics\WICTextureLoader12.h" />
     <ClInclude Include="Engine\Managers\PhysicsManager.h" />
     <ClInclude Include="Engine\Managers\RendererManager.h" />
     <ClInclude Include="Engine\Resource\Material.h" />
@@ -161,7 +166,6 @@
     <ClInclude Include="GameEngine.h" />
     <ClInclude Include="My_Game_Project.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="Renderer.h" />
     <ClInclude Include="Resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -172,6 +176,11 @@
     <ClCompile Include="Engine\Core\Component.cpp" />
     <ClCompile Include="Engine\Core\ComponentRegistry.cpp" />
     <ClCompile Include="Engine\Core\Entity.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\DDSTextureLoader12.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\DescriptorManager.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\Renderer.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\ResourceUtils.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\WICTextureLoader12.cpp" />
     <ClCompile Include="Engine\Managers\PhysicsManager.cpp" />
     <ClCompile Include="Engine\Managers\RendererManager.cpp" />
     <ClCompile Include="Engine\Resource\Material.cpp" />
@@ -188,7 +197,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="My_Game_Engine.rc" />

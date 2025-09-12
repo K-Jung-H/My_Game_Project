@@ -109,4 +109,5 @@ extern HINSTANCE hInst;
 #define SCREEN_WIDTH				1920
 #define SCREEN_HEIGHT				1080
 
+#define MAX_RESOURCE_HEAP_SIZE 1000
 #endif //PCH_H

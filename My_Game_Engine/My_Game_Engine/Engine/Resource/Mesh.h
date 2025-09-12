@@ -7,10 +7,11 @@ class Mesh : public Game_Resource
 public:
     Mesh();
     virtual ~Mesh() = default;
-    virtual bool LoadFromFile(std::string_view path);
+    virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
+
     void FromAssimp(const aiMesh* mesh);
 
-
+    UINT GetSlot() const { return -1; }
 public:
     std::vector<XMFLOAT3> positions;
     std::vector<XMFLOAT3> normals;

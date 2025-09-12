@@ -1,8 +1,7 @@
 #include "pch.h"
 #include "ResourceRegistry.h"
 
-
-LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias)
+LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias,  const RendererContext& ctx)
 {
     LoadResult result;
 
@@ -14,7 +13,12 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals);
 
-    if (!scene) return result;
+    if (!scene)
+    {
+        std::string errMsg = "[Assimp] Failed to load: " + path + "\nReason: " + importer.GetErrorString() + "\n";        
+        OutputDebugStringA(errMsg.c_str());
+        return result;
+    }
 
     for (unsigned int i = 0; i < scene->mNumMeshes; i++)
     {
@@ -40,28 +44,28 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
         result.materialIds.push_back(mat->GetId());
 
         mat->diffuseTexId = LoadMaterialTexture(manager, scene->mMaterials[i], aiTextureType_DIFFUSE,
-            mNextResourceID, path, "diffuse" + std::to_string(i), result.textureIds);
+            mNextResourceID, path, "diffuse" + std::to_string(i), result.textureIds, ctx);
 
         mat->normalTexId = LoadMaterialTexture(manager, scene->mMaterials[i], aiTextureType_NORMALS,
-            mNextResourceID, path, "normal" + std::to_string(i), result.textureIds);
+            mNextResourceID, path, "normal" + std::to_string(i), result.textureIds, ctx);
 
         mat->roughnessTexId = LoadMaterialTexture(manager, scene->mMaterials[i], aiTextureType_DIFFUSE_ROUGHNESS,
-            mNextResourceID, path, "roughness" + std::to_string(i), result.textureIds);
+            mNextResourceID, path, "roughness" + std::to_string(i), result.textureIds, ctx);
 
         mat->metallicTexId = LoadMaterialTexture(manager, scene->mMaterials[i], aiTextureType_METALNESS,
-            mNextResourceID, path, "metallic" + std::to_string(i), result.textureIds);
+            mNextResourceID, path, "metallic" + std::to_string(i), result.textureIds, ctx);
     }
 
     return result;
 }
 
-UINT ResourceRegistry::LoadMaterialTexture(ResourceManager& manager, aiMaterial* material, aiTextureType type, UINT& nextId, const std::string& basePath, const std::string& suffix, std::vector<UINT>& outTextureIds)
+UINT ResourceRegistry::LoadMaterialTexture(ResourceManager& manager, aiMaterial* material, aiTextureType type, UINT& nextId, const std::string& basePath, const std::string& suffix, std::vector<UINT>& outTextureIds, const RendererContext& ctx)
 {
     aiString texPath;
     if (material->GetTexture(type, 0, &texPath) == AI_SUCCESS)
     {
         auto tex = std::make_shared<Texture>();
-        tex->LoadFromFile(texPath.C_Str());
+        tex->LoadFromFile(texPath.C_Str(), ctx);
         tex->SetId(nextId++);
         tex->SetPath(texPath.C_Str());
         tex->SetAlias(basePath + "_tex_" + suffix);

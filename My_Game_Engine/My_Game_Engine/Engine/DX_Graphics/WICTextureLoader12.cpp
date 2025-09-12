@@ -25,18 +25,14 @@
 // We could load multi-frame images (TIFF/GIF) into a texture array.
 // For now, we just load the first frame (note: DirectXTex supports multi-frame images)
 
-#include "stdafx.h"
-
+#include "pch.h"
 #include "WICTextureLoader12.h"
 
 #include <assert.h>
 #include <algorithm>
 
 #include <wincodec.h>
-
 #include <wrl\client.h>
-
-#include "d3dx12.h"
 
 using namespace DirectX;
 using Microsoft::WRL::ComPtr;

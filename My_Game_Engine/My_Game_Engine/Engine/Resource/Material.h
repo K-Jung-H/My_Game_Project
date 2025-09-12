@@ -9,7 +9,8 @@ class Material : public Game_Resource
 public:
     Material();
     virtual ~Material() = default;
-    virtual bool LoadFromFile(std::string_view path);
+    virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
+
     void FromAssimp(const aiMaterial* material);
 
 

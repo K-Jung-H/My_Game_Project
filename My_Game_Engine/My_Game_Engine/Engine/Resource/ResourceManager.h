@@ -3,8 +3,6 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Material.h"
-
-
 #include "Game_Resource.h"
 
 struct ResourceEntry

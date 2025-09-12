@@ -6,7 +6,7 @@ Mesh::Mesh() : Game_Resource()
 
 }
 
-bool Mesh::LoadFromFile(std::string_view path)
+bool Mesh::LoadFromFile(std::string_view path, const RendererContext& ctx)
 {
 	return true;
 }
