@@ -29,7 +29,8 @@ private:
     ResourceRegistry() = default;
     ~ResourceRegistry() = default;
 
-    UINT LoadMaterialTexture(ResourceManager& manager, aiMaterial* material, aiTextureType type, UINT& nextId, const std::string& basePath, const std::string& suffix, std::vector<UINT>& outTextureIds, const RendererContext& ctx);
+//    UINT LoadMaterialTexture(ResourceManager& manager, aiMaterial* material, aiTextureType type, UINT& nextId, const std::string& basePath, const std::string& suffix, std::vector<UINT>& outTextureIds, const RendererContext& ctx);
+    std::vector<UINT> LoadMaterialTextures(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);
 
     UINT mNextResourceID = 1;
 };
