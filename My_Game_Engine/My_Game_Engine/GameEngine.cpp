@@ -34,11 +34,13 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
 
-	auto ctx = mRenderer->GetContext();
+
+	mRenderer->BeginUpload();
+	auto ctx = mRenderer->Get_UploadContext();
 	const std::string path = "assets/CP_100_0002_63.fbx";
 	
 	LoadResult result = ResourceRegistry::Instance().Load(*resource_manager, path, "test", ctx);
-
+	mRenderer->EndUpload();
 
 
 }

@@ -152,6 +152,9 @@
     <ClInclude Include="Engine\Core\Entity.h" />
     <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h" />
     <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h" />
+    <ClInclude Include="Engine\DX_Graphics\Graphic_RootSignature.h" />
+    <ClInclude Include="Engine\DX_Graphics\Graphic_Shader.h" />
+    <ClInclude Include="Engine\DX_Graphics\PipelineDescFactory.h" />
     <ClInclude Include="Engine\DX_Graphics\Renderer.h" />
     <ClInclude Include="Engine\DX_Graphics\ResourceUtils.h" />
     <ClInclude Include="Engine\DX_Graphics\WICTextureLoader12.h" />
@@ -178,6 +181,9 @@
     <ClCompile Include="Engine\Core\Entity.cpp" />
     <ClCompile Include="Engine\DX_Graphics\DDSTextureLoader12.cpp" />
     <ClCompile Include="Engine\DX_Graphics\DescriptorManager.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\Graphic_RootSignature.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\Graphic_Shader.cpp" />
+    <ClCompile Include="Engine\DX_Graphics\PipelineDescFactory.cpp" />
     <ClCompile Include="Engine\DX_Graphics\Renderer.cpp" />
     <ClCompile Include="Engine\DX_Graphics\ResourceUtils.cpp" />
     <ClCompile Include="Engine\DX_Graphics\WICTextureLoader12.cpp" />

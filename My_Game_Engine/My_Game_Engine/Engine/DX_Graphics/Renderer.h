@@ -1,6 +1,7 @@
 #pragma once
 #include "pch.h"
 #include "DescriptorManager.h"
+#include "Graphic_Shader.h"
 
 struct MRTTargetDesc
 {
@@ -70,7 +71,10 @@ public:
     void Render();
     void Cleanup();
 
-    RendererContext GetContext() const;
+    RendererContext Get_RenderContext() const;
+    RendererContext Get_UploadContext() const;
+    void BeginUpload();
+    void EndUpload();
 private:
 
     UINT mWidth = 0;
@@ -110,6 +114,17 @@ private:
 
     ComPtr<ID3D12Fence> mFence;
     UINT64 mFrameFenceValues[FrameCount] = {};
+
+    std::unique_ptr <PSO_Manager> pso_manager;
+
+private:
+    // === Resource Upload Àü¿ë Command List ===
+    ComPtr<ID3D12CommandAllocator>    mUploadAllocator;
+    ComPtr<ID3D12GraphicsCommandList> mUploadCommandList;
+
+    UINT64 mUploadFenceValue = 0;
+    bool   mUploadClosed = false;
+    bool CreateCommandList_Upload();
 
 private:
     // === Initialization steps ===

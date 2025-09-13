@@ -102,6 +102,15 @@
     <ClInclude Include="Engine\DX_Graphics\ResourceUtils.h">
       <Filter>DX_Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\Graphic_RootSignature.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\Graphic_Shader.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\DX_Graphics\PipelineDescFactory.h">
+      <Filter>DX_Graphics</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="My_Game_Project.cpp">
@@ -171,6 +180,15 @@
       <Filter>DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\ResourceUtils.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\Graphic_RootSignature.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\Graphic_Shader.cpp">
+      <Filter>DX_Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\DX_Graphics\PipelineDescFactory.cpp">
       <Filter>DX_Graphics</Filter>
     </ClCompile>
   </ItemGroup>

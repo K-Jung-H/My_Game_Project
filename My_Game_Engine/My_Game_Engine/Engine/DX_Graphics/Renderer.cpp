@@ -58,7 +58,12 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
     if (!CreateFrameResources()) return false;
     if (!CreateCommandList()) return false;
     if (!CreateFenceObjects()) return false;
+    if (!CreateCommandList_Upload()) return false;
     
+    
+    pso_manager = std::make_unique<PSO_Manager>(mDevice);
+
+    //---------------------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     desc.NumDescriptors = 1; 
@@ -339,31 +344,53 @@ bool DX12_Renderer::CreateFenceObjects()
     return (mFenceEvent != nullptr);
 }
 
-bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
+bool DX12_Renderer::CreateCommandList_Upload()
 {
-    if (!mDevice || !mSwapChain) return false;
+    if (FAILED(mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&mUploadAllocator))))
+        return false;
 
-    for (auto& fr : mFrameResources)
-        WaitForFrame(fr.FenceValue);
+    if (FAILED(mDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mUploadAllocator.Get(), nullptr, IID_PPV_ARGS(&mUploadCommandList))))
+        return false;
 
-    mWidth = newWidth;
-    mHeight = newHeight;
+    mUploadCommandList->Close();
+    mUploadClosed = true;
+    return true;
+}
 
-    for (auto& fr : mFrameResources) {
-        fr.RenderTarget.Reset();
-        fr.DepthStencilBuffer.Reset();
-        for (auto& target : fr.gbuffer.targets)
-            target.Reset();
-        fr.gbuffer.Depth.Reset();
+void DX12_Renderer::BeginUpload()
+{
+    if (mUploadClosed == false)
+    {
+        OutputDebugStringA("[DX12_Renderer] Warning: BeginUpload called while previous upload still open.\n");
     }
 
-    DXGI_SWAP_CHAIN_DESC desc;
-    mSwapChain->GetDesc(&desc);
-    mSwapChain->ResizeBuffers(FrameCount, newWidth, newHeight, desc.BufferDesc.Format, desc.Flags);
-    mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
+    if (mFence->GetCompletedValue() < mUploadFenceValue)
+    {
+        mFence->SetEventOnCompletion(mUploadFenceValue, mFenceEvent);
+        WaitForSingleObject(mFenceEvent, INFINITE);
+    }
 
-    return CreateFrameResources();
+    mUploadAllocator->Reset();
+    mUploadCommandList->Reset(mUploadAllocator.Get(), nullptr);
+    mUploadClosed = false;
 }
+
+void DX12_Renderer::EndUpload()
+{
+    mUploadCommandList->Close();
+
+    ID3D12CommandList* lists[] = { mUploadCommandList.Get() };
+    mCommandQueue->ExecuteCommandLists(1, lists);
+
+    mUploadFenceValue = ++mFenceValue;
+    mCommandQueue->Signal(mFence.Get(), mUploadFenceValue);
+
+    mFence->SetEventOnCompletion(mUploadFenceValue, mFenceEvent);
+    WaitForSingleObject(mFenceEvent, INFINITE);
+
+    mUploadClosed = true;
+}
+
 
 // ------------------- Rendering Steps -------------------
 
@@ -511,6 +538,32 @@ void DX12_Renderer::WaitForFrame(UINT64 fenceValue)
     }
 }
 
+bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
+{
+    if (!mDevice || !mSwapChain) return false;
+
+    for (auto& fr : mFrameResources)
+        WaitForFrame(fr.FenceValue);
+
+    mWidth = newWidth;
+    mHeight = newHeight;
+
+    for (auto& fr : mFrameResources) {
+        fr.RenderTarget.Reset();
+        fr.DepthStencilBuffer.Reset();
+        for (auto& target : fr.gbuffer.targets)
+            target.Reset();
+        fr.gbuffer.Depth.Reset();
+    }
+
+    DXGI_SWAP_CHAIN_DESC desc;
+    mSwapChain->GetDesc(&desc);
+    mSwapChain->ResizeBuffers(FrameCount, newWidth, newHeight, desc.BufferDesc.Format, desc.Flags);
+    mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
+
+    return CreateFrameResources();
+}
+
 void DX12_Renderer::Cleanup()
 {
     for (UINT i = 0; i < FrameCount; i++)
@@ -523,7 +576,7 @@ void DX12_Renderer::Cleanup()
     CloseHandle(mFenceEvent);
 }
 
-RendererContext DX12_Renderer::GetContext() const
+RendererContext DX12_Renderer::Get_RenderContext() const
 {
     RendererContext ctx = {};
     ctx.device = mDevice.Get();
@@ -532,6 +585,14 @@ RendererContext DX12_Renderer::GetContext() const
     return ctx;
 }
 
+RendererContext DX12_Renderer::Get_UploadContext() const
+{
+    RendererContext ctx = {};
+    ctx.device = mDevice.Get();
+    ctx.cmdList = mUploadCommandList.Get();
+    ctx.resourceHeap = mResource_Heap_Manager.get();
+    return ctx;
+}
 
 ImGui_ImplDX12_InitInfo DX12_Renderer::GetImGuiInitInfo() const
 {
