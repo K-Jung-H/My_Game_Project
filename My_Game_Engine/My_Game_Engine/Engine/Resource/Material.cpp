@@ -3,10 +3,10 @@
 
 Material::Material() : Game_Resource()
 {
-    diffuseTexId = INVALID_ID;
-    normalTexId = INVALID_ID;
-    roughnessTexId = INVALID_ID;
-    metallicTexId = INVALID_ID;
+    diffuseTexId = Engine::INVALID_ID;
+    normalTexId = Engine::INVALID_ID;
+    roughnessTexId = Engine::INVALID_ID;
+    metallicTexId = Engine::INVALID_ID;
 }
 
 bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)

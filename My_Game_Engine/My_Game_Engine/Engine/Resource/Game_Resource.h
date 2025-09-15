@@ -29,7 +29,7 @@ protected:
     void SetPath(std::string_view p) { file_path = p; }
 
 public:
-    Game_Resource(ResourceType new_resource_type = ResourceType::etc) : resource_type(new_resource_type) {};
+    Game_Resource(ResourceType new_resource_type = ResourceType::etc) : resource_type(new_resource_type) { resource_id = Engine::INVALID_ID; };
     virtual ~Game_Resource() = default;
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx) = 0;
 

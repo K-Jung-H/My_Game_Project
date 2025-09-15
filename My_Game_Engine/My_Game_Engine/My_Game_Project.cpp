@@ -8,7 +8,7 @@ HINSTANCE hInst;
 WCHAR szTitle[MAX_LOADSTRING];
 WCHAR szWindowClass[MAX_LOADSTRING];
 
-GameEngine					gGameEngine;
+
 
 
 // 이 코드 모듈에 포함된 함수의 선언을 전달합니다:
@@ -53,10 +53,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
         else
         {
-            gGameEngine.FrameAdvance();
+            GameEngine::Get().FrameAdvance();
         }
     }
-    gGameEngine.OnDestroy();
+    GameEngine::Get().OnDestroy();
     FreeConsole();
 
     return((int)msg.wParam);
@@ -97,7 +97,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    if (!hWnd) return(FALSE);
 
-   gGameEngine.OnCreate(hInstance, hWnd);
+   GameEngine::Get().OnCreate(hInstance, hWnd);
 
    ::ShowWindow(hWnd, nCmdShow);
    ::UpdateWindow(hWnd);
@@ -121,13 +121,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     case WM_RBUTTONUP:
     case WM_MOUSEMOVE:
     case WM_MOUSEWHEEL:
-        gGameEngine.OnProcessingWindowMessage(hWnd, message, wParam, lParam);
+        GameEngine::Get().OnProcessingWindowMessage(hWnd, message, wParam, lParam);
         break;
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_CHAR:
 
-        gGameEngine.OnProcessingWindowMessage(hWnd, message, wParam, lParam);
+        GameEngine::Get().OnProcessingWindowMessage(hWnd, message, wParam, lParam);
         break;
     case WM_COMMAND:
         wmId = LOWORD(wParam);

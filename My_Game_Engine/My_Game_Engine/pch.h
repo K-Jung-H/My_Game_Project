@@ -111,4 +111,11 @@ extern HINSTANCE hInst;
 #define SCREEN_HEIGHT				1080
 
 #define MAX_RESOURCE_HEAP_SIZE 1000
+
+namespace Engine {
+    constexpr UINT INVALID_ID = 0xFFFFFFFFu;
+}
+
 #endif //PCH_H
+
+

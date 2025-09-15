@@ -33,13 +33,14 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	physics_manager = std::make_unique<PhysicsManager>();
 	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
+	scene_manager = std::make_unique<SceneManager>();
 
 
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();
-	const std::string path = "assets/CP_100_0002_63.fbx";
-	
-	LoadResult result = ResourceRegistry::Instance().Load(*resource_manager, path, "test", ctx);
+
+	scene_manager->CreateScene("wow");
+
 	mRenderer->EndUpload();
 
 

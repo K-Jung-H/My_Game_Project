@@ -150,6 +150,7 @@
     <ClInclude Include="Engine\Core\Component.h" />
     <ClInclude Include="Engine\Core\ComponentRegistry.h" />
     <ClInclude Include="Engine\Core\Entity.h" />
+    <ClInclude Include="Engine\Core\Scene.h" />
     <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h" />
     <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h" />
     <ClInclude Include="Engine\DX_Graphics\Graphic_RootSignature.h" />
@@ -170,6 +171,7 @@
     <ClInclude Include="My_Game_Project.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="Scene_Manager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Engine\Components\CameraComponent.cpp" />
@@ -179,6 +181,7 @@
     <ClCompile Include="Engine\Core\Component.cpp" />
     <ClCompile Include="Engine\Core\ComponentRegistry.cpp" />
     <ClCompile Include="Engine\Core\Entity.cpp" />
+    <ClCompile Include="Engine\Core\Scene.cpp" />
     <ClCompile Include="Engine\DX_Graphics\DDSTextureLoader12.cpp" />
     <ClCompile Include="Engine\DX_Graphics\DescriptorManager.cpp" />
     <ClCompile Include="Engine\DX_Graphics\Graphic_RootSignature.cpp" />
@@ -203,6 +206,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Scene_Manager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="My_Game_Engine.rc" />

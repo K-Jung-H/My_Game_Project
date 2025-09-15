@@ -2,7 +2,6 @@
 #include "pch.h"
 #include "Game_Resource.h"
 
-#define INVALID_ID 0xFFFFFFFF
 
 class Material : public Game_Resource
 {
@@ -18,8 +17,8 @@ public:
     float roughness;
     float metallic;
 
-    UINT diffuseTexId = INVALID_ID;
-    UINT normalTexId = INVALID_ID;
-    UINT roughnessTexId = INVALID_ID;
-    UINT metallicTexId = INVALID_ID;
+    UINT diffuseTexId = Engine::INVALID_ID;
+    UINT normalTexId = Engine::INVALID_ID;
+    UINT roughnessTexId = Engine::INVALID_ID;
+    UINT metallicTexId = Engine::INVALID_ID;
 };

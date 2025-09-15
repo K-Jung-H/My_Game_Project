@@ -75,7 +75,24 @@ std::vector<UINT> ResourceRegistry::LoadMaterialTextures(ResourceManager& manage
             std::filesystem::path texRel = std::filesystem::path(texPath.C_Str());
             std::filesystem::path fullPath = baseDir / texRel;
 
+            if (auto existing = manager.GetByPath(fullPath.string()))
+            {
+                auto tex = std::static_pointer_cast<Texture>(existing);
+                textureIds.push_back(tex->GetId());
+
+                switch (type)
+                {
+                case aiTextureType_DIFFUSE:           mat->diffuseTexId = tex->GetId(); break;
+                case aiTextureType_NORMALS:           mat->normalTexId = tex->GetId(); break;
+                case aiTextureType_DIFFUSE_ROUGHNESS: mat->roughnessTexId = tex->GetId(); break;
+                case aiTextureType_METALNESS:         mat->metallicTexId = tex->GetId(); break;
+                }
+
+                continue;
+            }
+
             auto tex = std::make_shared<Texture>();
+
             if (!tex->LoadFromFile(fullPath.string(), ctx))
                 continue;
 
@@ -83,6 +100,7 @@ std::vector<UINT> ResourceRegistry::LoadMaterialTextures(ResourceManager& manage
             tex->SetPath(fullPath.string());
             tex->SetAlias(basePath + "_tex_" + suffix);
             manager.Add(tex);
+
             textureIds.push_back(tex->GetId());
 
             switch (type)
