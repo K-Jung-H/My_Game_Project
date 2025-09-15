@@ -149,7 +149,7 @@
     <ClInclude Include="Engine\Components\TransformComponent.h" />
     <ClInclude Include="Engine\Core\Component.h" />
     <ClInclude Include="Engine\Core\ComponentRegistry.h" />
-    <ClInclude Include="Engine\Core\Entity.h" />
+    <ClInclude Include="Engine\Core\Object.h" />
     <ClInclude Include="Engine\Core\Scene.h" />
     <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h" />
     <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h" />
@@ -180,7 +180,7 @@
     <ClCompile Include="Engine\Components\TransformComponent.cpp" />
     <ClCompile Include="Engine\Core\Component.cpp" />
     <ClCompile Include="Engine\Core\ComponentRegistry.cpp" />
-    <ClCompile Include="Engine\Core\Entity.cpp" />
+    <ClCompile Include="Engine\Core\Object.cpp" />
     <ClCompile Include="Engine\Core\Scene.cpp" />
     <ClCompile Include="Engine\DX_Graphics\DDSTextureLoader12.cpp" />
     <ClCompile Include="Engine\DX_Graphics\DescriptorManager.cpp" />

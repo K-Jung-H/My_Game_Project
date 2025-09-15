@@ -1,7 +1,8 @@
 #include "pch.h"
 #include "MeshRendererComponent.h"
 
-MeshRendererComponent::MeshRendererComponent() {
+MeshRendererComponent::MeshRendererComponent()
+{
 }
 
 void MeshRendererComponent::SetMesh(Mesh* mesh) {
@@ -12,7 +13,8 @@ void MeshRendererComponent::SetMaterial(Material* material) {
     mMaterial = material;
 }
 
-void MeshRendererComponent::Render() {
+void MeshRendererComponent::Render() 
+{
     // TODO: DX12 rendering
     // 1. Bind pipeline state & root signature
     // 2. Set vertex/index buffer from mMesh

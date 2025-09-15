@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Scene.h"
 #include "GameEngine.h"
+#include "../Resource/ResourceRegistry.h"
 
 Scene::Scene() 
 { 
@@ -19,6 +20,9 @@ void Scene::Build()
 
 	const std::string path = "assets/CP_100_0002_63.fbx";
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
+
+	std::shared_ptr<Object> test_obj = Object::Create("test_obj");
+
 }
 
 

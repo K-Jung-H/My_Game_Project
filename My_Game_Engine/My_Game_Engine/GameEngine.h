@@ -2,8 +2,6 @@
 #include "Engine/DX_Graphics/Renderer.h"
 #include "Engine/Managers/PhysicsManager.h"
 #include "Engine/Managers/RendererManager.h"
-
-#include "Engine/Resource/ResourceRegistry.h"
 #include "Engine/Resource/ResourceManager.h"
 #include "Scene_Manager.h"
 

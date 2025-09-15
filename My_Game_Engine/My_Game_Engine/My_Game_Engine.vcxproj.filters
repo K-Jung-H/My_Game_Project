@@ -48,9 +48,6 @@
     <ClInclude Include="Engine\Core\ComponentRegistry.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="Engine\Core\Entity.h">
-      <Filter>Core</Filter>
-    </ClInclude>
     <ClInclude Include="Engine\Components\CameraComponent.h">
       <Filter>Components</Filter>
     </ClInclude>
@@ -117,6 +114,9 @@
     <ClInclude Include="Scene_Manager.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Core\Object.h">
+      <Filter>Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="My_Game_Project.cpp">
@@ -129,9 +129,6 @@
       <Filter>소스 파일</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Core\Component.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Engine\Core\Entity.cpp">
       <Filter>Core</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Core\ComponentRegistry.cpp">
@@ -202,6 +199,9 @@
     </ClCompile>
     <ClCompile Include="Scene_Manager.cpp">
       <Filter>소스 파일</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Core\Object.cpp">
+      <Filter>Core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

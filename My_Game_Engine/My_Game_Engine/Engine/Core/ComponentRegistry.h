@@ -4,5 +4,5 @@
 class ComponentRegistry 
 {
 public:
-    void Notify(GameEngine& engine, Component* comp);
+    static void Notify(std::weak_ptr<Component> comp);
 };

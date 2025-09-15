@@ -2,7 +2,12 @@
 #include "../Core/Component.h"
 #include <DirectXMath.h>
 
-class CameraComponent : public Component {
+class CameraComponent : public Component 
+{
+public:
+    static constexpr Component_Type Type = Component_Type::Camera;
+    Component_Type GetType() const override { return Type; }
+
 public:
     CameraComponent();
 

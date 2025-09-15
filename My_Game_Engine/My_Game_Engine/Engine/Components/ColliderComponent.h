@@ -1,8 +1,12 @@
 #pragma once
 #include "../Core/Component.h"
 
-// Simple sphere collider (for now)
-class ColliderComponent : public Component {
+class ColliderComponent : public Component 
+{
+public:
+    static constexpr Component_Type Type = Component_Type::Collider;
+    Component_Type GetType() const override { return Type; }
+
 public:
     ColliderComponent(float radius = 1.0f);
 

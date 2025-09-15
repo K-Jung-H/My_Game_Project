@@ -1,11 +1,15 @@
 #pragma once
 #include "../Core/Component.h"
 
-// Forward declaration
 class Mesh;
 class Material;
 
-class MeshRendererComponent : public Component {
+class MeshRendererComponent : public Component 
+{
+public:
+    static constexpr Component_Type Type = Component_Type::Mesh_Renderer;
+    Component_Type GetType() const override { return Type; }
+
 public:
     MeshRendererComponent();
 
@@ -15,6 +19,6 @@ public:
     virtual void Render() override;
 
 private:
-    Mesh* mMesh = nullptr;         // Pointer to mesh resource
-    Material* mMaterial = nullptr; // Pointer to material/shader resource
+    Mesh* mMesh = nullptr;         
+    Material* mMaterial = nullptr; 
 };

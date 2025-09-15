@@ -1,12 +1,15 @@
 #pragma once
 #include <vector>
+
+class Component;
 class ColliderComponent;
 
-class PhysicsManager {
+class PhysicsManager 
+{
 public:
-    void Register(ColliderComponent* col);
+    void Register(std::weak_ptr<Component> col);
     void Simulate(float dt);
 
 private:
-    std::vector<ColliderComponent*> mColliders;
+    std::vector< std::weak_ptr<ColliderComponent>> mColliders;
 };
