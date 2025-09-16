@@ -18,9 +18,14 @@ class ResourceManager
 public:
     void Add(const std::shared_ptr<Game_Resource>& res);
 
-    std::shared_ptr<Game_Resource> GetByPath(const std::string& path) const;
-    std::shared_ptr<Game_Resource> GetByAlias(const std::string& alias) const;
-    std::shared_ptr<Game_Resource> GetById(UINT id) const;
+    template<typename T>
+    std::shared_ptr<T> GetByPath(const std::string& path) const;
+
+    template<typename T>
+    std::shared_ptr<T> GetByAlias(const std::string& alias) const;
+
+    template<typename T>
+    std::shared_ptr<T> GetById(UINT id) const;
 
 private:
     std::unordered_map<UINT, ResourceEntry> map_Resources;
@@ -31,3 +36,36 @@ private:
     std::vector<std::shared_ptr<Material>> mMaterials;
     std::vector<std::shared_ptr<Texture>>  mTextures;
 };
+
+template<typename T>
+std::shared_ptr<T> ResourceManager::GetByPath(const std::string& path) const
+{
+    if (auto it = mPathToId.find(path); it != mPathToId.end()) 
+    {
+        auto res = map_Resources.at(it->second).resource;
+        return std::dynamic_pointer_cast<T>(res);
+    }
+    return nullptr;
+}
+
+template<typename T>
+std::shared_ptr<T> ResourceManager::GetByAlias(const std::string& alias) const
+{
+    if (auto it = mAliasToId.find(alias); it != mAliasToId.end()) 
+    {
+        auto res = map_Resources.at(it->second).resource;
+        return std::dynamic_pointer_cast<T>(res);
+    }
+    return nullptr;
+}
+
+template<typename T>
+std::shared_ptr<T> ResourceManager::GetById(UINT id) const
+{
+    if (auto it = map_Resources.find(id); it != map_Resources.end()) 
+    {
+        auto res = it->second.resource;
+        return std::dynamic_pointer_cast<T>(res);
+    }
+    return nullptr;
+}

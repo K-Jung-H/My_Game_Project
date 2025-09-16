@@ -2,13 +2,14 @@
 #include "pch.h"
 #include "Game_Resource.h"
 #include "ResourceManager.h"
-
+#include "Model.h"
 
 struct LoadResult 
 {
     std::vector<UINT> meshIds;
     std::vector<UINT> materialIds;
     std::vector<UINT> textureIds;
+    UINT modelId = Engine::INVALID_ID;
 };
 
 class ResourceRegistry
@@ -29,7 +30,6 @@ private:
     ResourceRegistry() = default;
     ~ResourceRegistry() = default;
 
-//    UINT LoadMaterialTexture(ResourceManager& manager, aiMaterial* material, aiTextureType type, UINT& nextId, const std::string& basePath, const std::string& suffix, std::vector<UINT>& outTextureIds, const RendererContext& ctx);
     std::vector<UINT> LoadMaterialTextures(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);
 
     UINT mNextResourceID = 1;

@@ -117,6 +117,9 @@
     <ClInclude Include="Engine\Core\Object.h">
       <Filter>Core</Filter>
     </ClInclude>
+    <ClInclude Include="Engine\Resource\Model.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="My_Game_Project.cpp">
@@ -202,6 +205,9 @@
     </ClCompile>
     <ClCompile Include="Engine\Core\Object.cpp">
       <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Resource\Model.cpp">
+      <Filter>Resource</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

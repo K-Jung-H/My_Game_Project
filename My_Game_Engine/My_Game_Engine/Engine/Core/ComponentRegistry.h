@@ -1,5 +1,7 @@
 #pragma once
 #include "Component.h"
+#include "../Managers/RendererManager.h"
+#include "../Managers/PhysicsManager.h"
 
 class ComponentRegistry 
 {

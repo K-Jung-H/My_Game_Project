@@ -1,16 +1,22 @@
 #include "pch.h"
 #include "MeshRendererComponent.h"
+#include "GameEngine.h"
 
-MeshRendererComponent::MeshRendererComponent()
+
+void MeshRendererComponent::SetMesh(UINT id)
 {
+    meshId = id;
+    auto rc = GameEngine::Get().GetResourceManager();
+    
+    mMesh = rc->GetById<Mesh>(id);
 }
 
-void MeshRendererComponent::SetMesh(Mesh* mesh) {
-    mMesh = mesh;
-}
+void MeshRendererComponent::SetMaterial(UINT id)
+{
+    materialId = id;
+    auto rc = GameEngine::Get().GetResourceManager();
 
-void MeshRendererComponent::SetMaterial(Material* material) {
-    mMaterial = material;
+    mMaterial = rc->GetById<Material>(id);
 }
 
 void MeshRendererComponent::Render() 

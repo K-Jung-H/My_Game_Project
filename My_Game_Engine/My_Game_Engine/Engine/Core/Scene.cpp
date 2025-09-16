@@ -2,6 +2,7 @@
 #include "Scene.h"
 #include "GameEngine.h"
 #include "../Resource/ResourceRegistry.h"
+#include "../Resource/Model.h"
 
 Scene::Scene() 
 { 
@@ -22,6 +23,13 @@ void Scene::Build()
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
 
 	std::shared_ptr<Object> test_obj = Object::Create("test_obj");
+
+	auto rcm = GameEngine::Get().GetResourceManager();
+	auto model_ptr = rcm->GetById<Model>(result.modelId);
+	std::shared_ptr<Object> test_model_obj = Object::Create(model_ptr);
+
+	Object::DumpHierarchy(test_model_obj, "test_model_tree.txt");
+	UINT node_num = Object::CountNodes(test_model_obj);
 
 }
 

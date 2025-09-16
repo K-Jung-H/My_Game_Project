@@ -3,13 +3,32 @@
 
 TransformComponent::TransformComponent()
 {
+    XMStoreFloat4x4(&mWorld, XMMatrixIdentity());
+    mPosition = { 0,0,0 };
+    mRotation = { 0,0,0,1 };
+    mScale = { 1,1,1 };
 }
 
 
-XMMATRIX TransformComponent::GetWorldMatrix() const 
+void TransformComponent::SetFromMatrix(const XMFLOAT4X4& mat)
 {
-    return 
-        XMMatrixScaling(scale.x, scale.y, scale.z) *
-        XMMatrixRotationRollPitchYaw(rotation.x, rotation.y, rotation.z) *
-        XMMatrixTranslation(position.x, position.y, position.z);
+    XMMATRIX M = XMLoadFloat4x4(&mat);
+
+    XMVECTOR scale;
+    XMVECTOR rotQuat;
+    XMVECTOR trans;
+    if (XMMatrixDecompose(&scale, &rotQuat, &trans, M))
+    {
+        XMStoreFloat3(&mScale, scale);
+        XMStoreFloat4(&mRotation, rotQuat);
+        XMStoreFloat3(&mPosition, trans);
+        XMStoreFloat4x4(&mWorld, M);
+    }
+    else
+    {
+        mScale = { 1,1,1 };
+        mRotation = { 0,0,0,1 };
+        mPosition = { 0,0,0 };
+        XMStoreFloat4x4(&mWorld, XMMatrixIdentity());
+    }
 }

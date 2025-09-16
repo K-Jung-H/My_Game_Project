@@ -1,7 +1,7 @@
 #pragma once
 #include "../Core/Component.h"
 
-class TransformComponent : public Component 
+class TransformComponent : public Component
 {
 public:
     static constexpr Component_Type Type = Component_Type::Transform;
@@ -10,11 +10,21 @@ public:
 public:
     TransformComponent();
 
-    XMMATRIX GetWorldMatrix() const;
+    void SetFromMatrix(const XMFLOAT4X4& mat);
 
-public:
-    XMFLOAT4X4 matrix;
-    XMFLOAT3 position{ 0,0,0 };
-    XMFLOAT3 rotation{ 0,0,0 };
-    XMFLOAT3 scale{ 1,1,1 };
+    const XMFLOAT3& GetPosition() const { return mPosition; }
+    const XMFLOAT4& GetRotation() const { return mRotation; }
+    const XMFLOAT3& GetScale() const { return mScale; }
+
+    void SetPosition(const XMFLOAT3& pos) { mPosition = pos; }
+    void SetRotation(const XMFLOAT4& rot) { mRotation = rot; }
+    void SetScale(const XMFLOAT3& scl) { mScale = scl; }
+
+    const XMFLOAT4X4& GetWorldMatrix() const { return mWorld; }
+
+private:
+    XMFLOAT3 mPosition;
+    XMFLOAT4 mRotation;
+    XMFLOAT3 mScale;
+    XMFLOAT4X4 mWorld;
 };

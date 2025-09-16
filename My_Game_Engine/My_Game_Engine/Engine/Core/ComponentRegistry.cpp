@@ -1,7 +1,5 @@
 #include "pch.h"
 #include "ComponentRegistry.h"
-#include "../Managers/RendererManager.h"
-#include "../Managers/PhysicsManager.h"
 #include "GameEngine.h"
 
 void ComponentRegistry::Notify(std::weak_ptr<Component> comp)

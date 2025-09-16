@@ -164,6 +164,7 @@
     <ClInclude Include="Engine\Resource\Material.h" />
     <ClInclude Include="Engine\Resource\Mesh.h" />
     <ClInclude Include="Engine\Resource\Game_Resource.h" />
+    <ClInclude Include="Engine\Resource\Model.h" />
     <ClInclude Include="Engine\Resource\ResourceManager.h" />
     <ClInclude Include="Engine\Resource\ResourceRegistry.h" />
     <ClInclude Include="Engine\Resource\Texture.h" />
@@ -195,6 +196,7 @@
     <ClCompile Include="Engine\Resource\Material.cpp" />
     <ClCompile Include="Engine\Resource\Mesh.cpp" />
     <ClCompile Include="Engine\Resource\Game_Resource.cpp" />
+    <ClCompile Include="Engine\Resource\Model.cpp" />
     <ClCompile Include="Engine\Resource\ResourceManager.cpp" />
     <ClCompile Include="Engine\Resource\ResourceRegistry.cpp" />
     <ClCompile Include="Engine\Resource\Texture.cpp" />
