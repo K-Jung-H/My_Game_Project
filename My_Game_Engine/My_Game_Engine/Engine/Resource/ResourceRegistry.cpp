@@ -2,28 +2,6 @@
 #include "ResourceRegistry.h"
 #include "Model.h"
 
-std::shared_ptr<Model::Node> ProcessNode(aiNode* ainode, const aiScene* scene, const std::vector<std::shared_ptr<Mesh>>& loadedMeshes)
-{
-    auto node = std::make_shared<Model::Node>();
-    node->name = ainode->mName.C_Str();
-
-    aiMatrix4x4 aim = ainode->mTransformation;
-    XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&aim)));
-    XMStoreFloat4x4(&node->localTransform, xm);
-
-    for (unsigned int i = 0; i < ainode->mNumMeshes; i++) 
-    {
-        UINT meshIndex = ainode->mMeshes[i];
-        node->meshes.push_back(loadedMeshes[meshIndex]);
-    }
-
-    for (unsigned int i = 0; i < ainode->mNumChildren; i++) 
-        node->children.push_back(ProcessNode(ainode->mChildren[i], scene, loadedMeshes));
-    
-
-    return node;
-}
-
 LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx)
 {
     LoadResult result;
@@ -95,6 +73,10 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
     if (scene->mRootNode)
         model->SetRoot(ProcessNode(scene->mRootNode, scene, loadedMeshes));
 
+    // ---------- Skeleton ----------
+    Skeleton skeleton = BuildSkeleton(scene);
+    model->SetSkeleton(skeleton);
+
     return result;
 }
 
@@ -162,4 +144,78 @@ std::vector<UINT> ResourceRegistry::LoadMaterialTextures(ResourceManager& manage
     }
 
     return textureIds;
+}
+
+std::shared_ptr<Model::Node> ResourceRegistry::ProcessNode(aiNode* ainode, const aiScene* scene, const std::vector<std::shared_ptr<Mesh>>& loadedMeshes)
+{
+    auto node = std::make_shared<Model::Node>();
+    node->name = ainode->mName.C_Str();
+
+    aiMatrix4x4 aim = ainode->mTransformation;
+    XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&aim)));
+    XMStoreFloat4x4(&node->localTransform, xm);
+
+    for (unsigned int i = 0; i < ainode->mNumMeshes; i++)
+    {
+        UINT meshIndex = ainode->mMeshes[i];
+        node->meshes.push_back(loadedMeshes[meshIndex]);
+    }
+
+    for (unsigned int i = 0; i < ainode->mNumChildren; i++)
+        node->children.push_back(ProcessNode(ainode->mChildren[i], scene, loadedMeshes));
+
+
+    return node;
+}
+
+Skeleton ResourceRegistry::BuildSkeleton(const aiScene* scene)
+{
+    Skeleton skeleton;
+    std::unordered_map<std::string, int> boneNameToIndex;
+
+    for (unsigned int m = 0; m < scene->mNumMeshes; m++) 
+    {
+        aiMesh* aMesh = scene->mMeshes[m];
+        for (unsigned int b = 0; b < aMesh->mNumBones; b++) 
+        {
+            aiBone* aBone = aMesh->mBones[b];
+            std::string boneName = aBone->mName.C_Str();
+
+            if (boneNameToIndex.count(boneName)) continue; 
+
+            int idx = static_cast<int>(skeleton.BoneList.size());
+
+            boneNameToIndex[boneName] = idx;
+            
+            skeleton.BoneNames.insert(boneName);
+
+            Bone bone{};
+            bone.name = boneName;
+            bone.parentIndex = -1;
+
+            XMMATRIX xm = XMMatrixTranspose(
+                XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&aBone->mOffsetMatrix)));
+            XMStoreFloat4x4(&bone.inverseBind, xm);
+
+            skeleton.BoneList.push_back(bone);
+        }
+    }
+
+    for (auto& [boneName, idx] : boneNameToIndex) 
+    {
+        aiNode* node = scene->mRootNode->FindNode(aiString(boneName.c_str()));
+        if (node && node->mParent) 
+        {
+            std::string parentName = node->mParent->mName.C_Str();
+            auto it = boneNameToIndex.find(parentName);
+            if (it != boneNameToIndex.end()) 
+            {
+                skeleton.BoneList[idx].parentIndex = it->second;
+            }
+        }
+    }
+
+    skeleton.BuildNameToIndex();
+
+    return skeleton;
 }

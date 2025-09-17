@@ -28,8 +28,11 @@ void Scene::Build()
 	auto model_ptr = rcm->GetById<Model>(result.modelId);
 	std::shared_ptr<Object> test_model_obj = Object::Create(model_ptr);
 
-	Object::DumpHierarchy(test_model_obj, "test_model_tree.txt");
+
+	// For Debug
+	UINT model_node_num = Model::CountNodes(model_ptr);
 	UINT node_num = Object::CountNodes(test_model_obj);
+	Object::DumpHierarchy(test_model_obj, "test_model_tree.txt");
 
 }
 

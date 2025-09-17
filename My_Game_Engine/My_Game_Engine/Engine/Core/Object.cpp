@@ -11,18 +11,19 @@ UINT Object::CountNodes(const std::shared_ptr<Object>& root)
     std::unordered_set<const Object*> visited;
 
     std::function<UINT(const std::shared_ptr<Object>&)> dfs;
-    dfs = [&](const std::shared_ptr<Object>& obj) -> UINT {
-        if (!obj) return 0;
-        if (visited.count(obj.get())) return 0; // 이미 센 노드면 무시
-        visited.insert(obj.get());
-
-        UINT count = 1;
-        for (auto& child : obj->GetChildren())
+    dfs = [&](const std::shared_ptr<Object>& obj) -> UINT
         {
-            if (child)
-                count += dfs(child);
-        }
-        return count;
+            if (!obj) return 0;
+            if (visited.count(obj.get())) return 0;
+            visited.insert(obj.get());
+
+            UINT count = 1;
+            for (auto& child : obj->GetChildren())
+            {
+                if (child)
+                    count += dfs(child);
+            }
+            return count;
         };
 
     return dfs(root);
@@ -76,42 +77,43 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 }
 
 
-std::shared_ptr<Object> ProcessNode(const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
+
+static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Model>& model, const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
 {
-    if (node->meshes.empty() && node->children.empty())
-        return nullptr;
+    const Skeleton& skeleton = model->GetSkeleton();
 
     auto obj = Object::Create(node->name);
+    if (parent)
+        obj->SetParent(parent);
 
-    if (parent) obj->SetParent(parent);
-    {
-        auto transform = obj->GetComponent<TransformComponent>(Transform);
+    if (auto transform = obj->GetComponent<TransformComponent>(Transform))
         transform->SetFromMatrix(node->localTransform);
-    }
 
-    for (auto& mesh : node->meshes)
+    for (auto& mesh : node->meshes) 
     {
         if (!mesh) continue;
-
         auto& mr = obj->AddComponent<MeshRendererComponent>();
         mr.SetMesh(mesh->GetId());
     }
 
-    for (auto& child : node->children)
-    {
-        auto childObj = ProcessNode(child, obj);
-        obj->SetChild(childObj);
-    }
+    for (auto& child : node->children) 
+        ConvertNode(model, child, obj);
+
 
     return obj;
 }
 
-std::shared_ptr<Object> Object::Create(const std::shared_ptr<Model> model)
+static std::shared_ptr<Object> ConvertModelToObjects(const std::shared_ptr<Model>& model)
 {
     if (!model || !model->GetRoot())
         return nullptr;
 
-    return ProcessNode(model->GetRoot(), nullptr);
+    return ConvertNode(model, model->GetRoot(), nullptr);
+}
+
+std::shared_ptr<Object> Object::Create(const std::shared_ptr<Model> model)
+{
+    return ConvertModelToObjects(model);
 }
 
 std::shared_ptr<Object> Object::Create(const std::string& name)
@@ -121,13 +123,10 @@ std::shared_ptr<Object> Object::Create(const std::string& name)
     return obj;
 }
 
-
-
 Object::~Object()
 {
 
 }
-
 
 void Object::SetParent(std::shared_ptr<Object> new_parent)
 {
@@ -205,3 +204,5 @@ void Object::Render()
     //if (auto sibling = sibling_obj.lock())
     //    sibling->Render();
 }
+
+ 

@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Mesh.h"
+#include "Model.h"
 
 Mesh::Mesh() : Game_Resource()
 {
@@ -57,4 +58,69 @@ void Mesh::FromAssimp(const aiMesh* mesh)
 
     // Material Index
     materialIndex = mesh->mMaterialIndex;
+}
+
+
+void SkinnedMesh::FromAssimp(const aiMesh* mesh)
+{
+    Mesh::FromAssimp(mesh);
+
+    bone_mapping_data.clear();
+
+    if (!mesh->HasBones())
+        return; 
+
+    for (unsigned int bone = 0; bone < mesh->mNumBones; bone++)
+    {
+        aiBone* aBone = mesh->mBones[bone];
+        std::string boneName = aBone->mName.C_Str();
+
+        for (unsigned int w = 0; w < aBone->mNumWeights; w++)
+        {
+            BoneMappingData mapping;
+            mapping.boneName = boneName;
+            mapping.vertexId = aBone->mWeights[w].mVertexId;
+            mapping.weight = aBone->mWeights[w].mWeight;
+
+            bone_mapping_data.push_back(std::move(mapping));
+        }
+    }
+}
+
+void SkinnedMesh::Skinning_Skeleton_Bones(const Skeleton& skeleton)
+{
+    if (is_skinned_bones != false)
+        return;
+        
+    bone_vertex_data.clear();
+    bone_vertex_data.resize(positions.size());
+
+    for (auto& mapping : bone_mapping_data)
+    {
+        auto it = skeleton.NameToIndex.find(mapping.boneName);
+        if (it == skeleton.NameToIndex.end())
+            continue; 
+
+        int boneIndex = it->second;
+        UINT vertexId = mapping.vertexId;
+        float weight = mapping.weight;
+
+        if (vertexId >= bone_vertex_data.size())
+            continue;
+
+        auto& vbd = bone_vertex_data[vertexId];
+
+
+        for (int slot = 0; slot < MAX_BONES_PER_VERTEX; slot++)
+        {
+            if (vbd.weights[slot] == 0.0f)
+            {
+                vbd.boneIndices[slot] = boneIndex;
+                vbd.weights[slot] = weight;
+                break;
+            }
+        }
+    }
+
+    bone_mapping_data.clear();
 }

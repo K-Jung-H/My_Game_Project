@@ -31,6 +31,8 @@ private:
     ~ResourceRegistry() = default;
 
     std::vector<UINT> LoadMaterialTextures(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);
+    std::shared_ptr<Model::Node> ProcessNode(aiNode* ainode, const aiScene* scene, const std::vector<std::shared_ptr<Mesh>>& loadedMeshes);
+    Skeleton BuildSkeleton(const aiScene* scene);
 
     UINT mNextResourceID = 1;
 };

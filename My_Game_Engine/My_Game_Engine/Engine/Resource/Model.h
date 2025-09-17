@@ -2,9 +2,35 @@
 #include "pch.h"
 #include "Mesh.h"
 
+struct Bone
+{
+    std::string name;
+    int parentIndex;
+    XMFLOAT4X4 inverseBind; 
+};
+
+struct Skeleton
+{
+    std::vector<Bone> BoneList;
+    std::unordered_set<std::string> BoneNames;
+
+    std::unordered_map<std::string, int> NameToIndex;
+
+    void BuildNameToIndex()
+    {
+        NameToIndex.clear();
+        for (size_t i = 0; i < BoneList.size(); i++)
+            NameToIndex[BoneList[i].name] = static_cast<int>(i);
+    }
+};
+
 
 class Model : public Game_Resource
 {
+
+public:
+    static UINT CountNodes(const std::shared_ptr<Model>& model);
+
 public:
     struct Node
     {
@@ -30,7 +56,11 @@ public:
 
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
 
+    void SetSkeleton(Skeleton& s) { skeleton = s; }
+    const Skeleton& GetSkeleton() const { return skeleton; }
+
 private:
     std::shared_ptr<Node> root;
     std::vector<std::shared_ptr<Mesh>> meshes;       // 전체 Mesh 목록
+    Skeleton skeleton;
 };
