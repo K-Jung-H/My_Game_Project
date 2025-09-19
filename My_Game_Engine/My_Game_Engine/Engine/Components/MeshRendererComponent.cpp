@@ -18,14 +18,3 @@ void MeshRendererComponent::SetMaterial(UINT id)
 
     mMaterial = rc->GetById<Material>(id);
 }
-
-void MeshRendererComponent::Render() 
-{
-    // TODO: DX12 rendering
-    // 1. Bind pipeline state & root signature
-    // 2. Set vertex/index buffer from mMesh
-    // 3. Set material descriptors
-    // 4. Issue DrawIndexedInstanced
-
-    std::cout << "Rendering MeshRendererComponent (stub)\n";
-}

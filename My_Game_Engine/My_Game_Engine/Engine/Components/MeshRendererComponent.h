@@ -23,8 +23,6 @@ public:
     std::shared_ptr<Mesh> GetMesh() const { return mMesh.lock(); }
     std::shared_ptr<Material> GetMaterial() const { return mMaterial.lock(); }
 
-    virtual void Render() override;
-
 private:
     UINT meshId = Engine::INVALID_ID;
     UINT materialId = Engine::INVALID_ID;

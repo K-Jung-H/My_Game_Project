@@ -32,7 +32,6 @@ public:
     RendererManager* GetRendererManager() { return renderer_manager.get(); }
     PhysicsManager* GetPhysicsManager() { return physics_manager.get(); }
     ResourceManager* GetResourceManager() { return resource_manager.get(); }
-    SceneManager* GetSceneManager() { return scene_manager.get(); }
 
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
     RendererContext Get_UploadContext() const { return mRenderer->Get_UploadContext(); };
@@ -46,5 +45,4 @@ private:
     std::unique_ptr<PhysicsManager>  physics_manager;
     std::unique_ptr<RendererManager> renderer_manager;
     std::unique_ptr<ResourceManager> resource_manager;
-    std::unique_ptr<SceneManager>    scene_manager;
 };

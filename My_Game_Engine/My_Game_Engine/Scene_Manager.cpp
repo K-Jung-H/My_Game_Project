@@ -65,9 +65,12 @@ std::shared_ptr<Scene> SceneManager::CreateScene(std::string scene_alias)
 { 
     std::shared_ptr<Scene> new_Scene = std::make_shared<Scene>();
 
-    new_Scene->Build();
+    if (mActiveScene.expired())
+        mActiveScene = new_Scene;
+
     new_Scene->SetAlias(scene_alias);
     new_Scene->SetId(mNextSceneID++);
+    new_Scene->Build();
     
     this->Add(new_Scene);
 

@@ -13,12 +13,18 @@ struct SceneEntry
 
 class SceneManager
 {
+public:
+    static SceneManager& Get()
+    {
+        static SceneManager instance;
+        return instance;
+    }
+
 private:
-    std::weak_ptr<Scene> mActiveScene;
+    SceneManager() = default;
 
 
 public:
-    SceneManager() = default;
     ~SceneManager() = default;
 
     void Check_Inputs();
@@ -27,7 +33,6 @@ public:
     void Render();
 
 public:
-
     void SetActiveScene(const std::shared_ptr<Scene>& scene);
     std::shared_ptr<Scene> GetActiveScene() const;
     void UnloadScene(UINT id);
@@ -41,7 +46,8 @@ public:
 
 private:
     std::unordered_map<UINT, SceneEntry> map_Scenes;
-    std::unordered_map<std::string, UINT>   mAliasToId;
+    std::weak_ptr<Scene> mActiveScene;
 
+    std::unordered_map<std::string, UINT>   mAliasToId;
     UINT mNextSceneID = 1;
 };

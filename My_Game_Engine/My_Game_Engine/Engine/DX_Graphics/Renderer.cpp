@@ -239,7 +239,8 @@ bool DX12_Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
-    for (UINT i = 0; i < (UINT)GBufferType::Count; i++) {
+    for (UINT i = 0; i < (UINT)GBufferType::Count; i++) 
+    {
         const MRTTargetDesc& desc = GBUFFER_CONFIG[i];
 
         // Create Tex2D resource description
@@ -392,6 +393,7 @@ void DX12_Renderer::EndUpload()
 }
 
 
+
 // ------------------- Rendering Steps -------------------
 
 FrameResource& DX12_Renderer::GetCurrentFrameResource()
@@ -480,7 +482,7 @@ void DX12_Renderer::PresentFrame()
     mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
 }
 
-void DX12_Renderer::Render()
+void DX12_Renderer::Render(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera)
 {
     static float clear_color[4] = { 0.45f, 0.55f, 0.60f, 1.00f };
 
@@ -490,6 +492,15 @@ void DX12_Renderer::Render()
 
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
     mCommandList->SetDescriptorHeaps(1, heaps);
+
+    // TODO: Bind RootSignature
+
+    render_camera->UpdateCBV();
+    render_camera->Bind(mCommandList, RootParameter::CameraCBV);
+
+    // TODO: Record Object Render
+
+
 
     // ImGui Ω√¿€
     ImGui_ImplDX12_NewFrame();

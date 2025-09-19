@@ -24,9 +24,12 @@ public:
 
     virtual Component_Type GetType() const = 0;
 
-    virtual void Update(float deltaTime) {}
-    virtual void Render() {}
+    virtual void Update() {};
+
+    void SetActive(bool active) { Active = active; }
+    bool GetActive() { return Active; }
 
 protected:
     std::weak_ptr<Object> mOwner;
+    bool Active = true;
 };

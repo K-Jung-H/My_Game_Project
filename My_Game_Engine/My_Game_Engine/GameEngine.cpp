@@ -33,13 +33,12 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	physics_manager = std::make_unique<PhysicsManager>();
 	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
-	scene_manager = std::make_unique<SceneManager>();
 
 
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();
 
-	scene_manager->CreateScene("wow");
+	SceneManager::Get().CreateScene("wow");
 
 	mRenderer->EndUpload();
 
@@ -53,7 +52,23 @@ void GameEngine::OnDestroy()
 
 void GameEngine::FrameAdvance()
 {
-	mRenderer->Render();
+	// Need Timer
+	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
+	active_scene->Check_Inputs();
+	active_scene->Fixed_Update(0.0f);
+	active_scene->Update(0.0f);
+
+
+	std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list = active_scene->GetRenderable();
+	std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
+
+	if (mainCam)
+		mRenderer->Render(renderable_list, mainCam);
+
+
+	//if (minimap_Camera)
+	//	mRenderer->Render(renderable_list, minimap_Camera);
+
 }
 
 void GameEngine::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)

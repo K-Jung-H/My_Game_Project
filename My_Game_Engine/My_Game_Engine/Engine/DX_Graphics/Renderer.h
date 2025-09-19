@@ -2,6 +2,8 @@
 #include "pch.h"
 #include "DescriptorManager.h"
 #include "Graphic_Shader.h"
+#include "../Components/MeshRendererComponent.h"
+#include "../Components/CameraComponent.h"
 
 struct MRTTargetDesc
 {
@@ -68,7 +70,7 @@ public:
     bool Initialize(HWND hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
 
-    void Render();
+    void Render(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera);
     void Cleanup();
 
     RendererContext Get_RenderContext() const;
