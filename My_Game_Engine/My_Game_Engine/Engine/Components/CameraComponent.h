@@ -40,7 +40,6 @@ public:
 
 private:
     ComPtr<ID3D12Resource> mCameraCB;
-    D3D12_GPU_DESCRIPTOR_HANDLE mGpuHandle{};
     CameraCB* mMappedCB = nullptr;
 
     bool mViewDirty = true;

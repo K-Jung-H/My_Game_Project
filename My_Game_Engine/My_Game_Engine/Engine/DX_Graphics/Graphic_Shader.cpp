@@ -1,6 +1,30 @@
 #include "pch.h"
 #include "Graphic_Shader.h"
 
+void PSO_Manager::Init(ComPtr<ID3D12Device> device)
+{
+    mDevice = device;
+    RootSignatureFactory::Init(mDevice.Get());
+}
+
+ShaderID PSO_Manager::RegisterShader(RootSignature_Type rootType, const ShaderSetting& setting,
+    const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType)
+{
+    ShaderID id = ++mNextId;
+    auto pso = CreateGraphicsPSO(mDevice.Get(), rootType, setting, preset, topologyType);
+    mShaders[id] = std::make_shared<Shader>(rootType, pso);
+    return id;
+}
+
+Shader* PSO_Manager::GetShader(ShaderID id)
+{
+    auto it = mShaders.find(id);
+    return (it != mShaders.end()) ? it->second.get() : nullptr;
+}
+
+
+
+
 ComPtr<ID3DBlob> PSO_Manager::CompileShader(const ShaderStage& stage)
 {
     if (!stage.IsValid()) return nullptr;
@@ -63,7 +87,6 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
     desc.RasterizerState = PipelineDescFactory::GetRasterizer(preset.rasterizer);
     desc.BlendState = PipelineDescFactory::GetBlend(preset.blend);
     desc.DepthStencilState = PipelineDescFactory::GetDepth(preset.depth);
-
     desc.PrimitiveTopologyType = topologyType;
 
     RenderTargetDesc rtDesc = PipelineDescFactory::GetRenderTargetDesc(preset.RenderTarget);
@@ -76,10 +99,46 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
     desc.SampleDesc = rtDesc.sampleDesc;
     desc.SampleMask = rtDesc.sampleMask;
 
+
+
     ComPtr<ID3D12PipelineState> pso;
-    if (FAILED(device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso))))
+
+    HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso));
+    if (FAILED(hr))
     {
         OutputDebugStringA("Failed to create Graphics PSO\n");
+
+        if(false)
+        {
+            std::ostringstream oss;
+            oss << "\n[PSO Debug] -----------\n";
+            oss << "Num InputElements: " << desc.InputLayout.NumElements << "\n";
+            for (UINT i = 0; i < desc.InputLayout.NumElements; i++)
+            {
+                auto& e = desc.InputLayout.pInputElementDescs[i];
+                oss << "  Semantic: " << e.SemanticName
+                    << " Index: " << e.SemanticIndex
+                    << " Format: " << e.Format
+                    << " Slot: " << e.InputSlot
+                    << " AlignedByteOffset: " << e.AlignedByteOffset
+                    << "\n";
+            }
+
+            oss << "NumRenderTargets: " << desc.NumRenderTargets << "\n";
+            for (UINT i = 0; i < desc.NumRenderTargets; i++)
+            {
+                oss << "  RTV[" << i << "] Format: " << desc.RTVFormats[i] << "\n";
+            }
+            oss << "DSV Format: " << desc.DSVFormat << "\n";
+            oss << "Sample Count: " << desc.SampleDesc.Count
+                << " Quality: " << desc.SampleDesc.Quality << "\n";
+            oss << "SampleMask: " << desc.SampleMask << "\n";
+            oss << "[PSO Debug] -----------\n";
+
+            OutputDebugStringA(oss.str().c_str());
+        }
+
+
         throw std::runtime_error("CreateGraphicsPSO failed");
     }
 

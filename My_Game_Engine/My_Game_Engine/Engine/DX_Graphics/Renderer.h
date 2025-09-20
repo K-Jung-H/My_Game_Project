@@ -117,8 +117,6 @@ private:
     ComPtr<ID3D12Fence> mFence;
     UINT64 mFrameFenceValues[FrameCount] = {};
 
-    std::unique_ptr <PSO_Manager> pso_manager;
-
 private:
     // === Resource Upload Àü¿ë Command List ===
     ComPtr<ID3D12CommandAllocator>    mUploadAllocator;
@@ -165,6 +163,7 @@ private:
     void WaitForFrame(UINT64 fenceValue);
     FrameResource& GetCurrentFrameResource();
 
+    void SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list);
 
 public:
     ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;

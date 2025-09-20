@@ -30,29 +30,11 @@ void CameraComponent::CreateCBV(const RendererContext& ctx)
 
     HRESULT hr = ctx.device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
         &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mCameraCB));
-
-    if (FAILED(hr)) 
-        return;
-
-    // 디스크립터 힙에서 슬롯 할당
-    UINT slot = ctx.resourceHeap->Allocate();
-    D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle = ctx.resourceHeap->GetCpuHandle(slot);
-    D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle = ctx.resourceHeap->GetGpuHandle(slot);
-
-
-    D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-    cbvDesc.BufferLocation = mCameraCB->GetGPUVirtualAddress();
-    cbvDesc.SizeInBytes = bufferSize;
-
-    ctx.device->CreateConstantBufferView(&cbvDesc, cpu_handle);
-
+ 
     hr = mCameraCB->Map(0, nullptr, reinterpret_cast<void**>(&mMappedCB));
 
-
     if (FAILED(hr)) 
         return;
-
-    mGpuHandle = gpu_handle;
 
     return;
 }
@@ -76,7 +58,7 @@ void CameraComponent::UpdateCBV()
 
 void CameraComponent::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex)
 {
-    cmdList->SetGraphicsRootDescriptorTable(rootParamIndex, mGpuHandle);
+    cmdList->SetGraphicsRootConstantBufferView(rootParamIndex, mCameraCB->GetGPUVirtualAddress());
 }
 
 void CameraComponent::SetViewport(XMUINT2 LeftTop, XMUINT2 RightBottom)

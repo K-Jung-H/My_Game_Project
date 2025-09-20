@@ -28,6 +28,9 @@
     <Filter Include="DX_Graphics">
       <UniqueIdentifier>{118fcaf8-6336-4840-8e7f-48ca2c448ec5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="shaders">
+      <UniqueIdentifier>{717d1b20-7191-4dba-b767-dbfc370d1e61}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Resource.h">
@@ -222,5 +225,10 @@
     <Image Include="My_Game_Engine.ico">
       <Filter>리소스 파일</Filter>
     </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="shaders\Shader.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>
