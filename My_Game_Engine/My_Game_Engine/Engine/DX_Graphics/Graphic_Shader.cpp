@@ -108,7 +108,7 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
     {
         OutputDebugStringA("Failed to create Graphics PSO\n");
 
-        if(false)
+        if(true)
         {
             std::ostringstream oss;
             oss << "\n[PSO Debug] -----------\n";

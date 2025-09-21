@@ -77,7 +77,7 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
     pp.rasterizer = RasterizerPreset::Default;
     pp.blend = BlendPreset::Opaque;
     pp.depth = DepthPreset::Default;
-    pp.RenderTarget = RenderTargetPreset::MRT;
+    pp.RenderTarget = RenderTargetPreset::OnePass;
 
     pso_manager.RegisterShader(RootSignature_Type::Default, ss, pp, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 

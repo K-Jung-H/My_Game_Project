@@ -35,6 +35,7 @@ struct VS_DEFAULT_OUTPUT
     float4 position : SV_POSITION;
 };
 
+
 VS_DEFAULT_OUTPUT Default_VS(VS_DEFAULT_INPUT input)
 {
     VS_DEFAULT_OUTPUT output;
