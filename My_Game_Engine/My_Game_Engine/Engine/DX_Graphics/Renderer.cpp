@@ -1,5 +1,7 @@
 #include "pch.h"
 #include "Renderer.h"
+#include "../Resource/Mesh.h"
+#include "../Resource/Material.h"
 #include <stdexcept>
 
 
@@ -216,7 +218,6 @@ bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
     return SUCCEEDED(mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&fr.CommandAllocator)));
 }
 
-
 bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
 {
     if (FAILED(mSwapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&fr.RenderTarget))))
@@ -251,9 +252,8 @@ bool DX12_Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
         clearValue.Format = desc.format;
         memcpy(clearValue.Color, desc.clearColor, sizeof(FLOAT) * 4);
 
-        if (FAILED(mDevice->CreateCommittedResource(
-            &heapProps, D3D12_HEAP_FLAG_NONE, 
-            &texDesc, D3D12_RESOURCE_STATE_COMMON, 
+        if (FAILED(mDevice->CreateCommittedResource(&heapProps,
+            D3D12_HEAP_FLAG_NONE, &texDesc, D3D12_RESOURCE_STATE_COMMON, 
             &clearValue, IID_PPV_ARGS(frame.gbuffer.targets[i].ReleaseAndGetAddressOf()))))
         {
             return false;
@@ -586,6 +586,21 @@ void DX12_Renderer::Render(std::vector<std::shared_ptr<MeshRendererComponent>> r
 void DX12_Renderer::SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list)
 {
 
+}
+
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<std::shared_ptr<MeshRendererComponent>>& renderable_list)
+{
+    for (auto& renderer : renderable_list)
+    {
+        auto mesh = renderer->GetMesh();
+        auto material = renderer->GetMaterial();
+
+        material->Bind(cmdList);
+        mesh->Bind(cmdList);
+
+        // Issue draw call
+        cmdList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);
+    }
 }
 
 // ------------------- Utility -------------------

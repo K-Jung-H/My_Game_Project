@@ -22,7 +22,7 @@ enum class GBufferType : UINT
 
 constexpr MRTTargetDesc GBUFFER_CONFIG[(UINT)GBufferType::Count] =
 {
-    { DXGI_FORMAT_R8G8B8A8_UNORM,     {0.0f, 0.0f, 0.0f, 1.0f} },     // Albedo
+    { DXGI_FORMAT_R16G16B16A16_FLOAT,     {0.0f, 0.0f, 0.0f, 1.0f} },     // Albedo
     { DXGI_FORMAT_R16G16B16A16_FLOAT, {0.5f, 0.5f, 1.0f, 0.0f} },     // Normal
     { DXGI_FORMAT_R8G8_UNORM,         {0.0f, 0.0f, 0.0f, 0.0f} }      // Material
 };
@@ -164,6 +164,7 @@ private:
     FrameResource& GetCurrentFrameResource();
 
     void SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list);
+    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<std::shared_ptr<MeshRendererComponent>>& renderable_list);
 
 public:
     ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;

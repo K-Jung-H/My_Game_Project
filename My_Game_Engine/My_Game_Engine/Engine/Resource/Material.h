@@ -12,6 +12,7 @@ public:
 
     void FromAssimp(const aiMaterial* material);
 
+    void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) {}
 
     XMFLOAT3 albedoColor;
     float roughness;

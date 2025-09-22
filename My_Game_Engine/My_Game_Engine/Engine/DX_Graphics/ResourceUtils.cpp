@@ -20,49 +20,9 @@ static void LogIfFailed(HRESULT hr, const char* msg)
 // =====================================================
 ComPtr<ID3D12Resource> ResourceUtils::CreateDefaultBuffer(const RendererContext& ctx, const void* initData, UINT64 byteSize, ComPtr<ID3D12Resource>& uploadBuffer)
 {
-    ComPtr<ID3D12Resource> defaultBuffer;
-    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
-    CD3DX12_HEAP_PROPERTIES uploadHeapProps(D3D12_HEAP_TYPE_UPLOAD);
-
-    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(byteSize);
-
-
-    HRESULT hr = ctx.device->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
-        &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(defaultBuffer.GetAddressOf()));
-
-    if (FAILED(hr)) 
-    { 
-        LogIfFailed(hr, "CreateDefaultBuffer: default heap");
-        return nullptr; 
-    }
-
-
-    hr = ctx.device->CreateCommittedResource(&uploadHeapProps, D3D12_HEAP_FLAG_NONE,
-        &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(uploadBuffer.GetAddressOf()));
-
-    if (FAILED(hr))
-    {
-        LogIfFailed(hr, "CreateDefaultBuffer: upload heap");
-        return nullptr;
-    }
-
-    if (initData) 
-    {
-        D3D12_SUBRESOURCE_DATA subData = {};
-        subData.pData = initData;
-        subData.RowPitch = byteSize;
-        subData.SlicePitch = byteSize;
-
-        UpdateSubresources<1>(ctx.cmdList, defaultBuffer.Get(), uploadBuffer.Get(), 0, 0, 1, &subData);
-
-        auto barrier = CD3DX12_RESOURCE_BARRIER::Transition(defaultBuffer.Get(),
-            D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
-
-        ctx.cmdList->ResourceBarrier(1, &barrier);
-    }
-
-    return defaultBuffer;
+    return CreateBufferResource(ctx, (void*)initData, static_cast<UINT>(byteSize), D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, uploadBuffer);
 }
+
 
 // =====================================================
 // LoadDDSTexture
@@ -147,4 +107,137 @@ ComPtr<ID3D12Resource> ResourceUtils::LoadWICTexture(const RendererContext& ctx,
     ctx.cmdList->ResourceBarrier(1, &barrier);
 
     return texture;
+}
+
+
+
+ComPtr<ID3D12Resource> ResourceUtils::CreateBufferResource(const RendererContext& ctx, void* pData, UINT nBytes, D3D12_HEAP_TYPE heapType,
+    D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES finalState, ComPtr<ID3D12Resource>& uploadBuffer)
+{
+    return CreateResource(ctx, pData, nBytes, D3D12_RESOURCE_DIMENSION_BUFFER, nBytes, 1, 1, 1, flags, DXGI_FORMAT_UNKNOWN, heapType, finalState, uploadBuffer);
+}
+
+
+
+ComPtr<ID3D12Resource> ResourceUtils::CreateTextureResource(const RendererContext& ctx, void* pData, UINT64 rowPitchBytes, UINT width, UINT height, UINT arraySize, UINT mipLevels,
+    D3D12_RESOURCE_FLAGS flags, DXGI_FORMAT format, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_STATES finalState, ComPtr<ID3D12Resource>& uploadBuffer)
+{
+    return CreateResource(ctx, pData, rowPitchBytes, D3D12_RESOURCE_DIMENSION_TEXTURE2D, width, height, arraySize, mipLevels, flags, format, heapType, finalState, uploadBuffer);
+}
+
+
+
+ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx, void* pData, UINT64 nBytes, D3D12_RESOURCE_DIMENSION dimension, UINT width, UINT height, UINT depthOrArraySize, UINT mipLevels,
+    D3D12_RESOURCE_FLAGS flags, DXGI_FORMAT format, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_STATES finalState, ComPtr<ID3D12Resource>& uploadBuffer)
+{
+    ComPtr<ID3D12Resource> resource;
+
+    // === Heap Properties ===
+    D3D12_HEAP_PROPERTIES heapProps = {};
+    heapProps.Type = heapType;
+    heapProps.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+    heapProps.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+    heapProps.CreationNodeMask = 1;
+    heapProps.VisibleNodeMask = 1;
+
+    // === Resource Desc ===
+    D3D12_RESOURCE_DESC desc = {};
+    desc.Dimension = dimension;
+    desc.Alignment = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT : 0;
+    desc.Width = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? nBytes : width;
+    desc.Height = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? 1 : height;
+    desc.DepthOrArraySize = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? 1 : depthOrArraySize;
+    desc.MipLevels = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? 1 : mipLevels;
+    desc.Format = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? DXGI_FORMAT_UNKNOWN : format;
+    desc.SampleDesc.Count = 1;
+    desc.SampleDesc.Quality = 0;
+    desc.Layout = (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? D3D12_TEXTURE_LAYOUT_ROW_MAJOR : D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    desc.Flags = flags;
+
+    ID3D12Device* device = ctx.device;
+    ID3D12GraphicsCommandList* cmdList = ctx.cmdList;
+
+    switch (heapType)
+    {
+     // ========================
+    case D3D12_HEAP_TYPE_DEFAULT:
+    {
+        D3D12_RESOURCE_STATES initState =
+            (pData ? D3D12_RESOURCE_STATE_COPY_DEST : finalState);
+
+        HRESULT hr = device->CreateCommittedResource(&heapProps, 
+            D3D12_HEAP_FLAG_NONE, &desc, initState, nullptr, IID_PPV_ARGS(&resource));
+
+        if (FAILED(hr))
+            throw std::runtime_error("Failed to create default heap resource");
+
+        if (pData)
+        {
+
+            heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
+
+            hr = device->CreateCommittedResource(&heapProps, 
+                D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer));
+
+            if (FAILED(hr))
+                throw std::runtime_error("Failed to create upload heap resource");
+
+            if (dimension == D3D12_RESOURCE_DIMENSION_BUFFER)
+            {
+                void* mapped = nullptr;
+                uploadBuffer->Map(0, nullptr, &mapped);
+                memcpy(mapped, pData, static_cast<size_t>(nBytes));
+                uploadBuffer->Unmap(0, nullptr);
+
+                cmdList->CopyResource(resource.Get(), uploadBuffer.Get());
+            }
+            else // Texture ¡æ UpdateSubresources
+            {
+                D3D12_SUBRESOURCE_DATA subData = {};
+                subData.pData = pData;
+                subData.RowPitch = nBytes;
+                subData.SlicePitch = nBytes;
+
+                UpdateSubresources(cmdList, resource.Get(), uploadBuffer.Get(), 0, 0, 1, &subData);
+            }
+
+
+            CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalState);
+            cmdList->ResourceBarrier(1, &barrier);
+        }
+        break;
+    }
+
+    // ========================
+    case D3D12_HEAP_TYPE_UPLOAD:
+    {
+        HRESULT hr = device->CreateCommittedResource(&heapProps, 
+            D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&resource));
+
+        if (FAILED(hr))
+            throw std::runtime_error("Failed to create upload resource");
+
+        if (pData)
+        {
+            void* mapped = nullptr;
+            resource->Map(0, nullptr, &mapped);
+            memcpy(mapped, pData, static_cast<size_t>(nBytes));
+            resource->Unmap(0, nullptr);
+        }
+        break;
+    }
+
+    // ========================
+    case D3D12_HEAP_TYPE_READBACK:
+    {
+        HRESULT hr = device->CreateCommittedResource(&heapProps, 
+            D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource));
+
+        if (FAILED(hr))
+            throw std::runtime_error("Failed to create readback resource");
+        break;
+    }
+    }
+
+    return resource;
 }

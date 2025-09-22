@@ -27,7 +27,11 @@ public:
     UINT GetSlot() const { return -1; }
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
 
+    void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
+
 public:
+    std::vector<Submesh> submeshes;
+
     std::vector<XMFLOAT3> positions;
     std::vector<XMFLOAT3> normals;
     std::vector<XMFLOAT3> tangents;
@@ -37,8 +41,31 @@ public:
     std::vector<UINT> indices;
 
     UINT materialIndex = 0;
-    std::vector<Submesh> submeshes;
+
+private:
+
+    ComPtr<ID3D12Resource> posBuffer;
+    ComPtr<ID3D12Resource> normalBuffer;
+    ComPtr<ID3D12Resource> tangentBuffer;
+    ComPtr<ID3D12Resource> uvBuffer;
+    ComPtr<ID3D12Resource> colorBuffer;
+    ComPtr<ID3D12Resource> indexBuffer;
+
+    D3D12_VERTEX_BUFFER_VIEW posVBV{};
+    D3D12_VERTEX_BUFFER_VIEW normalVBV{};
+    D3D12_VERTEX_BUFFER_VIEW tangentVBV{};
+    D3D12_VERTEX_BUFFER_VIEW uvVBV{};
+    D3D12_VERTEX_BUFFER_VIEW colorVBV{};
+    D3D12_INDEX_BUFFER_VIEW  indexView{};
+
+    ComPtr<ID3D12Resource> posUpload;
+    ComPtr<ID3D12Resource> normalUpload;
+    ComPtr<ID3D12Resource> tangentUpload;
+    ComPtr<ID3D12Resource> uvUpload;
+    ComPtr<ID3D12Resource> colorUpload;
+    ComPtr<ID3D12Resource> indexUpload;
 };
+
 
 
 
