@@ -1,3 +1,4 @@
+
 cbuffer SceneConstants : register(b0)
 {
     float4 gTimeInfo;

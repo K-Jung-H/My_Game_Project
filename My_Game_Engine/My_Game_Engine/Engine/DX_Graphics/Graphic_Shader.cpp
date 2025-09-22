@@ -1,31 +1,7 @@
 #include "pch.h"
 #include "Graphic_Shader.h"
 
-void PSO_Manager::Init(ComPtr<ID3D12Device> device)
-{
-    mDevice = device;
-    RootSignatureFactory::Init(mDevice.Get());
-}
-
-ShaderID PSO_Manager::RegisterShader(RootSignature_Type rootType, const ShaderSetting& setting,
-    const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType)
-{
-    ShaderID id = ++mNextId;
-    auto pso = CreateGraphicsPSO(mDevice.Get(), rootType, setting, preset, topologyType);
-    mShaders[id] = std::make_shared<Shader>(rootType, pso);
-    return id;
-}
-
-Shader* PSO_Manager::GetShader(ShaderID id)
-{
-    auto it = mShaders.find(id);
-    return (it != mShaders.end()) ? it->second.get() : nullptr;
-}
-
-
-
-
-ComPtr<ID3DBlob> PSO_Manager::CompileShader(const ShaderStage& stage)
+ComPtr<ID3DBlob> Shader::CompileShader(const ShaderStage& stage)
 {
     if (!stage.IsValid()) return nullptr;
 
@@ -63,9 +39,7 @@ ComPtr<ID3DBlob> PSO_Manager::CompileShader(const ShaderStage& stage)
     return shaderBlob;
 }
 
-
-ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device, RootSignature_Type rootType, 
-    const ShaderSetting& setting, const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType)
+void Shader::CreateGraphicsPSO(ID3D12Device* device, RootSignature_Type rootType, ShaderVariant variant, const ShaderSetting& setting, const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType)
 {
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
     ZeroMemory(&desc, sizeof(desc));
@@ -74,31 +48,31 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
 
     ComPtr<ID3DBlob> vsBlob, psBlob, gsBlob, hsBlob, dsBlob;
 
-    if (setting.vs.IsValid()) 
+    if (setting.vs.IsValid())
     {
         vsBlob = CompileShader(setting.vs);
         desc.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
     }
 
-    if (setting.ps.IsValid()) 
+    if (setting.ps.IsValid())
     {
         psBlob = CompileShader(setting.ps);
         desc.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
     }
 
-    if (setting.gs.IsValid()) 
+    if (setting.gs.IsValid())
     {
         gsBlob = CompileShader(setting.gs);
         desc.GS = { gsBlob->GetBufferPointer(), gsBlob->GetBufferSize() };
     }
 
-    if (setting.hs.IsValid()) 
+    if (setting.hs.IsValid())
     {
         hsBlob = CompileShader(setting.hs);
         desc.HS = { hsBlob->GetBufferPointer(), hsBlob->GetBufferSize() };
     }
-    
-    if (setting.ds.IsValid()) 
+
+    if (setting.ds.IsValid())
     {
         dsBlob = CompileShader(setting.ds);
         desc.DS = { dsBlob->GetBufferPointer(), dsBlob->GetBufferSize() };
@@ -118,13 +92,80 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
     desc.SampleDesc = rtDesc.sampleDesc;
     desc.SampleMask = rtDesc.sampleMask;
 
-
-    ComPtr<ID3D12PipelineState> pso;
-    HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso));
+    HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&mPSOs[(int)variant]));
     if (FAILED(hr)) 
+        throw std::runtime_error("Failed to create PSO for ShaderVariant");
+}
+
+void Shader::CreateAllGraphicsPSOs(ID3D12Device* device, RootSignature_Type rootType, const std::vector<VariantConfig>& configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType)
+{
+    mPrimitiveTopologyType = topologyType;
+    mRootType = rootType;
+
+    for (const auto& cfg : configs) 
     {
-        OutputDebugStringA("Failed to create Graphics PSO\n");
-        throw std::runtime_error("CreateGraphicsPSO failed");
+        CreateGraphicsPSO(device, rootType, cfg.variant, cfg.setting, cfg.preset, topologyType);
+    }
+}
+
+void Shader::SetShader(ComPtr<ID3D12GraphicsCommandList> cmdList, ShaderVariant shadervariant)
+{
+    ID3D12PipelineState* pso = mPSOs[(int)shadervariant].Get();
+    if (!pso)
+    {
+        OutputDebugStringA("Shader::SetShader - PSO is null\n");
+        return;
     }
 
+    cmdList->SetPipelineState(pso);
+
+
+    ID3D12RootSignature* rootSig = RootSignatureFactory::Get(mRootType);
+
+    if (rootSig)
+        cmdList->SetGraphicsRootSignature(rootSig);
+}
+
+
+void PSO_Manager::Init(ComPtr<ID3D12Device> device)
+{
+    mDevice = device;
+    RootSignatureFactory::Init(mDevice.Get());
+}
+
+std::shared_ptr<Shader> PSO_Manager::RegisterShader(const std::string& name, RootSignature_Type rootType, const std::vector<VariantConfig>& variants, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType)
+{
+    auto it = mShaders.find(name);
+    if (it != mShaders.end()) 
+    {
+        OutputDebugStringA(("Shader already registered: " + name + "\n").c_str());
+        return it->second;
+    }
+
+    auto shader = std::make_shared<Shader>(rootType);
+    shader->CreateAllGraphicsPSOs(mDevice.Get(), rootType, variants, topologyType);
+    mShaders[name] = shader;
+    return shader;
+}
+
+
+std::shared_ptr<Shader> PSO_Manager::GetShader(const std::string& name)
+{
+    auto it = mShaders.find(name);
+    return (it != mShaders.end()) ? it->second : nullptr;
+}
+
+void PSO_Manager::BindShader(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::string& name, ShaderVariant variant)
+{
+    auto shader = GetShader(name);
+    if (!shader) 
+    {
+        OutputDebugStringA(("PSO_Manager::BindShader - Shader not found: " + name + "\n").c_str());
+        return;
+    }
+
+    shader->SetShader(cmdList, variant);
+
+    mCurrentShader = shader;
+    mCurrentVariant = variant;
 }

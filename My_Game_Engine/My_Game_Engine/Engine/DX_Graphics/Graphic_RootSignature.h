@@ -16,7 +16,7 @@ namespace RootParameter
 {
     enum Slot : UINT
     {
-        SceneConstants = 0,
+        SceneCBV = 0,
 
         ObjectCBV = 1,
         CameraCBV = 2,

@@ -77,8 +77,8 @@ public:
     RendererContext Get_UploadContext() const;
     void BeginUpload();
     void EndUpload();
-private:
 
+private:
     UINT mWidth = 0;
     UINT mHeight = 0;
 
@@ -133,7 +133,7 @@ private:
     bool CreateCommandQueue();
     bool CreateSwapChain(HWND hWnd, UINT width, UINT height);
     bool CreateDescriptorHeaps();
-
+    bool Create_Shader();
 
     // Frame resource creation
     bool CreateFrameResources();

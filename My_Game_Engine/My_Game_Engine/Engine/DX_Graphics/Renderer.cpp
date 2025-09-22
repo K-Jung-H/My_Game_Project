@@ -60,26 +60,7 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
     if (!CreateFenceObjects()) return false;
     if (!CreateCommandList_Upload()) return false;
     
-    PSO_Manager pso_manager = PSO_Manager::Instance();
-    pso_manager.Init(mDevice);
-
-    ShaderSetting ss;
-    ss.vs.file = L"shaders/Shader.hlsl";
-    ss.vs.entry = "Default_VS";
-    ss.vs.target = "vs_5_1";
-
-    ss.ps.file = L"shaders/Shader.hlsl";
-    ss.ps.entry = "Default_PS";
-    ss.ps.target = "ps_5_1";
-
-    PipelinePreset pp;
-    pp.inputlayout = InputLayoutPreset::Default;
-    pp.rasterizer = RasterizerPreset::Default;
-    pp.blend = BlendPreset::Opaque;
-    pp.depth = DepthPreset::Default;
-    pp.RenderTarget = RenderTargetPreset::OnePass;
-
-    pso_manager.RegisterShader(RootSignature_Type::Default, ss, pp, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+    if (!Create_Shader()) return false;
 
     //---------------------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -411,6 +392,43 @@ void DX12_Renderer::EndUpload()
 }
 
 
+bool DX12_Renderer::Create_Shader()
+{
+    PSO_Manager& pso_manager = PSO_Manager::Instance();
+    pso_manager.Init(mDevice);
+
+    ShaderSetting ss;
+    ss.vs.file = L"shaders/Shader.hlsl";
+    ss.vs.entry = "Default_VS";
+    ss.vs.target = "vs_5_1";
+
+    ss.ps.file = L"shaders/Shader.hlsl";
+    ss.ps.entry = "Default_PS";
+    ss.ps.target = "ps_5_1";
+
+    PipelinePreset pp;
+    pp.inputlayout = InputLayoutPreset::Default;
+    pp.rasterizer = RasterizerPreset::Default;
+    pp.blend = BlendPreset::Opaque;
+    pp.depth = DepthPreset::Default;
+    pp.RenderTarget = RenderTargetPreset::MRT;
+
+    std::vector<VariantConfig> configs =
+    {
+        { ShaderVariant::Default, ss, pp },
+        { ShaderVariant::Shadow, ss, pp }
+    };
+
+    auto test_shader = pso_manager.RegisterShader(
+        "Test_Model",
+        RootSignature_Type::Default,
+        configs,
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
+
+    return true;
+}
+
 
 // ------------------- Rendering Steps -------------------
 
@@ -515,12 +533,18 @@ void DX12_Renderer::Render(std::vector<std::shared_ptr<MeshRendererComponent>> r
     ID3D12RootSignature* default_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Default);
 
     mCommandList->SetGraphicsRootSignature(default_rootsignature);
+    PSO_Manager& pso_manager = PSO_Manager::Instance();
+
+    pso_manager.BindShader(mCommandList, "Test_Model", ShaderVariant::Default);
     
+
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter::CameraCBV);
 
     // TODO: Record Object Render
 
+    Render_Objects(mCommandList, renderable_list);
+    
     
 
     // ImGui Ω√¿€

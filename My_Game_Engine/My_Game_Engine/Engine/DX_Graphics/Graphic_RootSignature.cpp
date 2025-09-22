@@ -40,16 +40,10 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateDefault(ID3D12Device* pd
 
     D3D12_ROOT_PARAMETER params[RootParameter::Count] = {};
 
-    /*params[RootParameter::SceneConstants].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-    params[RootParameter::SceneConstants].Constants.Num32BitValues = 4;
-    params[RootParameter::SceneConstants].Constants.ShaderRegister = 0;
-    params[RootParameter::SceneConstants].Constants.RegisterSpace = 0;
-    params[RootParameter::SceneConstants].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;*/
-
-    params[RootParameter::SceneConstants].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    params[RootParameter::SceneConstants].Descriptor.ShaderRegister = 0;
-    params[RootParameter::SceneConstants].Descriptor.RegisterSpace = 0;
-    params[RootParameter::SceneConstants].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[RootParameter::SceneCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[RootParameter::SceneCBV].Descriptor.ShaderRegister = 0;
+    params[RootParameter::SceneCBV].Descriptor.RegisterSpace = 0;
+    params[RootParameter::SceneCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 
     params[RootParameter::ObjectCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;

@@ -2,6 +2,14 @@
 #include "PipelineDescFactory.h"
 #include "Graphic_RootSignature.h"
 
+enum class ShaderVariant
+{
+    Default = 0,
+    Shadow,
+    DepthOnly,
+    Count
+};
+
 struct ShaderStage
 {
     std::wstring file;
@@ -22,21 +30,33 @@ struct ShaderSetting
 };
 
 
-using ShaderID = UINT;
+struct VariantConfig 
+{
+    ShaderVariant variant;
+    ShaderSetting setting;
+    PipelinePreset preset;
+};
 
 class Shader
 {
 public:
-    Shader(RootSignature_Type rootType, const ComPtr<ID3D12PipelineState>& shader_pso)
-        : mRootType(rootType), pso(shader_pso) { }
+    Shader(RootSignature_Type rootType) : mRootType(rootType) {}
         
+    void SetShader(ComPtr<ID3D12GraphicsCommandList> cmdList, ShaderVariant shadervariant = ShaderVariant::Default);
 
-    ID3D12PipelineState* GetPSO() const { return pso.Get(); }
+    ComPtr<ID3DBlob> CompileShader(const ShaderStage& stage);
+    void CreateGraphicsPSO(ID3D12Device* device, RootSignature_Type rootType, ShaderVariant variant, const ShaderSetting& setting, const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType);
+    void CreateAllGraphicsPSOs(ID3D12Device* device, RootSignature_Type rootType, const std::vector<VariantConfig>& configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType);
+
+
+    ID3D12PipelineState* GetPSO(ShaderVariant variant) const { return mPSOs[(int)variant].Get(); }
     RootSignature_Type GetRootType() const { return mRootType; }
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE GetPrimitiveTopologyType() { return mPrimitiveTopologyType; }
 
 private:
     RootSignature_Type mRootType;
-    ComPtr<ID3D12PipelineState> pso;
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE mPrimitiveTopologyType;
+    std::array<ComPtr<ID3D12PipelineState>, (int)ShaderVariant::Count> mPSOs;
 };
 
 class PSO_Manager
@@ -54,20 +74,15 @@ public:
     ~PSO_Manager() = default;
 
 
-    ShaderID RegisterShader(RootSignature_Type rootType, const ShaderSetting& setting,
-        const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType);
+    std::shared_ptr<Shader> RegisterShader(const std::string& name, RootSignature_Type rootType, const std::vector<VariantConfig>& variants, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType);
+    std::shared_ptr<Shader> GetShader(const std::string& name);
 
-    Shader* GetShader(ShaderID id);
-
-
-protected:
-    ComPtr<ID3DBlob> CompileShader(const ShaderStage& stage);
-    ComPtr<ID3D12PipelineState> CreateGraphicsPSO(ID3D12Device* device, RootSignature_Type rootType,
-        const ShaderSetting& setting, const PipelinePreset& preset, D3D12_PRIMITIVE_TOPOLOGY_TYPE topologyType);
+    void BindShader(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::string& name, ShaderVariant variant = ShaderVariant::Default);
 
 private:
     ComPtr<ID3D12Device> mDevice;
-    ShaderID mNextId = 0;
-    std::unordered_map<ShaderID, std::shared_ptr<Shader>> mShaders;
-};
+    std::unordered_map<std::string, std::shared_ptr<Shader>> mShaders;
 
+    std::shared_ptr<Shader> mCurrentShader;
+    ShaderVariant mCurrentVariant = ShaderVariant::Count;
+};
