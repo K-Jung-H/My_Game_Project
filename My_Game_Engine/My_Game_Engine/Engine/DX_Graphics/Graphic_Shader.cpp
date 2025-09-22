@@ -72,16 +72,37 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
 
     desc.pRootSignature = RootSignatureFactory::Get(rootType);
 
-    if (auto vs = CompileShader(setting.vs))
-        desc.VS = { vs->GetBufferPointer(), vs->GetBufferSize() };
-    if (auto ps = CompileShader(setting.ps))
-        desc.PS = { ps->GetBufferPointer(), ps->GetBufferSize() };
-    if (auto gs = CompileShader(setting.gs))
-        desc.GS = { gs->GetBufferPointer(), gs->GetBufferSize() };
-    if (auto hs = CompileShader(setting.hs))
-        desc.HS = { hs->GetBufferPointer(), hs->GetBufferSize() };
-    if (auto ds = CompileShader(setting.ds))
-        desc.DS = { ds->GetBufferPointer(), ds->GetBufferSize() };
+    ComPtr<ID3DBlob> vsBlob, psBlob, gsBlob, hsBlob, dsBlob;
+
+    if (setting.vs.IsValid()) 
+    {
+        vsBlob = CompileShader(setting.vs);
+        desc.VS = { vsBlob->GetBufferPointer(), vsBlob->GetBufferSize() };
+    }
+
+    if (setting.ps.IsValid()) 
+    {
+        psBlob = CompileShader(setting.ps);
+        desc.PS = { psBlob->GetBufferPointer(), psBlob->GetBufferSize() };
+    }
+
+    if (setting.gs.IsValid()) 
+    {
+        gsBlob = CompileShader(setting.gs);
+        desc.GS = { gsBlob->GetBufferPointer(), gsBlob->GetBufferSize() };
+    }
+
+    if (setting.hs.IsValid()) 
+    {
+        hsBlob = CompileShader(setting.hs);
+        desc.HS = { hsBlob->GetBufferPointer(), hsBlob->GetBufferSize() };
+    }
+    
+    if (setting.ds.IsValid()) 
+    {
+        dsBlob = CompileShader(setting.ds);
+        desc.DS = { dsBlob->GetBufferPointer(), dsBlob->GetBufferSize() };
+    }
 
     desc.InputLayout = PipelineDescFactory::GetInputLayout(preset.inputlayout);
     desc.RasterizerState = PipelineDescFactory::GetRasterizer(preset.rasterizer);
@@ -91,56 +112,19 @@ ComPtr<ID3D12PipelineState> PSO_Manager::CreateGraphicsPSO(ID3D12Device* device,
 
     RenderTargetDesc rtDesc = PipelineDescFactory::GetRenderTargetDesc(preset.RenderTarget);
     desc.NumRenderTargets = rtDesc.numRenderTargets;
-
     for (UINT i = 0; i < rtDesc.numRenderTargets; ++i)
         desc.RTVFormats[i] = rtDesc.rtvFormats[i];
-
     desc.DSVFormat = rtDesc.dsvFormat;
     desc.SampleDesc = rtDesc.sampleDesc;
     desc.SampleMask = rtDesc.sampleMask;
 
 
-
     ComPtr<ID3D12PipelineState> pso;
-
     HRESULT hr = device->CreateGraphicsPipelineState(&desc, IID_PPV_ARGS(&pso));
-    if (FAILED(hr))
+    if (FAILED(hr)) 
     {
         OutputDebugStringA("Failed to create Graphics PSO\n");
-
-        if(true)
-        {
-            std::ostringstream oss;
-            oss << "\n[PSO Debug] -----------\n";
-            oss << "Num InputElements: " << desc.InputLayout.NumElements << "\n";
-            for (UINT i = 0; i < desc.InputLayout.NumElements; i++)
-            {
-                auto& e = desc.InputLayout.pInputElementDescs[i];
-                oss << "  Semantic: " << e.SemanticName
-                    << " Index: " << e.SemanticIndex
-                    << " Format: " << e.Format
-                    << " Slot: " << e.InputSlot
-                    << " AlignedByteOffset: " << e.AlignedByteOffset
-                    << "\n";
-            }
-
-            oss << "NumRenderTargets: " << desc.NumRenderTargets << "\n";
-            for (UINT i = 0; i < desc.NumRenderTargets; i++)
-            {
-                oss << "  RTV[" << i << "] Format: " << desc.RTVFormats[i] << "\n";
-            }
-            oss << "DSV Format: " << desc.DSVFormat << "\n";
-            oss << "Sample Count: " << desc.SampleDesc.Count
-                << " Quality: " << desc.SampleDesc.Quality << "\n";
-            oss << "SampleMask: " << desc.SampleMask << "\n";
-            oss << "[PSO Debug] -----------\n";
-
-            OutputDebugStringA(oss.str().c_str());
-        }
-
-
         throw std::runtime_error("CreateGraphicsPSO failed");
     }
 
-    return pso;
 }
