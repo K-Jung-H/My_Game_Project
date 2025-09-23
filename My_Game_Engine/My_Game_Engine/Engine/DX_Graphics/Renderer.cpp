@@ -174,7 +174,7 @@ bool DX12_Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
 
 bool DX12_Renderer::CreateRTVHeap()
 {
-    UINT rtvCount = FrameCount + FrameCount + FrameCount * (UINT)GBufferType::Count; // BackBuffer_RT: 1, CompositeBuffer_RT: 1, G-Buffer_RT: N * FrameCount
+    UINT rtvCount = FrameCount + FrameCount * 2 + FrameCount * (UINT)GBufferType::Count; // BackBuffer_RT: 1, CompositeBuffer_RT: 2, G-Buffer_RT: N * FrameCount
     mRtvManager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtvCount);
     return true;
 }
@@ -497,32 +497,122 @@ bool DX12_Renderer::Create_Shader()
     PSO_Manager& pso_manager = PSO_Manager::Instance();
     pso_manager.Init(mDevice);
 
-    ShaderSetting ss;
-    ss.vs.file = L"shaders/Shader.hlsl";
-    ss.vs.entry = "Default_VS";
-    ss.vs.target = "vs_5_1";
+    ShaderSetting default_ss;
+    default_ss.vs.file = L"shaders/Shader.hlsl";
+    default_ss.vs.entry = "Default_VS";
+    default_ss.vs.target = "vs_5_1";
 
-    ss.ps.file = L"shaders/Shader.hlsl";
-    ss.ps.entry = "Default_PS";
-    ss.ps.target = "ps_5_1";
+    default_ss.ps.file = L"shaders/Shader.hlsl";
+    default_ss.ps.entry = "Default_PS";
+    default_ss.ps.target = "ps_5_1";
 
-    PipelinePreset pp;
-    pp.inputlayout = InputLayoutPreset::Default;
-    pp.rasterizer = RasterizerPreset::Default;
-    pp.blend = BlendPreset::Opaque;
-    pp.depth = DepthPreset::Default;
-    pp.RenderTarget = RenderTargetPreset::MRT;
+    PipelinePreset default_pp;
+    default_pp.inputlayout = InputLayoutPreset::Default;
+    default_pp.rasterizer = RasterizerPreset::Default;
+    default_pp.blend = BlendPreset::Opaque;
+    default_pp.depth = DepthPreset::Default;
+    default_pp.RenderTarget = RenderTargetPreset::MRT;
 
-    std::vector<VariantConfig> configs =
+    std::vector<VariantConfig> default_configs =
     {
-        { ShaderVariant::Default, ss, pp },
-        { ShaderVariant::Shadow, ss, pp }
+        { ShaderVariant::Default, default_ss, default_pp },
+        { ShaderVariant::Shadow, default_ss, default_pp }
     };
 
-    auto test_shader = pso_manager.RegisterShader(
+    auto default_shader = pso_manager.RegisterShader(
         "Test_Model",
         RootSignature_Type::Default,
-        configs,
+        default_configs,
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
+
+    //==================================
+
+    ShaderSetting composite_ss;
+    composite_ss.vs.file = L"shaders/Shader.hlsl";
+    composite_ss.vs.entry = "Default_VS";
+    composite_ss.vs.target = "vs_5_1";
+
+    composite_ss.ps.file = L"shaders/Shader.hlsl";
+    composite_ss.ps.entry = "Default_PS";
+    composite_ss.ps.target = "ps_5_1";
+
+    PipelinePreset composite_pp;
+    composite_pp.inputlayout = InputLayoutPreset::None;
+    composite_pp.rasterizer = RasterizerPreset::None;
+    composite_pp.blend = BlendPreset::None;
+    composite_pp.depth = DepthPreset::None;
+    composite_pp.RenderTarget = RenderTargetPreset::OnePass;
+
+    std::vector<VariantConfig> composite_configs =
+    {
+        { ShaderVariant::Default, composite_ss, composite_pp },
+    };
+
+    auto composite_shader = pso_manager.RegisterShader(
+        "Composite",
+        RootSignature_Type::PostFX,
+        composite_configs,
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
+
+    //==================================
+
+    ShaderSetting postprocess_ss;
+    postprocess_ss.vs.file = L"shaders/Shader.hlsl";
+    postprocess_ss.vs.entry = "Default_VS";
+    postprocess_ss.vs.target = "vs_5_1";
+
+    postprocess_ss.ps.file = L"shaders/Shader.hlsl";
+    postprocess_ss.ps.entry = "Default_PS";
+    postprocess_ss.ps.target = "ps_5_1";
+
+    PipelinePreset postprocess_pp;
+    postprocess_pp.inputlayout = InputLayoutPreset::None;
+    postprocess_pp.rasterizer = RasterizerPreset::None;
+    postprocess_pp.blend = BlendPreset::None;
+    postprocess_pp.depth = DepthPreset::None;
+    postprocess_pp.RenderTarget = RenderTargetPreset::OnePass;
+
+    std::vector<VariantConfig> postprocess_configs =
+    {
+        { ShaderVariant::Default, postprocess_ss, postprocess_pp },
+    };
+
+    auto postprocess_shader = pso_manager.RegisterShader(
+        "PostProcess",
+        RootSignature_Type::PostFX,
+        postprocess_configs,
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
+
+    //==================================
+
+    ShaderSetting blit_ss;
+    blit_ss.vs.file = L"shaders/Shader.hlsl";
+    blit_ss.vs.entry = "Default_VS";
+    blit_ss.vs.target = "vs_5_1";
+
+    blit_ss.ps.file = L"shaders/Shader.hlsl";
+    blit_ss.ps.entry = "Default_PS";
+    blit_ss.ps.target = "ps_5_1";
+
+    PipelinePreset blit_pp;
+    blit_pp.inputlayout = InputLayoutPreset::None;
+    blit_pp.rasterizer = RasterizerPreset::None;
+    blit_pp.blend = BlendPreset::None;
+    blit_pp.depth = DepthPreset::None;
+    blit_pp.RenderTarget = RenderTargetPreset::OnePass;
+
+    std::vector<VariantConfig> blit_configs =
+    {
+        { ShaderVariant::Default, blit_ss, blit_pp },
+    };
+
+    auto blit_shader = pso_manager.RegisterShader(
+        "Blit",
+        RootSignature_Type::PostFX,
+        blit_configs,
         D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
     );
 
@@ -686,7 +776,7 @@ void DX12_Renderer::GeometryPass(std::vector<std::shared_ptr<MeshRendererCompone
     //============================================
 
     render_camera->UpdateCBV();
-    render_camera->Bind(mCommandList, RootParameter::CameraCBV);
+    render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
 
     // TODO: Record Object Render
 
@@ -697,8 +787,8 @@ void DX12_Renderer::CompositePass()
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
-    ID3D12RootSignature* composite_rootsignature = RootSignatureFactory::Get(RootSignature_Type::PostFX);
-    mCommandList->SetGraphicsRootSignature(composite_rootsignature);
+    ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
+    mCommandList->SetGraphicsRootSignature(rs);
 
     PSO_Manager::Instance().BindShader(mCommandList, "Composite", ShaderVariant::Default);
 
@@ -712,28 +802,16 @@ void DX12_Renderer::CompositePass()
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
 
-    constexpr UINT RP_ALBEDO = 0;
-    constexpr UINT RP_NORMAL = 1;
-    constexpr UINT RP_MATERIAL = 2;
-    constexpr UINT RP_DEPTH = 3;
-
-
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {
-        auto albedoGpu = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[(UINT)GBufferType::Albedo]);
-        auto normalGpu = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[(UINT)GBufferType::Normal]);
-        auto materialGpu = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[(UINT)GBufferType::Material]);
-
-        mCommandList->SetGraphicsRootDescriptorTable(RP_ALBEDO, albedoGpu);
-        mCommandList->SetGraphicsRootDescriptorTable(RP_NORMAL, normalGpu);
-        mCommandList->SetGraphicsRootDescriptorTable(RP_MATERIAL, materialGpu);
+        auto gbufferSrv = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[0]); 
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::GBufferTable, gbufferSrv);
     }
-
 
     if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
     {
-        auto depthGpu = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
-        mCommandList->SetGraphicsRootDescriptorTable(RP_DEPTH, depthGpu);
+        auto depthSrv = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::DepthTexture, depthSrv);
     }
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -744,7 +822,6 @@ void DX12_Renderer::CompositePass()
 
 void DX12_Renderer::PostProcessPass()
 {
-    // to change CS
     FrameResource& fr = mFrameResources[mFrameIndex];
 
     ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
@@ -755,14 +832,26 @@ void DX12_Renderer::PostProcessPass()
     //============================================
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Base_Index].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
-    constexpr UINT RP_SRC = 0;
+    if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
+    {
+        auto gbufferSrv = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[0]);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::GBufferTable, gbufferSrv);
+    }
+
+    if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
+    {
+        auto depthSrv = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::DepthTexture, depthSrv);
+    }
+
     auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
-    mCommandList->SetGraphicsRootDescriptorTable(RP_SRC, src);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::MergeTexture, src);
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     mCommandList->DrawInstanced(3, 1, 0, 0);
@@ -782,17 +871,14 @@ void DX12_Renderer::Blit_BackBufferPass()
     //============================================
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.RenderTarget.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Base_Index].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
-
-
-
-    constexpr UINT RP_SRC = 0;
     auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
-    mCommandList->SetGraphicsRootDescriptorTable(RP_SRC, src);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::MergeTexture, src);
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     mCommandList->DrawInstanced(3, 1, 0, 0);

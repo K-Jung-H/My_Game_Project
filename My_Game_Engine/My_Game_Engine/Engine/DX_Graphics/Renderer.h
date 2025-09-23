@@ -11,13 +11,6 @@ struct MRTTargetDesc
     FLOAT clearColor[4];
 };
 
-enum class GBufferType : UINT
-{
-    Albedo = 0,
-    Normal,
-    Material,
-    Count
-};
 
 
 constexpr MRTTargetDesc GBUFFER_CONFIG[(UINT)GBufferType::Count] =

@@ -1,5 +1,14 @@
 #include "pch.h"
 
+enum class GBufferType : UINT
+{
+    Albedo = 0,
+    Normal,
+    Material,
+    Count
+};
+
+
 namespace ShaderRegister
 {
     enum SRV : UINT
@@ -12,20 +21,32 @@ namespace ShaderRegister
     };
 }
 
-namespace RootParameter
+namespace RootParameter_Default
 {
     enum Slot : UINT
     {
         SceneCBV = 0,
-
-        ObjectCBV = 1,
-        CameraCBV = 2,
+        CameraCBV = 1,
+        ObjectCBV = 2,
 
         DiffuseTexture = 3,
         NormalTexture,
         RoughnessTexture,
         MetallicTexture,
 
+        Count
+    };
+}
+
+namespace RootParameter_PostFX
+{
+    enum Slot : UINT
+    {
+        SceneCBV = 0,
+        CameraCBV = 1,
+        GBufferTable = 2,
+        DepthTexture = 3,
+        MergeTexture = 4,
         Count
     };
 }
@@ -54,6 +75,7 @@ private:
     static inline bool initialized = false;
 
     static ComPtr<ID3D12RootSignature> CreateDefault(ID3D12Device* device);
+    static ComPtr<ID3D12RootSignature> CreatePostFX(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateTerrain(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateSkinned(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateUI(ID3D12Device* device);
