@@ -49,10 +49,26 @@ struct FrameResource
 {
     UINT64 FenceValue = 0;
     ComPtr<ID3D12CommandAllocator> CommandAllocator;
+
     ComPtr<ID3D12Resource> RenderTarget;
+    UINT BackBufferRtvSlot_ID = UINT_MAX;
+
     ComPtr<ID3D12Resource> DepthStencilBuffer;
+    UINT DsvSlot_ID = UINT_MAX;
+    UINT DepthBufferSrvSlot_ID = UINT_MAX;
 
     GBuffer gbuffer;
+    std::vector<UINT> GBufferRtvSlot_IDs;
+    std::vector<UINT> GBufferSrvSlot_IDs;
+
+
+    ComPtr<ID3D12Resource> Merge_RenderTargets[2];
+    UINT MergeRtvSlot_IDs[2] = { UINT_MAX, UINT_MAX };
+    UINT MergeSrvSlot_IDs[2] = { UINT_MAX, UINT_MAX };
+    UINT Merge_Base_Index = 0;
+    UINT Merge_Target_Index = 1;
+
+
     ResourceStateTracker StateTracker;
 };
 
@@ -66,6 +82,8 @@ struct RendererContext
 
 class DX12_Renderer
 {
+    static float clear_color[4];
+
 public:
     bool Initialize(HWND hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
@@ -107,9 +125,6 @@ private:
 
     std::array<FrameResource, FrameCount> mFrameResources;
 
-    std::array<std::vector<D3D12_CPU_DESCRIPTOR_HANDLE>, FrameCount> mGBufferRtvHandles;
-    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, FrameCount> mBackBufferRtvHandles;
-    std::array<D3D12_CPU_DESCRIPTOR_HANDLE, FrameCount> mDsvHandles;
 
     UINT64 mFenceValue = 0;
     HANDLE mFenceEvent;
@@ -139,7 +154,9 @@ private:
     bool CreateFrameResources();
     bool CreateBackBufferRTV(UINT frameIndex, FrameResource& fr);
     bool CreateCommandAllocator(FrameResource& fr);
+
     bool CreateGBufferRTVs(UINT frameIndex, FrameResource& fr);
+    bool CreateGBufferSRVs(UINT frameIndex, FrameResource& fr);
     bool CreateDSV(UINT frameIndex, FrameResource& fr);
 
     // Helpers (府家胶 积己)
@@ -147,21 +164,33 @@ private:
     bool CreateDSVHeap();
     bool CreateResourceHeap();
 
-    bool CreateGBuffer(FrameResource& fr, UINT width, UINT height);
+    bool CreateGBuffer(UINT frameIndex, FrameResource& fr);
     bool CreateDepthStencil(FrameResource& fr, UINT width, UINT height);    
-    
+    bool Create_Merge_RenderTargets(UINT frameIndex, FrameResource& fr);
+
     bool CreateCommandList();
     bool CreateFenceObjects();
 
     // === Rendering steps ===
     void PrepareCommandList();
+
     void ClearGBuffer();
+    void PrepareGBuffer_RTV();
+    void PrepareGBuffer_SRV();
+
+
     void ClearBackBuffer(float clear_color[4]);
     void TransitionBackBufferToPresent();
     void PresentFrame();
 
     void WaitForFrame(UINT64 fenceValue);
     FrameResource& GetCurrentFrameResource();
+
+    void GeometryPass(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera);
+    void CompositePass();
+    void PostProcessPass();
+    void Blit_BackBufferPass();
+    void ImguiPass();
 
     void SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list);
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<std::shared_ptr<MeshRendererComponent>>& renderable_list);

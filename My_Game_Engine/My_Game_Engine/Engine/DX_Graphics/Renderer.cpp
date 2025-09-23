@@ -31,6 +31,8 @@ void ResourceStateTracker::Transition(ID3D12GraphicsCommandList* cmdList, ID3D12
 
 //=======================================================================
 
+float DX12_Renderer::clear_color[4] = { 0.95f, 0.55f, 0.60f, 1.00f };
+
 bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
 {
 
@@ -172,7 +174,7 @@ bool DX12_Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
 
 bool DX12_Renderer::CreateRTVHeap()
 {
-    UINT rtvCount = FrameCount + FrameCount * (UINT)GBufferType::Count;
+    UINT rtvCount = FrameCount + FrameCount + FrameCount * (UINT)GBufferType::Count; // BackBuffer_RT: 1, CompositeBuffer_RT: 1, G-Buffer_RT: N * FrameCount
     mRtvManager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_RTV, rtvCount);
     return true;
 }
@@ -207,7 +209,8 @@ bool DX12_Renderer::CreateFrameResources()
 
         if (!CreateCommandAllocator(fr)) return false;
         if (!CreateBackBufferRTV(i, fr)) return false;
-        if (!CreateGBufferRTVs(i, fr)) return false;
+        if (!CreateGBuffer(i, fr)) return false;
+        if (!Create_Merge_RenderTargets(i, fr)) return false;
         if (!CreateDSV(i, fr)) return false;
     }
     return true;
@@ -223,19 +226,19 @@ bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
     if (FAILED(mSwapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&fr.RenderTarget))))
         return false;
 
-    UINT slot = mRtvManager->Allocate();
-    D3D12_CPU_DESCRIPTOR_HANDLE handle = mRtvManager->GetCpuHandle(slot);
+    UINT Slot = mRtvManager->Allocate();
 
-    mDevice->CreateRenderTargetView(fr.RenderTarget.Get(), nullptr, handle);
-    mBackBufferRtvHandles[frameIndex] = handle;
+    fr.BackBufferRtvSlot_ID = Slot;
 
+    mDevice->CreateRenderTargetView(fr.RenderTarget.Get(), nullptr, mRtvManager->GetCpuHandle(Slot));
 
     fr.StateTracker.Register(fr.RenderTarget.Get(), D3D12_RESOURCE_STATE_PRESENT);
 
     return true;
 }
 
-bool DX12_Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
+
+bool DX12_Renderer::CreateGBuffer(UINT frameIndex, FrameResource& frame)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -243,11 +246,9 @@ bool DX12_Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
     {
         const MRTTargetDesc& desc = GBUFFER_CONFIG[i];
 
-        // Create Tex2D resource description
-        auto texDesc = CD3DX12_RESOURCE_DESC::Tex2D(desc.format, width, height, 1, 1);
+        auto texDesc = CD3DX12_RESOURCE_DESC::Tex2D(desc.format, mWidth, mHeight, 1, 1);
         texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-        // Clear value
         D3D12_CLEAR_VALUE clearValue = {};
         clearValue.Format = desc.format;
         memcpy(clearValue.Color, desc.clearColor, sizeof(FLOAT) * 4);
@@ -262,27 +263,76 @@ bool DX12_Renderer::CreateGBuffer(FrameResource& frame, UINT width, UINT height)
         frame.StateTracker.Register(frame.gbuffer.targets[i].Get(), D3D12_RESOURCE_STATE_COMMON);
     }
 
+    if (!CreateGBufferRTVs(frameIndex, frame)) return false;
+    if (!CreateGBufferSRVs(frameIndex, frame)) return false;
+
+
     return true;
 }
 
 bool DX12_Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
 {
-    if (!CreateGBuffer(fr, mWidth, mHeight)) return false;
-
-    mGBufferRtvHandles[frameIndex].resize((UINT)GBufferType::Count);
-
-    UINT baseIndex = FrameCount + frameIndex * (UINT)GBufferType::Count;
+    
+    fr.GBufferRtvSlot_IDs.clear();
+    fr.GBufferRtvSlot_IDs.reserve((UINT)GBufferType::Count);
 
     for (UINT g = 0; g < (UINT)GBufferType::Count; g++)
     {
         UINT slot = mRtvManager->Allocate();
-        D3D12_CPU_DESCRIPTOR_HANDLE handle = mRtvManager->GetCpuHandle(slot);
+        fr.GBufferRtvSlot_IDs.push_back(slot);
 
-        mDevice->CreateRenderTargetView(fr.gbuffer.targets[g].Get(), nullptr, handle);
-        mGBufferRtvHandles[frameIndex][g] = handle;
+        mDevice->CreateRenderTargetView(fr.gbuffer.targets[g].Get(), nullptr, mRtvManager->GetCpuHandle(slot));
+
+        fr.StateTracker.Register(fr.gbuffer.targets[g].Get(), D3D12_RESOURCE_STATE_COMMON);
+
     }
     return true;
 }
+
+bool DX12_Renderer::CreateGBufferSRVs(UINT frameIndex, FrameResource& fr)
+{
+    fr.GBufferSrvSlot_IDs.clear();
+    fr.GBufferSrvSlot_IDs.reserve((UINT)GBufferType::Count);
+
+    for (UINT g = 0; g < (UINT)GBufferType::Count; ++g)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv = {};
+        srv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srv.Texture2D.MostDetailedMip = 0;
+        srv.Texture2D.MipLevels = 1;
+        srv.Format = GBUFFER_CONFIG[g].format;
+
+        UINT slot = mResource_Heap_Manager->Allocate();
+        fr.GBufferSrvSlot_IDs.push_back(slot);
+
+        auto cpu = mResource_Heap_Manager->GetCpuHandle(slot);
+        mDevice->CreateShaderResourceView(fr.gbuffer.targets[g].Get(), &srv, cpu);
+    }
+
+
+
+    fr.DepthBufferSrvSlot_ID = UINT_MAX;
+
+    if (fr.DepthStencilBuffer)
+    {
+        D3D12_SHADER_RESOURCE_VIEW_DESC dSrv = {};
+        dSrv.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        dSrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        dSrv.Texture2D.MostDetailedMip = 0;
+        dSrv.Texture2D.MipLevels = 1;
+        dSrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+
+        UINT dslot = mResource_Heap_Manager->Allocate();
+        fr.DepthBufferSrvSlot_ID = dslot;
+
+        auto cpu = mResource_Heap_Manager->GetCpuHandle(dslot);
+        mDevice->CreateShaderResourceView(fr.DepthStencilBuffer.Get(), &dSrv, cpu);
+    }
+
+    return true;
+}
+
 
 bool DX12_Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT height)
 {
@@ -314,13 +364,63 @@ bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
     if (!CreateDepthStencil(fr, mWidth, mHeight)) return false;
 
     UINT slot = mDsvManager->Allocate();
-    D3D12_CPU_DESCRIPTOR_HANDLE handle = mDsvManager->GetCpuHandle(slot);
+    fr.DsvSlot_ID = slot;
 
-    mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), nullptr, handle);
-    mDsvHandles[frameIndex] = handle;
+    mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), nullptr, mDsvManager->GetCpuHandle(slot));
+
+    fr.StateTracker.Register(fr.DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
     return true;
 }
+
+
+bool DX12_Renderer::Create_Merge_RenderTargets(UINT frameIndex, FrameResource& fr)
+{
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
+    DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+
+    for (int i = 0; i < 2; i++)
+    {
+        auto desc = CD3DX12_RESOURCE_DESC::Tex2D(format, mWidth, mHeight, 1, 1);
+        desc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+        D3D12_CLEAR_VALUE clearValue = {};
+        clearValue.Format = format;
+        clearValue.Color[0] = 0.0f;
+        clearValue.Color[1] = 0.0f;
+        clearValue.Color[2] = 0.0f;
+        clearValue.Color[3] = 1.0f;
+
+        if (FAILED(mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, 
+            &desc, D3D12_RESOURCE_STATE_COMMON, &clearValue, IID_PPV_ARGS(&fr.Merge_RenderTargets[i]))))
+        {
+            return false;
+        }
+
+        fr.StateTracker.Register(fr.Merge_RenderTargets[i].Get(), D3D12_RESOURCE_STATE_COMMON);
+
+
+        fr.MergeRtvSlot_IDs[i] = mRtvManager->Allocate();
+        mDevice->CreateRenderTargetView(fr.Merge_RenderTargets[i].Get(), nullptr, mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[i]));
+
+        //======================
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = format;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Texture2D.MipLevels = 1;
+
+        fr.MergeSrvSlot_IDs[i] = mResource_Heap_Manager->Allocate();
+        mDevice->CreateShaderResourceView(fr.Merge_RenderTargets[i].Get(), &srvDesc, mResource_Heap_Manager->GetCpuHandle(fr.MergeSrvSlot_IDs[i]));
+    }
+
+    fr.Merge_Base_Index = 0; // Read(SRV)
+    fr.Merge_Target_Index = 1; // Write(RTV)
+
+    return true;
+}
+
 
 bool DX12_Renderer::CreateCommandList()
 {
@@ -460,25 +560,63 @@ void DX12_Renderer::PrepareCommandList()
 void DX12_Renderer::ClearGBuffer()
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
-    auto& rtvs = mGBufferRtvHandles[mFrameIndex];
-    D3D12_CPU_DESCRIPTOR_HANDLE dsv = mDsvHandles[mFrameIndex];
 
-    for (UINT g = 0; g < (UINT)GBufferType::Count; g++) {
-        fr.StateTracker.Transition(mCommandList.Get(), fr.gbuffer.targets[g].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-    }
+    std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> rtvs;
+
+    rtvs.reserve(fr.GBufferRtvSlot_IDs.size());
+
+    for (UINT slot : fr.GBufferRtvSlot_IDs)
+        rtvs.push_back(mRtvManager->GetCpuHandle(slot));
+
+    auto dsv = mDsvManager->GetCpuHandle(fr.DsvSlot_ID);
+
+    for (auto& target : fr.gbuffer.targets)
+        fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     mCommandList->OMSetRenderTargets((UINT)rtvs.size(), rtvs.data(), FALSE, &dsv);
 
-    for (UINT g = 0; g < (UINT)GBufferType::Count; g++) {
+    //===================
+
+    for (UINT g = 0; g < (UINT)GBufferType::Count; g++)
+    {
         const MRTTargetDesc& cfg = GBUFFER_CONFIG[g];
         mCommandList->ClearRenderTargetView(rtvs[g], cfg.clearColor, 0, nullptr);
     }
 
     mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
-    for (UINT g = 0; g < (UINT)GBufferType::Count; g++) {
-        fr.StateTracker.Transition(mCommandList.Get(), fr.gbuffer.targets[g].Get(), D3D12_RESOURCE_STATE_COMMON);
-    }
+    for (auto& target : fr.gbuffer.targets)
+        fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_COMMON);
+}
+
+void DX12_Renderer::PrepareGBuffer_RTV()
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> rtvs;
+
+    rtvs.reserve(fr.GBufferRtvSlot_IDs.size());
+
+    for (UINT slot : fr.GBufferRtvSlot_IDs)
+        rtvs.push_back(mRtvManager->GetCpuHandle(slot));
+
+    auto dsv = mDsvManager->GetCpuHandle(fr.DsvSlot_ID);
+
+    for (auto& target : fr.gbuffer.targets)
+        fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    mCommandList->OMSetRenderTargets((UINT)rtvs.size(), rtvs.data(), FALSE, &dsv);
+}
+
+void DX12_Renderer::PrepareGBuffer_SRV()
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    for (auto& target : fr.gbuffer.targets)
+        fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    if (fr.DepthStencilBuffer)
+        fr.StateTracker.Transition(mCommandList.Get(), fr.DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
 void DX12_Renderer::ClearBackBuffer(float clear_color[4])
@@ -487,13 +625,11 @@ void DX12_Renderer::ClearBackBuffer(float clear_color[4])
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.RenderTarget.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE rtv = mBackBufferRtvHandles[mFrameIndex];
-    D3D12_CPU_DESCRIPTOR_HANDLE dsv = mDsvHandles[mFrameIndex];
-    mCommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+    auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
 
+    mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
     mCommandList->ClearRenderTargetView(rtv, clear_color, 0, nullptr);
-    mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 }
 
 void DX12_Renderer::TransitionBackBufferToPresent()
@@ -520,23 +656,34 @@ void DX12_Renderer::PresentFrame()
 
 void DX12_Renderer::Render(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera)
 {
-    static float clear_color[4] = { 0.45f, 0.55f, 0.60f, 1.00f };
-
     PrepareCommandList();
-    ClearGBuffer();
-    ClearBackBuffer(clear_color);
-
+    
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
     mCommandList->SetDescriptorHeaps(1, heaps);
 
-    // TODO: Bind RootSignature
+    GeometryPass(renderable_list, render_camera);
+    CompositePass();
+    PostProcessPass();
+    Blit_BackBufferPass();
+    ImguiPass();
+    TransitionBackBufferToPresent();
+    mCommandList->Close();
+    PresentFrame();
+
+}
+
+void DX12_Renderer::GeometryPass(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera)
+{
+    ClearBackBuffer(clear_color);
+    ClearGBuffer();
+    PrepareGBuffer_RTV();
+
     ID3D12RootSignature* default_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Default);
-
     mCommandList->SetGraphicsRootSignature(default_rootsignature);
-    PSO_Manager& pso_manager = PSO_Manager::Instance();
 
-    pso_manager.BindShader(mCommandList, "Test_Model", ShaderVariant::Default);
-    
+    PSO_Manager::Instance().BindShader(mCommandList, "Test_Model", ShaderVariant::Default);
+
+    //============================================
 
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter::CameraCBV);
@@ -544,43 +691,153 @@ void DX12_Renderer::Render(std::vector<std::shared_ptr<MeshRendererComponent>> r
     // TODO: Record Object Render
 
     Render_Objects(mCommandList, renderable_list);
-    
-    
+}
 
-    // ImGui 시작
-    ImGui_ImplDX12_NewFrame();
-    ImGui_ImplWin32_NewFrame();
-    ImGui::NewFrame();
+void DX12_Renderer::CompositePass()
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    ID3D12RootSignature* composite_rootsignature = RootSignatureFactory::Get(RootSignature_Type::PostFX);
+    mCommandList->SetGraphicsRootSignature(composite_rootsignature);
+
+    PSO_Manager::Instance().BindShader(mCommandList, "Composite", ShaderVariant::Default);
+
+    //============================================
+
+    PrepareGBuffer_SRV();
+
+    fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
+    mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
 
-    ImGui::Begin("Color Controller");
-    ImGui::ColorEdit4("MyColor RGBA", clear_color);
-    ImGui::End();
+    constexpr UINT RP_ALBEDO = 0;
+    constexpr UINT RP_NORMAL = 1;
+    constexpr UINT RP_MATERIAL = 2;
+    constexpr UINT RP_DEPTH = 3;
 
 
-    ImGui::Render();
-
-
-
-    // ---- ImGui 드로우 ----
-    ID3D12DescriptorHeap* imgui_heaps[] = { mImguiSrvHeap.Get() };
-    mCommandList->SetDescriptorHeaps(1, imgui_heaps);
-    mCommandList->OMSetRenderTargets(
-        1, &mBackBufferRtvHandles[mFrameIndex], FALSE, &mDsvHandles[mFrameIndex]);
-
-    ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
-
-    // Viewport 지원
-    ImGuiIO& io = ImGui::GetIO();
-    if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+    if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {
-        ImGui::UpdatePlatformWindows();
-        ImGui::RenderPlatformWindowsDefault();
+        auto albedoGpu = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[(UINT)GBufferType::Albedo]);
+        auto normalGpu = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[(UINT)GBufferType::Normal]);
+        auto materialGpu = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[(UINT)GBufferType::Material]);
+
+        mCommandList->SetGraphicsRootDescriptorTable(RP_ALBEDO, albedoGpu);
+        mCommandList->SetGraphicsRootDescriptorTable(RP_NORMAL, normalGpu);
+        mCommandList->SetGraphicsRootDescriptorTable(RP_MATERIAL, materialGpu);
     }
 
-    TransitionBackBufferToPresent();
-    mCommandList->Close();
-    PresentFrame();
+
+    if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
+    {
+        auto depthGpu = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
+        mCommandList->SetGraphicsRootDescriptorTable(RP_DEPTH, depthGpu);
+    }
+
+    mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    mCommandList->DrawInstanced(3, 1, 0, 0);
+
+    std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
+}
+
+void DX12_Renderer::PostProcessPass()
+{
+    // to change CS
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
+    mCommandList->SetGraphicsRootSignature(rs);
+
+    PSO_Manager::Instance().BindShader(mCommandList, "PostProcess", ShaderVariant::Default);
+
+    //============================================
+
+    fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Base_Index].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
+    mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+    constexpr UINT RP_SRC = 0;
+    auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
+    mCommandList->SetGraphicsRootDescriptorTable(RP_SRC, src);
+
+    mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    mCommandList->DrawInstanced(3, 1, 0, 0);
+
+    std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
+}
+
+
+void DX12_Renderer::Blit_BackBufferPass()
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
+    mCommandList->SetGraphicsRootSignature(rs);
+    PSO_Manager::Instance().BindShader(mCommandList, "Blit", ShaderVariant::Default);
+
+    //============================================
+
+    fr.StateTracker.Transition(mCommandList.Get(), fr.RenderTarget.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Base_Index].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
+    mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+
+
+
+    constexpr UINT RP_SRC = 0;
+    auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
+    mCommandList->SetGraphicsRootDescriptorTable(RP_SRC, src);
+
+    mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    mCommandList->DrawInstanced(3, 1, 0, 0);
+}
+
+void DX12_Renderer::ImguiPass()
+{
+    bool use_imgui = true;
+    if (use_imgui)
+    {
+        // ImGui 시작
+        ImGui_ImplDX12_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+
+        ImGui::Begin("Color Controller");
+        ImGui::ColorEdit4("MyColor RGBA", clear_color);
+        ImGui::End();
+
+
+        ImGui::Render();
+
+
+
+        // ---- ImGui 드로우 ----
+        ID3D12DescriptorHeap* imgui_heaps[] = { mImguiSrvHeap.Get() };
+        mCommandList->SetDescriptorHeaps(1, imgui_heaps);
+
+        FrameResource& fr = mFrameResources[mFrameIndex];
+        auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
+        auto dsv = mDsvManager->GetCpuHandle(fr.DsvSlot_ID);
+
+        mCommandList->OMSetRenderTargets(1, &rtv, FALSE, &dsv);
+
+        ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), mCommandList.Get());
+
+        // Viewport 지원
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+        }
+    }
 }
 
 void DX12_Renderer::SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list)

@@ -159,13 +159,14 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
 
     switch (heapType)
     {
-     // ========================
+        // ========================
     case D3D12_HEAP_TYPE_DEFAULT:
     {
-        D3D12_RESOURCE_STATES initState =
-            (pData ? D3D12_RESOURCE_STATE_COPY_DEST : finalState);
 
-        HRESULT hr = device->CreateCommittedResource(&heapProps, 
+        D3D12_RESOURCE_STATES initState =
+            (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? D3D12_RESOURCE_STATE_COMMON : (pData ? D3D12_RESOURCE_STATE_COPY_DEST : finalState);
+
+        HRESULT hr = device->CreateCommittedResource(&heapProps,
             D3D12_HEAP_FLAG_NONE, &desc, initState, nullptr, IID_PPV_ARGS(&resource));
 
         if (FAILED(hr))
@@ -173,10 +174,9 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
 
         if (pData)
         {
-
             heapProps.Type = D3D12_HEAP_TYPE_UPLOAD;
 
-            hr = device->CreateCommittedResource(&heapProps, 
+            hr = device->CreateCommittedResource(&heapProps,
                 D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&uploadBuffer));
 
             if (FAILED(hr))
@@ -189,7 +189,13 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
                 memcpy(mapped, pData, static_cast<size_t>(nBytes));
                 uploadBuffer->Unmap(0, nullptr);
 
+                CD3DX12_RESOURCE_BARRIER toCopy = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
+                cmdList->ResourceBarrier(1, &toCopy);
+
                 cmdList->CopyResource(resource.Get(), uploadBuffer.Get());
+
+                CD3DX12_RESOURCE_BARRIER toFinal = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalState);
+                cmdList->ResourceBarrier(1, &toFinal);
             }
             else // Texture ¡æ UpdateSubresources
             {
@@ -199,11 +205,10 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
                 subData.SlicePitch = nBytes;
 
                 UpdateSubresources(cmdList, resource.Get(), uploadBuffer.Get(), 0, 0, 1, &subData);
+
+                CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalState);
+                cmdList->ResourceBarrier(1, &barrier);
             }
-
-
-            CD3DX12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(resource.Get(), D3D12_RESOURCE_STATE_COPY_DEST, finalState);
-            cmdList->ResourceBarrier(1, &barrier);
         }
         break;
     }
@@ -211,7 +216,7 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
     // ========================
     case D3D12_HEAP_TYPE_UPLOAD:
     {
-        HRESULT hr = device->CreateCommittedResource(&heapProps, 
+        HRESULT hr = device->CreateCommittedResource(&heapProps,
             D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&resource));
 
         if (FAILED(hr))
@@ -230,7 +235,7 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
     // ========================
     case D3D12_HEAP_TYPE_READBACK:
     {
-        HRESULT hr = device->CreateCommittedResource(&heapProps, 
+        HRESULT hr = device->CreateCommittedResource(&heapProps,
             D3D12_HEAP_FLAG_NONE, &desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&resource));
 
         if (FAILED(hr))

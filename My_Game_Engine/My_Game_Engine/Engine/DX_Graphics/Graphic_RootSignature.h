@@ -34,8 +34,9 @@ namespace RootParameter
 enum class RootSignature_Type : int
 {
     Default,
-    Terrain,
     Skinned,
+    Terrain,
+    PostFX,
     UI,
     Count
 };
