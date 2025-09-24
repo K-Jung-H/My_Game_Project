@@ -39,6 +39,8 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가하기 //  진행 
 Scene에 GameObject를 관리하는 기능 추가하기 //  진행 우선순위 마지막
 
 
+Shader 파일 생성 완료 및 연결 확인 완료
+각 Shader별로 PSO 설정 확인 필요 // 오류 발생 중
 
 
 

@@ -5,28 +5,29 @@ enum class InputLayoutPreset
     Default,
     PosNormTex,
     PosColor,
-    PosOnly
+    PosOnly,
+    None,
 };
 
 enum class RasterizerPreset 
 { 
     Default, 
     Wireframe, 
-    Shadow 
+    Shadow,
 };
 
 enum class BlendPreset 
 { 
     Opaque, 
     AlphaBlend, 
-    Additive 
+    Additive,
 };
 
 enum class DepthPreset 
 { 
     Default, 
     ReadOnly, 
-    Disabled 
+    Disabled,
 };
 
 enum class RenderTargetPreset
@@ -50,7 +51,7 @@ struct PipelinePreset
 {
     InputLayoutPreset inputlayout = InputLayoutPreset::Default;
     RasterizerPreset rasterizer = RasterizerPreset::Default;
-    BlendPreset      blend = BlendPreset::Opaque;
+    BlendPreset      blend = BlendPreset::AlphaBlend;
     DepthPreset      depth = DepthPreset::Default;
     RenderTargetPreset RenderTarget = RenderTargetPreset::MRT;
 };

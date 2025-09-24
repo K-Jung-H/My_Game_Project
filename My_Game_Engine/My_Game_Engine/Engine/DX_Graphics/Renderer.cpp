@@ -498,18 +498,18 @@ bool DX12_Renderer::Create_Shader()
     pso_manager.Init(mDevice);
 
     ShaderSetting default_ss;
-    default_ss.vs.file = L"shaders/Shader.hlsl";
+    default_ss.vs.file = L"shaders/Geometry_Shader.hlsl";
     default_ss.vs.entry = "Default_VS";
     default_ss.vs.target = "vs_5_1";
 
-    default_ss.ps.file = L"shaders/Shader.hlsl";
+    default_ss.ps.file = L"shaders/Geometry_Shader.hlsl";
     default_ss.ps.entry = "Default_PS";
     default_ss.ps.target = "ps_5_1";
 
     PipelinePreset default_pp;
     default_pp.inputlayout = InputLayoutPreset::Default;
     default_pp.rasterizer = RasterizerPreset::Default;
-    default_pp.blend = BlendPreset::Opaque;
+    default_pp.blend = BlendPreset::AlphaBlend;
     default_pp.depth = DepthPreset::Default;
     default_pp.RenderTarget = RenderTargetPreset::MRT;
 
@@ -529,19 +529,19 @@ bool DX12_Renderer::Create_Shader()
     //==================================
 
     ShaderSetting composite_ss;
-    composite_ss.vs.file = L"shaders/Shader.hlsl";
+    composite_ss.vs.file = L"shaders/Composite_Shader.hlsl";
     composite_ss.vs.entry = "Default_VS";
     composite_ss.vs.target = "vs_5_1";
 
-    composite_ss.ps.file = L"shaders/Shader.hlsl";
+    composite_ss.ps.file = L"shaders/Composite_Shader.hlsl";
     composite_ss.ps.entry = "Default_PS";
     composite_ss.ps.target = "ps_5_1";
 
     PipelinePreset composite_pp;
     composite_pp.inputlayout = InputLayoutPreset::None;
-    composite_pp.rasterizer = RasterizerPreset::None;
-    composite_pp.blend = BlendPreset::None;
-    composite_pp.depth = DepthPreset::None;
+    composite_pp.rasterizer = RasterizerPreset::Default;
+    composite_pp.blend = BlendPreset::AlphaBlend;
+    composite_pp.depth = DepthPreset::Disabled;
     composite_pp.RenderTarget = RenderTargetPreset::OnePass;
 
     std::vector<VariantConfig> composite_configs =
@@ -559,19 +559,19 @@ bool DX12_Renderer::Create_Shader()
     //==================================
 
     ShaderSetting postprocess_ss;
-    postprocess_ss.vs.file = L"shaders/Shader.hlsl";
+    postprocess_ss.vs.file = L"shaders/PostProcess_Shader.hlsl";
     postprocess_ss.vs.entry = "Default_VS";
     postprocess_ss.vs.target = "vs_5_1";
 
-    postprocess_ss.ps.file = L"shaders/Shader.hlsl";
+    postprocess_ss.ps.file = L"shaders/PostProcess_Shader.hlsl";
     postprocess_ss.ps.entry = "Default_PS";
     postprocess_ss.ps.target = "ps_5_1";
 
     PipelinePreset postprocess_pp;
     postprocess_pp.inputlayout = InputLayoutPreset::None;
-    postprocess_pp.rasterizer = RasterizerPreset::None;
-    postprocess_pp.blend = BlendPreset::None;
-    postprocess_pp.depth = DepthPreset::None;
+    postprocess_pp.rasterizer = RasterizerPreset::Default;
+    postprocess_pp.blend = BlendPreset::AlphaBlend;
+    postprocess_pp.depth = DepthPreset::Disabled;
     postprocess_pp.RenderTarget = RenderTargetPreset::OnePass;
 
     std::vector<VariantConfig> postprocess_configs =
@@ -589,19 +589,19 @@ bool DX12_Renderer::Create_Shader()
     //==================================
 
     ShaderSetting blit_ss;
-    blit_ss.vs.file = L"shaders/Shader.hlsl";
+    blit_ss.vs.file = L"shaders/Blit_Shader.hlsl";
     blit_ss.vs.entry = "Default_VS";
     blit_ss.vs.target = "vs_5_1";
 
-    blit_ss.ps.file = L"shaders/Shader.hlsl";
+    blit_ss.ps.file = L"shaders/Blit_Shader.hlsl";
     blit_ss.ps.entry = "Default_PS";
     blit_ss.ps.target = "ps_5_1";
 
     PipelinePreset blit_pp;
     blit_pp.inputlayout = InputLayoutPreset::None;
-    blit_pp.rasterizer = RasterizerPreset::None;
-    blit_pp.blend = BlendPreset::None;
-    blit_pp.depth = DepthPreset::None;
+    blit_pp.rasterizer = RasterizerPreset::Default;
+    blit_pp.blend = BlendPreset::AlphaBlend;
+    blit_pp.depth = DepthPreset::Disabled;
     blit_pp.RenderTarget = RenderTargetPreset::OnePass;
 
     std::vector<VariantConfig> blit_configs =

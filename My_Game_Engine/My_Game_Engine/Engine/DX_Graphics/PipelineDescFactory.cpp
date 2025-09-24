@@ -30,6 +30,8 @@ D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset pr
         return { posColorLayout.data(), (UINT)posColorLayout.size() };
     case InputLayoutPreset::PosOnly:
         return { posOnlyLayout.data(), (UINT)posOnlyLayout.size() };
+    case InputLayoutPreset::None:
+        return { nullptr, 0 };
     default:
         return { defaultLayout.data(), (UINT)defaultLayout.size() };
     }
@@ -60,15 +62,34 @@ D3D12_RASTERIZER_DESC PipelineDescFactory::GetRasterizer(RasterizerPreset preset
 D3D12_BLEND_DESC PipelineDescFactory::GetBlend(BlendPreset preset)
 {
     D3D12_BLEND_DESC desc = {};
-    desc.RenderTarget[0].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+    desc.AlphaToCoverageEnable = FALSE;
+    desc.IndependentBlendEnable = FALSE;
+
+    for (int i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
+    {
+        desc.RenderTarget[i].RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
+        desc.RenderTarget[i].BlendEnable = FALSE;
+
+        // 기본값 (알파 채널)
+        desc.RenderTarget[i].SrcBlendAlpha = D3D12_BLEND_ONE;
+        desc.RenderTarget[i].DestBlendAlpha = D3D12_BLEND_ZERO;
+        desc.RenderTarget[i].BlendOpAlpha = D3D12_BLEND_OP_ADD;
+    }
 
     switch (preset)
     {
+    case BlendPreset::Opaque:
+        desc.RenderTarget[0].BlendEnable = FALSE;
+        break;
+
     case BlendPreset::AlphaBlend:
         desc.RenderTarget[0].BlendEnable = TRUE;
         desc.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
         desc.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
         desc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+        desc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+        desc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+        desc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
         break;
 
     case BlendPreset::Additive:
@@ -76,10 +97,15 @@ D3D12_BLEND_DESC PipelineDescFactory::GetBlend(BlendPreset preset)
         desc.RenderTarget[0].SrcBlend = D3D12_BLEND_ONE;
         desc.RenderTarget[0].DestBlend = D3D12_BLEND_ONE;
         desc.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+        desc.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_ONE;
+        desc.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_ZERO;
+        desc.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_ADD;
         break;
 
-    default: break;
+    default:
+        break;
     }
+
     return desc;
 }
 
@@ -97,6 +123,7 @@ D3D12_DEPTH_STENCIL_DESC PipelineDescFactory::GetDepth(DepthPreset preset)
         break;
     case DepthPreset::Disabled:
         desc.DepthEnable = FALSE;
+        desc.StencilEnable = FALSE;
         break;
     default: break;
     }

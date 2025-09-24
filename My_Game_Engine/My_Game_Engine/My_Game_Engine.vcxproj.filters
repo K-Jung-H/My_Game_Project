@@ -227,7 +227,16 @@
     </Image>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="shaders\Shader.hlsl">
+    <FxCompile Include="shaders\Geometry_Shader.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\Blit_Shader.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\Composite_Shader.hlsl">
+      <Filter>shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="shaders\PostProcess_Shader.hlsl">
       <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>
