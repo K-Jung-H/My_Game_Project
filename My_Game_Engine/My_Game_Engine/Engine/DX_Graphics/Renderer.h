@@ -14,6 +14,8 @@ private:
     std::unordered_map<ID3D12Resource*, D3D12_RESOURCE_STATES> mCurrentStates;
 };
 
+//=================================================================
+
 struct MRTTargetDesc
 {
     DXGI_FORMAT format;
@@ -32,6 +34,34 @@ struct GBuffer
     ComPtr<ID3D12Resource> targets[(UINT)GBufferType::Count];
     ComPtr<ID3D12Resource> Depth;
 };
+
+//=================================================================
+
+struct alignas(256) ObjectCBData
+{
+    XMFLOAT4X4 World;
+};
+
+
+struct ObjectCBResource
+{
+    ComPtr<ID3D12Resource> Buffer; 
+    ObjectCBData* MappedObjectCB = nullptr;
+    UINT HeadOffset = 0;
+    UINT MaxObjects = 0;
+};
+
+//=================================================================
+
+struct SceneData
+{
+    float deltaTime;
+    float totalTime;
+    UINT frameCount;
+    UINT padding0;
+};
+
+//=================================================================
 
 struct FrameResource
 {
@@ -56,9 +86,12 @@ struct FrameResource
     UINT Merge_Base_Index = 0;
     UINT Merge_Target_Index = 1;
 
+    ObjectCBResource ObjectCB;
 
     ResourceStateTracker StateTracker;
 };
+
+
 
 struct RendererContext
 {
@@ -67,13 +100,6 @@ struct RendererContext
     DescriptorManager* resourceHeap;
 };
 
-struct SceneData
-{
-    float deltaTime;
-    float totalTime;
-    UINT frameCount;
-    UINT padding0;
-};
 
 class DX12_Renderer
 {
@@ -115,7 +141,7 @@ private:
     std::unique_ptr<DescriptorManager> mResource_Heap_Manager;
 
     // Frame resources
-    static const UINT FrameCount = 3; // Triple buffering
+    static const UINT FrameCount = Engine::Frame_Render_Buffer_Count; // Triple buffering
     UINT   mFrameIndex = 0;
 
     std::array<FrameResource, FrameCount> mFrameResources;
@@ -151,6 +177,7 @@ private:
 
     bool Create_Shader();
     bool Create_SceneCBV();
+    bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
 
 
     // Frame resource creation
@@ -199,6 +226,7 @@ private:
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const 	std::vector<RenderData>& renderData_list);
 
     void Update_SceneCBV();
+    void UpdateObjectCBs(const std::vector<RenderData>& renderables);
 
 public:
     ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;

@@ -26,6 +26,7 @@ public:
 
     UINT GetSlot() const { return -1; }
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
+    UINT GetMaterialID() const { return submeshes[0].materialId;; }
 
     void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 

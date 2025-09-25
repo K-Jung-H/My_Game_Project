@@ -18,7 +18,7 @@ void Scene::Build()
 {
 	std::shared_ptr<Object> camera_obj = Object::Create("Main_Camera");
 	camera_obj->AddComponent<CameraComponent>();
-
+	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, -1.0f,2.0f });
 
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();

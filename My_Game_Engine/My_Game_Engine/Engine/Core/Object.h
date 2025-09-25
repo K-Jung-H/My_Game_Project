@@ -41,10 +41,6 @@ public:
 
 
     void Update(float dt);
-    void Render();
-
-
-
 
 private:
     explicit Object(const std::string& name) : mName(name) {}

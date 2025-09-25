@@ -65,5 +65,5 @@ VS_DEFAULT_OUTPUT Default_VS(VS_DEFAULT_INPUT input)
 float4 Default_PS(VS_DEFAULT_OUTPUT input) : SV_TARGET
 {
     float4 albedo = gDiffuseTex.Sample(gLinearSampler, input.uv);
-    return albedo * input.color;
+    return albedo; //* input.color;
 }

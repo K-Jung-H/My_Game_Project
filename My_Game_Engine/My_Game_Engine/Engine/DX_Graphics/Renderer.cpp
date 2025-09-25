@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Renderer.h"
+#include "GameEngine.h"
 #include "../Resource/Mesh.h"
 #include "../Resource/Material.h"
 #include <stdexcept>
@@ -214,6 +215,7 @@ bool DX12_Renderer::CreateFrameResources()
         if (!CreateGBuffer(i, fr)) return false;
         if (!Create_Merge_RenderTargets(i, fr)) return false;
         if (!CreateDSV(i, fr)) return false;
+        if (!CreateObjectCB(fr, 1000)) return false;
     }
     return true;
 }
@@ -639,6 +641,28 @@ bool DX12_Renderer::Create_SceneCBV()
     return true;
 }
 
+bool DX12_Renderer::CreateObjectCB(FrameResource& fr, UINT maxObjects)
+{
+    fr.ObjectCB.MaxObjects = maxObjects;
+    size_t bufferSize = maxObjects * sizeof(ObjectCBData);
+
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
+        &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&fr.ObjectCB.Buffer));
+
+    if (FAILED(hr))
+        throw std::runtime_error("Failed to create ObjectCB buffer");
+
+    hr = fr.ObjectCB.Buffer->Map(0, nullptr, reinterpret_cast<void**>(&fr.ObjectCB.MappedObjectCB));
+
+    if (FAILED(hr))
+        throw std::runtime_error("Failed to map ObjectCB buffer");
+
+    fr.ObjectCB.HeadOffset = 0;
+}
+
 // ------------------- Rendering Steps -------------------
 
 FrameResource& DX12_Renderer::GetCurrentFrameResource()
@@ -663,6 +687,33 @@ void DX12_Renderer::Update_SceneCBV()
     SceneData cb{};
 
     memcpy(mappedSceneDataCB, &cb, sizeof(SceneData));
+}
+
+void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    fr.ObjectCB.HeadOffset = 0;
+
+    for (auto& rd : renderables)
+    {
+        auto transform = rd.transform.lock();
+
+        if (!transform) 
+            continue;
+
+        if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects)
+            break;
+
+        ObjectCBData cb{};
+        cb.World = transform->GetWorldMatrix();
+
+        fr.ObjectCB.MappedObjectCB[fr.ObjectCB.HeadOffset] = cb;
+
+        transform->SetCbOffset(mFrameIndex, fr.ObjectCB.HeadOffset);
+
+        fr.ObjectCB.HeadOffset++;
+    }
 }
 
 void DX12_Renderer::PrepareCommandList()
@@ -777,7 +828,10 @@ void DX12_Renderer::Render(std::vector<RenderData> renderData_list, std::shared_
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
     mCommandList->SetDescriptorHeaps(1, heaps);
 
+    render_camera->Update();
     render_camera->SetViewportsAndScissorRects(mCommandList);
+
+    UpdateObjectCBs(renderData_list);
 
     GeometryPass(renderData_list, render_camera);
     CompositePass();
@@ -802,6 +856,8 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
     PSO_Manager::Instance().BindShader(mCommandList, "Geometry", ShaderVariant::Default);
 
     //============================================
+
+
 
     mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
 
@@ -984,28 +1040,37 @@ void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
 
 void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<RenderData>& renderData_list)
 {
-    for (auto& renderData : renderData_list)
-    {
-        auto renderer_comp = renderData.meshRenderer.lock();
-        auto transform_comp = renderData.transform.lock();
+    FrameResource& fr = mFrameResources[mFrameIndex];
 
-        if (!renderer_comp || !transform_comp)
+    for (auto& rd : renderData_list)
+    {
+        auto renderer = rd.meshRenderer.lock();
+        auto transform = rd.transform.lock();
+
+        if (!renderer || !transform) 
+            continue;
+
+        auto mesh = renderer->GetMesh();
+
+        if (!mesh) 
             continue;
 
 
-        // Renderer 전용 매트릭스 버퍼 or 각 Transform 별로 버퍼를 만들어서 바인딩 동작하기
-        // transform_comp->GetWorldMatrix();
+        UINT offset = transform->GetCbOffset(mFrameIndex);
+        D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + offset * sizeof(ObjectCBData);
+
+        cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
 
 
-        auto mesh = renderer_comp->GetMesh();
+        //material->Bind();
+        UINT material_id = mesh->GetMaterialID();
 
-        // mesh 에서 저장중인 Material_ID를 가져와서 Material를 찾아 바인딩하기 해야 함
-        //        auto material = GetMaterial();
-        // material->Bind(cmdList, N);
+        ResourceManager* rm = GameEngine::Get().GetResourceManager();
+        auto material = rm->GetById<Material>(material_id);
+        D3D12_GPU_DESCRIPTOR_HANDLE test = mResource_Heap_Manager->GetGpuHandle(material->diffuseTexId);
+        cmdList->SetGraphicsRootDescriptorTable(RootParameter_Default::DiffuseTexture, test);
 
         mesh->Bind(cmdList);
-
-        // Issue draw call
         cmdList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);
     }
 }

@@ -190,19 +190,3 @@ void Object::Update(float dt)
     //if (auto sibling = sibling_obj.lock())
     //    sibling->Update(dt);
 }
-
-void Object::Render()
-{
-    //for (auto& [type, comp] : map_Components)
-    //{
-    //    if (comp) comp->Render();
-    //}
-
-    //if (auto child = child_obj.lock())
-    //    child->Render();
-
-    //if (auto sibling = sibling_obj.lock())
-    //    sibling->Render();
-}
-
- 

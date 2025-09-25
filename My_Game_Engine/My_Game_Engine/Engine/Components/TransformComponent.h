@@ -22,9 +22,14 @@ public:
 
     const XMFLOAT4X4& GetWorldMatrix() const { return mWorld; }
 
+    void SetCbOffset(UINT frameIndex, UINT offset) { mCbOffsets[frameIndex] = offset; }
+    UINT GetCbOffset(UINT frameIndex) const { return mCbOffsets[frameIndex]; }
+
 private:
     XMFLOAT3 mPosition;
     XMFLOAT4 mRotation;
     XMFLOAT3 mScale;
     XMFLOAT4X4 mWorld;
+
+    std::array<UINT, Engine::Frame_Render_Buffer_Count> mCbOffsets;
 };

@@ -7,6 +7,8 @@ TransformComponent::TransformComponent()
     mPosition = { 0,0,0 };
     mRotation = { 0,0,0,1 };
     mScale = { 1,1,1 };
+    mCbOffsets.fill(UINT_MAX);
+
 }
 
 

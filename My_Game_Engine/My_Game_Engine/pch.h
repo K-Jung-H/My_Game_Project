@@ -114,6 +114,7 @@ extern HINSTANCE hInst;
 
 namespace Engine {
     constexpr UINT INVALID_ID = 0xFFFFFFFFu;
+    constexpr UINT Frame_Render_Buffer_Count = 3;
 }
 
 #endif //PCH_H
