@@ -59,11 +59,11 @@ void GameEngine::FrameAdvance()
 	active_scene->Update(0.0f);
 
 
-	std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list = active_scene->GetRenderable();
+	std::vector<RenderData> renderData_list = active_scene->GetRenderable();
 	std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
 
 	if (mainCam)
-		mRenderer->Render(renderable_list, mainCam);
+		mRenderer->Render(renderData_list, mainCam);
 
 
 	//if (minimap_Camera)

@@ -18,29 +18,23 @@ Scene 클래스를 작성하고 관리하는 구조를 완성
 
 Renderer 에서 MeshRendererComponent 배열을 받아, DrawCall 기록하는 함수 작성
 
-MRT 상태 관리 기능 ->  랜더링 단계 분리 ->  랜더링 단계 구현 중
+->  MeshRendererComponent 와 TrnasformComponent 를 함께 저장하는 RenderData 전달용 구조체를 정의하여, 배열을 만들어 전달하도록 수정함
 
-&nbsp;	- 랜더링 단계 분리 (Geometry / Composite / PostProcess / Blit / imgui )
 
-&nbsp;	- 각 단계에 사용해야 하는 루트 시그니쳐 + 셰이더 구현 중
 
-&nbsp;		- 루트 시그니쳐는 전환이 최소화 되어야 함 
+-> Transform 컴포넌트 또는 공용 Transform 전달 버퍼를 추가하여, 바인딩 동작 추가하기
 
-&nbsp;			- Geometry 용 Default 타입
+-> Mesh 에서 저장중인 Material\_ID를 읽어 재질을 바인딩 하게 하는 동작 추가하기
 
-&nbsp;			- 그 외 단계에 사용되는 PostFX 타입
 
-&nbsp;		
+
+
 
 
 
 Scene에 GameObject를 저장하는 컨테이너 역할 추가하기 //  진행 우선순위 마지막
 
 Scene에 GameObject를 관리하는 기능 추가하기 //  진행 우선순위 마지막
-
-
-Shader 파일 생성 완료 및 연결 확인 완료
-각 Shader별로 PSO 설정 확인 필요 // 오류 발생 중
 
 
 

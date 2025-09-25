@@ -68,32 +68,45 @@ void Scene::RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp)
 {
 	if (auto c = comp.lock())
 	{
-		auto it = std::find_if(renderable_list.begin(), renderable_list.end(),
-			[&](const std::weak_ptr<Component>& w)
+		auto it = std::find_if(renderData_list.begin(), renderData_list.end(),
+			[&](const RenderData& rd)
 			{
-				return !w.expired() && w.lock().get() == c.get();
+				return !rd.meshRenderer.expired() &&
+					rd.meshRenderer.lock().get() == c.get();
 			});
 
-		if (it == renderable_list.end())
-			renderable_list.push_back(comp);
+		if (it == renderData_list.end())
+		{
+			RenderData rd;
+			rd.meshRenderer = comp;
+
+			if (auto owner = c->GetOwner())
+			{
+				if (auto tf = owner->GetComponent<TransformComponent>(Transform))
+					rd.transform = std::static_pointer_cast<TransformComponent>(tf->shared_from_this());
+			}
+
+			renderData_list.push_back(rd);
+		}
 	}
 }
 
-std::vector<std::shared_ptr<MeshRendererComponent>> Scene::GetRenderable() const
+std::vector<RenderData> Scene::GetRenderable() const
 {
 	// Add Camera Culling
 
-	std::vector<std::shared_ptr<MeshRendererComponent>> result;
-	result.reserve(renderable_list.size());
+	std::vector<RenderData> result;
+	result.reserve(renderData_list.size());
 
-	for (auto& w : renderable_list) 
+	for (const auto& rd : renderData_list)
 	{
-		if (auto s = w.lock())
-			result.push_back(s);
+		if (!rd.meshRenderer.expired() && !rd.transform.expired())
+		{
+			result.push_back(rd);
+		}
 	}
 	return result;
 }
-
 void Scene::RegisterCamera(std::weak_ptr<CameraComponent> cam)
 {
 	camera_list.push_back(cam);

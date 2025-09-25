@@ -12,7 +12,7 @@ enum Component_Type
     etc
 };
 
-class Component 
+class Component : public std::enable_shared_from_this<Component>
 {
 public:
     Component() {}

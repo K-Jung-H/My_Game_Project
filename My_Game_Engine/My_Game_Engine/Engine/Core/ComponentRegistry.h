@@ -1,5 +1,5 @@
 #pragma once
-#include "Component.h"
+#include "../Components/TransformComponent.h"
 #include "../Managers/RendererManager.h"
 #include "../Managers/PhysicsManager.h"
 

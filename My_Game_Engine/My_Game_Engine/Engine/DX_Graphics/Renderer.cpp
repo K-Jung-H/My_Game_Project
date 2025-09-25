@@ -65,6 +65,8 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
     if (!CreateCommandList_Upload()) return false;
     
     if (!Create_Shader()) return false;
+    if (!Create_SceneCBV()) return false;
+
 
     //---------------------------------------------------------------------
     D3D12_DESCRIPTOR_HEAP_DESC desc = {};
@@ -377,7 +379,7 @@ bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
 bool DX12_Renderer::Create_Merge_RenderTargets(UINT frameIndex, FrameResource& fr)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
-    DXGI_FORMAT format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     for (int i = 0; i < 2; i++)
     {
@@ -497,32 +499,32 @@ bool DX12_Renderer::Create_Shader()
     PSO_Manager& pso_manager = PSO_Manager::Instance();
     pso_manager.Init(mDevice);
 
-    ShaderSetting default_ss;
-    default_ss.vs.file = L"shaders/Geometry_Shader.hlsl";
-    default_ss.vs.entry = "Default_VS";
-    default_ss.vs.target = "vs_5_1";
+    ShaderSetting geometry_ss;
+    geometry_ss.vs.file = L"shaders/Geometry_Shader.hlsl";
+    geometry_ss.vs.entry = "Default_VS";
+    geometry_ss.vs.target = "vs_5_1";
 
-    default_ss.ps.file = L"shaders/Geometry_Shader.hlsl";
-    default_ss.ps.entry = "Default_PS";
-    default_ss.ps.target = "ps_5_1";
+    geometry_ss.ps.file = L"shaders/Geometry_Shader.hlsl";
+    geometry_ss.ps.entry = "Default_PS";
+    geometry_ss.ps.target = "ps_5_1";
 
-    PipelinePreset default_pp;
-    default_pp.inputlayout = InputLayoutPreset::Default;
-    default_pp.rasterizer = RasterizerPreset::Default;
-    default_pp.blend = BlendPreset::AlphaBlend;
-    default_pp.depth = DepthPreset::Default;
-    default_pp.RenderTarget = RenderTargetPreset::MRT;
+    PipelinePreset geometry_pp;
+    geometry_pp.inputlayout = InputLayoutPreset::Default;
+    geometry_pp.rasterizer = RasterizerPreset::Default;
+    geometry_pp.blend = BlendPreset::AlphaBlend;
+    geometry_pp.depth = DepthPreset::Default;
+    geometry_pp.RenderTarget = RenderTargetPreset::MRT;
 
-    std::vector<VariantConfig> default_configs =
+    std::vector<VariantConfig> geometry_configs =
     {
-        { ShaderVariant::Default, default_ss, default_pp },
-        { ShaderVariant::Shadow, default_ss, default_pp }
+        { ShaderVariant::Default, geometry_ss, geometry_pp },
+        { ShaderVariant::Shadow, geometry_ss, geometry_pp }
     };
 
-    auto default_shader = pso_manager.RegisterShader(
-        "Test_Model",
+    auto geometry_shader = pso_manager.RegisterShader(
+        "Geometry",
         RootSignature_Type::Default,
-        default_configs,
+        geometry_configs,
         D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
     );
 
@@ -619,6 +621,23 @@ bool DX12_Renderer::Create_Shader()
     return true;
 }
 
+bool DX12_Renderer::Create_SceneCBV()
+{
+    UINT bufferSize = (sizeof(SceneData) + 255) & ~255;
+
+    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
+    CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
+        &bufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mSceneData_CB));
+
+    hr = mSceneData_CB->Map(0, nullptr, reinterpret_cast<void**>(&mappedSceneDataCB));
+
+    if (FAILED(hr))
+        return false;
+
+    return true;
+}
 
 // ------------------- Rendering Steps -------------------
 
@@ -639,8 +658,17 @@ FrameResource& DX12_Renderer::GetCurrentFrameResource()
     return fr;
 }
 
+void DX12_Renderer::Update_SceneCBV()
+{
+    SceneData cb{};
+
+    memcpy(mappedSceneDataCB, &cb, sizeof(SceneData));
+}
+
 void DX12_Renderer::PrepareCommandList()
 {
+    mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
+
     FrameResource& fr = GetCurrentFrameResource();
 
     fr.CommandAllocator->Reset();
@@ -740,29 +768,29 @@ void DX12_Renderer::PresentFrame()
     mCommandQueue->Signal(mFence.Get(), currentFence);
 
     mFrameFenceValues[mFrameIndex] = currentFence;
-    
-    mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
 }
 
-void DX12_Renderer::Render(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera)
+void DX12_Renderer::Render(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera)
 {
     PrepareCommandList();
     
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
     mCommandList->SetDescriptorHeaps(1, heaps);
 
-    GeometryPass(renderable_list, render_camera);
+    render_camera->SetViewportsAndScissorRects(mCommandList);
+
+    GeometryPass(renderData_list, render_camera);
     CompositePass();
     PostProcessPass();
     Blit_BackBufferPass();
-    ImguiPass();
+//    ImguiPass();
     TransitionBackBufferToPresent();
     mCommandList->Close();
     PresentFrame();
 
 }
 
-void DX12_Renderer::GeometryPass(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera)
+void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera)
 {
     ClearBackBuffer(clear_color);
     ClearGBuffer();
@@ -771,16 +799,19 @@ void DX12_Renderer::GeometryPass(std::vector<std::shared_ptr<MeshRendererCompone
     ID3D12RootSignature* default_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Default);
     mCommandList->SetGraphicsRootSignature(default_rootsignature);
 
-    PSO_Manager::Instance().BindShader(mCommandList, "Test_Model", ShaderVariant::Default);
+    PSO_Manager::Instance().BindShader(mCommandList, "Geometry", ShaderVariant::Default);
 
     //============================================
+
+    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+
 
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
 
     // TODO: Record Object Render
 
-    Render_Objects(mCommandList, renderable_list);
+    Render_Objects(mCommandList, renderData_list);
 }
 
 void DX12_Renderer::CompositePass()
@@ -802,6 +833,8 @@ void DX12_Renderer::CompositePass()
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
 
+    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {
         auto gbufferSrv = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[0]); 
@@ -815,7 +848,7 @@ void DX12_Renderer::CompositePass()
     }
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    mCommandList->DrawInstanced(3, 1, 0, 0);
+    mCommandList->DrawInstanced(6, 1, 0, 0);
 
     std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
 }
@@ -838,6 +871,9 @@ void DX12_Renderer::PostProcessPass()
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
+
+    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {
         auto gbufferSrv = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[0]);
@@ -854,7 +890,7 @@ void DX12_Renderer::PostProcessPass()
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::MergeTexture, src);
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    mCommandList->DrawInstanced(3, 1, 0, 0);
+    mCommandList->DrawInstanced(6, 1, 0, 0);
 
     std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
 }
@@ -877,11 +913,26 @@ void DX12_Renderer::Blit_BackBufferPass()
     auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
+
+    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+
+    if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
+    {
+        auto gbufferSrv = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[0]);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::GBufferTable, gbufferSrv);
+    }
+
+    if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
+    {
+        auto depthSrv = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::DepthTexture, depthSrv);
+    }
+
     auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::MergeTexture, src);
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    mCommandList->DrawInstanced(3, 1, 0, 0);
+    mCommandList->DrawInstanced(6, 1, 0, 0);
 }
 
 void DX12_Renderer::ImguiPass()
@@ -926,19 +977,32 @@ void DX12_Renderer::ImguiPass()
     }
 }
 
-void DX12_Renderer::SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list)
+void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
 {
 
 }
 
-void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<std::shared_ptr<MeshRendererComponent>>& renderable_list)
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<RenderData>& renderData_list)
 {
-    for (auto& renderer : renderable_list)
+    for (auto& renderData : renderData_list)
     {
-        auto mesh = renderer->GetMesh();
-        auto material = renderer->GetMaterial();
+        auto renderer_comp = renderData.meshRenderer.lock();
+        auto transform_comp = renderData.transform.lock();
 
-        material->Bind(cmdList);
+        if (!renderer_comp || !transform_comp)
+            continue;
+
+
+        // Renderer 전용 매트릭스 버퍼 or 각 Transform 별로 버퍼를 만들어서 바인딩 동작하기
+        // transform_comp->GetWorldMatrix();
+
+
+        auto mesh = renderer_comp->GetMesh();
+
+        // mesh 에서 저장중인 Material_ID를 가져와서 Material를 찾아 바인딩하기 해야 함
+        //        auto material = GetMaterial();
+        // material->Bind(cmdList, N);
+
         mesh->Bind(cmdList);
 
         // Issue draw call

@@ -240,4 +240,9 @@
       <Filter>shaders</Filter>
     </FxCompile>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="shaders\PostFX_Util.hlsli">
+      <Filter>shaders</Filter>
+    </None>
+  </ItemGroup>
 </Project>

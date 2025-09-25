@@ -87,6 +87,12 @@ void CameraComponent::SetScissorRect(XMUINT2 LeftTop, XMUINT2 RightBottom)
 
 }
 
+void CameraComponent::SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> cmdList)
+{
+    cmdList->RSSetViewports(1, &mViewport);
+    cmdList->RSSetScissorRects(1, &mScissorRect);
+}
+
 void CameraComponent::SetPosition(const XMFLOAT3& pos) { mPosition = pos; mViewDirty = true; }
 void CameraComponent::SetTarget(const XMFLOAT3& tgt) { mTarget = tgt;   mViewDirty = true; }
 void CameraComponent::SetUp(const XMFLOAT3& up) { mUp = up;        mViewDirty = true; }

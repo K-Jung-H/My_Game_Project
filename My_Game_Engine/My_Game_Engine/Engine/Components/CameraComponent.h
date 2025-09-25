@@ -27,6 +27,7 @@ public:
 
     void SetViewport(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetScissorRect(XMUINT2 LeftTop, XMUINT2 RightBottom);
+    void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> cmdList);
     void SetPosition(const XMFLOAT3& pos);
     void SetTarget(const XMFLOAT3& tgt);
     void SetUp(const XMFLOAT3& up);

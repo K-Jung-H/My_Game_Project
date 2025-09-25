@@ -2,6 +2,12 @@
 #include "pch.h"
 #include "Object.h"
 
+struct RenderData
+{
+    std::weak_ptr<TransformComponent> transform;
+    std::weak_ptr<MeshRendererComponent> meshRenderer;
+};
+
 class SceneManager;
 
 class Scene
@@ -17,7 +23,7 @@ public:
     std::string_view GetAlias() const { return alias; }
 
     void RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp);
-    std::vector<std::shared_ptr<MeshRendererComponent>> GetRenderable() const;
+    std::vector<RenderData> GetRenderable() const;
 
     void RegisterCamera(std::weak_ptr<CameraComponent> cam);
 
@@ -42,7 +48,7 @@ private:
     UINT scene_id;
     std::string alias;
 
-    std::vector<std::weak_ptr<MeshRendererComponent>> renderable_list;
+    std::vector<RenderData> renderData_list;
     std::vector<std::weak_ptr<CameraComponent>> camera_list;
     std::weak_ptr<CameraComponent> activeCamera;
     std::vector<std::shared_ptr<Object>> obj_list;

@@ -17,7 +17,6 @@ bool Mesh::LoadFromFile(std::string_view path, const RendererContext& ctx)
 void Mesh::FromAssimp(const aiMesh* mesh)
 {
     positions.resize(mesh->mNumVertices);
-
     if (mesh->HasNormals())               normals.resize(mesh->mNumVertices);
     if (mesh->HasTangentsAndBitangents()) tangents.resize(mesh->mNumVertices);
     if (mesh->HasTextureCoords(0))        uvs.resize(mesh->mNumVertices);
@@ -41,6 +40,12 @@ void Mesh::FromAssimp(const aiMesh* mesh)
                 mesh->mColors[0][i].b, mesh->mColors[0][i].a);
     }
 
+    const size_t vCount = positions.size();
+    if (normals.empty())   normals.assign(vCount, XMFLOAT3(0, 0, 1));
+    if (tangents.empty())  tangents.assign(vCount, XMFLOAT3(1, 0, 0));
+    if (uvs.empty())       uvs.assign(vCount, XMFLOAT2(0, 0));
+    if (colors.empty())    colors.assign(vCount, XMFLOAT4(1, 1, 1, 1));
+
     indices.clear();
     indices.reserve(mesh->mNumFaces * 3);
     for (unsigned int f = 0; f < mesh->mNumFaces; f++)
@@ -54,15 +59,12 @@ void Mesh::FromAssimp(const aiMesh* mesh)
 
     RendererContext rc = GameEngine::Get().Get_UploadContext();
 
-
-    auto CreateVB = [&](const void* src, UINT stride, UINT count, 
-        ComPtr<ID3D12Resource>& buffer, ComPtr<ID3D12Resource>& upload, 
-        D3D12_VERTEX_BUFFER_VIEW& view, D3D12_RESOURCE_STATES finalState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
+    auto CreateVB = [&](const void* src, UINT stride, UINT count,
+        ComPtr<ID3D12Resource>& buffer, ComPtr<ID3D12Resource>& upload,
+        D3D12_VERTEX_BUFFER_VIEW& view,
+        D3D12_RESOURCE_STATES finalState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
         {
-            if (count == 0)
-                return;
-
-            buffer = ResourceUtils::CreateBufferResource(rc, (void*)src, stride * count, 
+            buffer = ResourceUtils::CreateBufferResource(rc, (void*)src, stride * count,
                 D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE, finalState, upload);
 
             view.BufferLocation = buffer->GetGPUVirtualAddress();
@@ -70,25 +72,23 @@ void Mesh::FromAssimp(const aiMesh* mesh)
             view.SizeInBytes = stride * count;
         };
 
-
-    CreateVB(positions.data(), sizeof(XMFLOAT3), (UINT)positions.size(), posBuffer, posUpload, posVBV);
-    CreateVB(normals.data(), sizeof(XMFLOAT3), (UINT)normals.size(), normalBuffer, normalUpload, normalVBV);
-    CreateVB(tangents.data(), sizeof(XMFLOAT3), (UINT)tangents.size(), tangentBuffer, tangentUpload, tangentVBV);
-    CreateVB(uvs.data(), sizeof(XMFLOAT2), (UINT)uvs.size(), uvBuffer, uvUpload, uvVBV);
-    CreateVB(colors.data(), sizeof(XMFLOAT4), (UINT)colors.size(), colorBuffer, colorUpload, colorVBV);
-
+    CreateVB(positions.data(), sizeof(XMFLOAT3), (UINT)vCount, posBuffer, posUpload, posVBV);
+    CreateVB(normals.data(), sizeof(XMFLOAT3), (UINT)vCount, normalBuffer, normalUpload, normalVBV);
+    CreateVB(tangents.data(), sizeof(XMFLOAT3), (UINT)vCount, tangentBuffer, tangentUpload, tangentVBV);
+    CreateVB(uvs.data(), sizeof(XMFLOAT2), (UINT)vCount, uvBuffer, uvUpload, uvVBV);
+    CreateVB(colors.data(), sizeof(XMFLOAT4), (UINT)vCount, colorBuffer, colorUpload, colorVBV);
 
     if (!indices.empty())
     {
-        indexBuffer = ResourceUtils::CreateBufferResource(rc, indices.data(), (UINT)(sizeof(UINT) * indices.size()), 
-            D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_INDEX_BUFFER, indexUpload);
+        indexBuffer = ResourceUtils::CreateBufferResource(rc, indices.data(),
+            (UINT)(sizeof(UINT) * indices.size()),
+            D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_INDEX_BUFFER, indexUpload);
 
         indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
         indexView.SizeInBytes = (UINT)(sizeof(UINT) * indices.size());
         indexView.Format = DXGI_FORMAT_R32_UINT;
     }
-
-
 }
 
 

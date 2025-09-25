@@ -2,33 +2,10 @@
 #include "pch.h"
 #include "DescriptorManager.h"
 #include "Graphic_Shader.h"
-#include "../Components/MeshRendererComponent.h"
+#include "../Core/Scene.h"
 #include "../Components/CameraComponent.h"
 
-struct MRTTargetDesc
-{
-    DXGI_FORMAT format;
-    FLOAT clearColor[4];
-};
-
-
-
-constexpr MRTTargetDesc GBUFFER_CONFIG[(UINT)GBufferType::Count] =
-{
-    { DXGI_FORMAT_R16G16B16A16_FLOAT,     {0.0f, 0.0f, 0.0f, 1.0f} },     // Albedo
-    { DXGI_FORMAT_R16G16B16A16_FLOAT, {0.5f, 0.5f, 1.0f, 0.0f} },     // Normal
-    { DXGI_FORMAT_R8G8_UNORM,         {0.0f, 0.0f, 0.0f, 0.0f} }      // Material
-};
-
-
-struct GBuffer
-{
-    ComPtr<ID3D12Resource> targets[(UINT)GBufferType::Count];
-    ComPtr<ID3D12Resource> Depth;
-};
-
-
-struct ResourceStateTracker 
+struct ResourceStateTracker
 {
     void Register(ID3D12Resource* resource, D3D12_RESOURCE_STATES initialState);
     void Transition(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource, D3D12_RESOURCE_STATES newState);
@@ -37,6 +14,24 @@ private:
     std::unordered_map<ID3D12Resource*, D3D12_RESOURCE_STATES> mCurrentStates;
 };
 
+struct MRTTargetDesc
+{
+    DXGI_FORMAT format;
+    FLOAT clearColor[4];
+};
+
+constexpr MRTTargetDesc GBUFFER_CONFIG[(UINT)GBufferType::Count] =
+{
+    { DXGI_FORMAT_R16G16B16A16_FLOAT,     {0.0f, 0.0f, 0.0f, 1.0f} },     // Albedo
+    { DXGI_FORMAT_R16G16B16A16_FLOAT, {0.5f, 0.5f, 1.0f, 0.0f} },     // Normal
+    { DXGI_FORMAT_R8G8_UNORM,         {0.0f, 0.0f, 0.0f, 0.0f} }      // Material
+};
+
+struct GBuffer
+{
+    ComPtr<ID3D12Resource> targets[(UINT)GBufferType::Count];
+    ComPtr<ID3D12Resource> Depth;
+};
 
 struct FrameResource
 {
@@ -72,6 +67,13 @@ struct RendererContext
     DescriptorManager* resourceHeap;
 };
 
+struct SceneData
+{
+    float deltaTime;
+    float totalTime;
+    UINT frameCount;
+    UINT padding0;
+};
 
 class DX12_Renderer
 {
@@ -81,7 +83,7 @@ public:
     bool Initialize(HWND hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
 
-    void Render(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera);
+    void Render(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
     void Cleanup();
 
     RendererContext Get_RenderContext() const;
@@ -132,7 +134,11 @@ private:
 
     UINT64 mUploadFenceValue = 0;
     bool   mUploadClosed = false;
-    bool CreateCommandList_Upload();
+
+private:
+    //==== RenderData Resource
+    ComPtr<ID3D12Resource> mSceneData_CB;
+    SceneData* mappedSceneDataCB;
 
 private:
     // === Initialization steps ===
@@ -141,7 +147,11 @@ private:
     bool CreateCommandQueue();
     bool CreateSwapChain(HWND hWnd, UINT width, UINT height);
     bool CreateDescriptorHeaps();
+    bool CreateCommandList_Upload();
+
     bool Create_Shader();
+    bool Create_SceneCBV();
+
 
     // Frame resource creation
     bool CreateFrameResources();
@@ -179,14 +189,16 @@ private:
     void WaitForFrame(UINT64 fenceValue);
     FrameResource& GetCurrentFrameResource();
 
-    void GeometryPass(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list, std::shared_ptr<CameraComponent> render_camera);
+    void GeometryPass(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
     void CompositePass();
     void PostProcessPass();
     void Blit_BackBufferPass();
     void ImguiPass();
 
-    void SortByRenderType(std::vector<std::shared_ptr<MeshRendererComponent>> renderable_list);
-    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<std::shared_ptr<MeshRendererComponent>>& renderable_list);
+    void SortByRenderType(std::vector<RenderData> renderData_list);
+    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const 	std::vector<RenderData>& renderData_list);
+
+    void Update_SceneCBV();
 
 public:
     ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;
