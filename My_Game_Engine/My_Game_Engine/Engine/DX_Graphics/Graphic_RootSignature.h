@@ -29,10 +29,7 @@ namespace RootParameter_Default
         CameraCBV = 1,
         ObjectCBV = 2,
 
-        DiffuseTexture = 3,
-        NormalTexture,
-        RoughnessTexture,
-        MetallicTexture,
+        TextureTable = 3,
 
         Count
     };

@@ -212,9 +212,9 @@ bool DX12_Renderer::CreateFrameResources()
 
         if (!CreateCommandAllocator(fr)) return false;
         if (!CreateBackBufferRTV(i, fr)) return false;
+        if (!CreateDSV(i, fr)) return false;
         if (!CreateGBuffer(i, fr)) return false;
         if (!Create_Merge_RenderTargets(i, fr)) return false;
-        if (!CreateDSV(i, fr)) return false;
         if (!CreateObjectCB(fr, 1000)) return false;
     }
     return true;
@@ -230,7 +230,7 @@ bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
     if (FAILED(mSwapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&fr.RenderTarget))))
         return false;
 
-    UINT Slot = mRtvManager->Allocate();
+    UINT Slot = mRtvManager->Allocate(HeapRegion::RTV);
 
     fr.BackBufferRtvSlot_ID = Slot;
 
@@ -282,7 +282,7 @@ bool DX12_Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
 
     for (UINT g = 0; g < (UINT)GBufferType::Count; g++)
     {
-        UINT slot = mRtvManager->Allocate();
+        UINT slot = mRtvManager->Allocate(HeapRegion::RTV);
         fr.GBufferRtvSlot_IDs.push_back(slot);
 
         mDevice->CreateRenderTargetView(fr.gbuffer.targets[g].Get(), nullptr, mRtvManager->GetCpuHandle(slot));
@@ -307,7 +307,7 @@ bool DX12_Renderer::CreateGBufferSRVs(UINT frameIndex, FrameResource& fr)
         srv.Texture2D.MipLevels = 1;
         srv.Format = GBUFFER_CONFIG[g].format;
 
-        UINT slot = mResource_Heap_Manager->Allocate();
+        UINT slot = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
         fr.GBufferSrvSlot_IDs.push_back(slot);
 
         auto cpu = mResource_Heap_Manager->GetCpuHandle(slot);
@@ -327,7 +327,7 @@ bool DX12_Renderer::CreateGBufferSRVs(UINT frameIndex, FrameResource& fr)
         dSrv.Texture2D.MipLevels = 1;
         dSrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 
-        UINT dslot = mResource_Heap_Manager->Allocate();
+        UINT dslot = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
         fr.DepthBufferSrvSlot_ID = dslot;
 
         auto cpu = mResource_Heap_Manager->GetCpuHandle(dslot);
@@ -342,7 +342,7 @@ bool DX12_Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT he
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
-    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_D24_UNORM_S8_UINT, width, height, 1, 1);
+    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R24G8_TYPELESS, width, height, 1, 1);
     depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
     // Clear value for depth/stencil
@@ -367,10 +367,13 @@ bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
 {
     if (!CreateDepthStencil(fr, mWidth, mHeight)) return false;
 
-    UINT slot = mDsvManager->Allocate();
+    UINT slot = mDsvManager->Allocate(HeapRegion::DSV);
     fr.DsvSlot_ID = slot;
 
-    mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), nullptr, mDsvManager->GetCpuHandle(slot));
+    D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+    dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+    mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), &dsvDesc, mDsvManager->GetCpuHandle(slot));
 
     fr.StateTracker.Register(fr.DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
@@ -404,7 +407,7 @@ bool DX12_Renderer::Create_Merge_RenderTargets(UINT frameIndex, FrameResource& f
         fr.StateTracker.Register(fr.Merge_RenderTargets[i].Get(), D3D12_RESOURCE_STATE_COMMON);
 
 
-        fr.MergeRtvSlot_IDs[i] = mRtvManager->Allocate();
+        fr.MergeRtvSlot_IDs[i] = mRtvManager->Allocate(HeapRegion::RTV);
         mDevice->CreateRenderTargetView(fr.Merge_RenderTargets[i].Get(), nullptr, mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[i]));
 
         //======================
@@ -415,7 +418,7 @@ bool DX12_Renderer::Create_Merge_RenderTargets(UINT frameIndex, FrameResource& f
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
         srvDesc.Texture2D.MipLevels = 1;
 
-        fr.MergeSrvSlot_IDs[i] = mResource_Heap_Manager->Allocate();
+        fr.MergeSrvSlot_IDs[i] = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
         mDevice->CreateShaderResourceView(fr.Merge_RenderTargets[i].Get(), &srvDesc, mResource_Heap_Manager->GetCpuHandle(fr.MergeSrvSlot_IDs[i]));
     }
 
@@ -692,29 +695,54 @@ void DX12_Renderer::Update_SceneCBV()
 void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
-
     fr.ObjectCB.HeadOffset = 0;
 
     for (auto& rd : renderables)
     {
         auto transform = rd.transform.lock();
+        auto renderer = rd.meshRenderer.lock();
 
-        if (!transform) 
+        if (!transform || !renderer)
             continue;
 
         if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects)
             break;
 
+        auto mesh = renderer->GetMesh();
+        if (!mesh)
+            continue;
+
+        UINT material_id = mesh->GetMaterialID();
+        ResourceManager* rm = GameEngine::Get().GetResourceManager();
+        auto material = rm->GetById<Material>(material_id);
+
+        if (!material)
+            continue;
+
         ObjectCBData cb{};
         cb.World = transform->GetWorldMatrix();
 
-        fr.ObjectCB.MappedObjectCB[fr.ObjectCB.HeadOffset] = cb;
+        cb.Albedo = XMFLOAT4(material->albedoColor.x, material->albedoColor.y, material->albedoColor.z, 1.0f);
+        cb.Roughness = material->roughness;
+        cb.Metallic = material->metallic;
+        cb.Emissive = 0.0f; 
 
+        auto toIdx = [](UINT slot) -> int {
+            return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); 
+            };
+
+        cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
+        cb.NormalTexIdx = toIdx(material->normalTexSlot);
+        cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
+        cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
+
+        fr.ObjectCB.MappedObjectCB[fr.ObjectCB.HeadOffset] = cb;
         transform->SetCbOffset(mFrameIndex, fr.ObjectCB.HeadOffset);
 
         fr.ObjectCB.HeadOffset++;
     }
 }
+
 
 void DX12_Renderer::PrepareCommandList()
 {
@@ -834,9 +862,13 @@ void DX12_Renderer::Render(std::vector<RenderData> renderData_list, std::shared_
     UpdateObjectCBs(renderData_list);
 
     GeometryPass(renderData_list, render_camera);
+
     CompositePass();
+
     PostProcessPass();
+
     Blit_BackBufferPass();
+
 //    ImguiPass();
     TransitionBackBufferToPresent();
     mCommandList->Close();
@@ -846,6 +878,8 @@ void DX12_Renderer::Render(std::vector<RenderData> renderData_list, std::shared_
 
 void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera)
 {
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
     ClearBackBuffer(clear_color);
     ClearGBuffer();
     PrepareGBuffer_RTV();
@@ -859,13 +893,15 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
 
 
 
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Default::TextureTable, mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Texture));
     mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
 
 
+    //mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    //mCommandList->DrawInstanced(6, 1, 0, 0);
+
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
-
-    // TODO: Record Object Render
 
     Render_Objects(mCommandList, renderData_list);
 }
@@ -881,13 +917,15 @@ void DX12_Renderer::CompositePass()
 
     //============================================
 
+
+
     PrepareGBuffer_SRV();
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-
+    
 
     mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
 
@@ -926,7 +964,6 @@ void DX12_Renderer::PostProcessPass()
 
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
-
 
     mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
 
@@ -1047,28 +1084,18 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, co
         auto renderer = rd.meshRenderer.lock();
         auto transform = rd.transform.lock();
 
-        if (!renderer || !transform) 
+        if (!renderer || !transform)
             continue;
 
         auto mesh = renderer->GetMesh();
-
-        if (!mesh) 
+        if (!mesh)
             continue;
-
 
         UINT offset = transform->GetCbOffset(mFrameIndex);
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + offset * sizeof(ObjectCBData);
 
         cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
 
-
-        //material->Bind();
-        UINT material_id = mesh->GetMaterialID();
-
-        ResourceManager* rm = GameEngine::Get().GetResourceManager();
-        auto material = rm->GetById<Material>(material_id);
-        D3D12_GPU_DESCRIPTOR_HANDLE test = mResource_Heap_Manager->GetGpuHandle(material->diffuseTexId);
-        cmdList->SetGraphicsRootDescriptorTable(RootParameter_Default::DiffuseTexture, test);
 
         mesh->Bind(cmdList);
         cmdList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);

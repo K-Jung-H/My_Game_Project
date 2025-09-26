@@ -7,6 +7,15 @@ Material::Material() : Game_Resource()
     normalTexId = Engine::INVALID_ID;
     roughnessTexId = Engine::INVALID_ID;
     metallicTexId = Engine::INVALID_ID;
+
+    diffuseTexSlot = UINT_MAX;
+    normalTexSlot = UINT_MAX;
+    roughnessTexSlot = UINT_MAX;
+    metallicTexSlot = UINT_MAX;
+
+    albedoColor = XMFLOAT3(1.0f, 1.0f, 1.0f);
+    roughness = 0.5f;
+    metallic = 0.0f;
 }
 
 bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)

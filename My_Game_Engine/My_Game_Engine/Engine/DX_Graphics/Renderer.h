@@ -25,8 +25,8 @@ struct MRTTargetDesc
 constexpr MRTTargetDesc GBUFFER_CONFIG[(UINT)GBufferType::Count] =
 {
     { DXGI_FORMAT_R16G16B16A16_FLOAT,     {0.0f, 0.0f, 0.0f, 1.0f} },     // Albedo
-    { DXGI_FORMAT_R16G16B16A16_FLOAT, {0.5f, 0.5f, 1.0f, 0.0f} },     // Normal
-    { DXGI_FORMAT_R8G8_UNORM,         {0.0f, 0.0f, 0.0f, 0.0f} }      // Material
+    { DXGI_FORMAT_R16G16B16A16_FLOAT,       {0.5f, 0.5f, 1.0f, 0.0f} },     // Normal
+    { DXGI_FORMAT_R16G16B16A16_FLOAT,         {0.0f, 0.0f, 0.0f, 0.0f} }      // Material
 };
 
 struct GBuffer
@@ -40,8 +40,17 @@ struct GBuffer
 struct alignas(256) ObjectCBData
 {
     XMFLOAT4X4 World;
-};
 
+    XMFLOAT4   Albedo;
+    float      Roughness;
+    float      Metallic;
+    float      Emissive;
+
+    int       DiffuseTexIdx;
+    int       NormalTexIdx;
+    int       RoughnessTexIdx;
+    int       MetallicTexIdx;
+};
 
 struct ObjectCBResource
 {

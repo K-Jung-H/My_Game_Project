@@ -1,69 +1,137 @@
-
-cbuffer SceneConstants : register(b0)
+cbuffer SceneCB : register(b0)
 {
     float4 gTimeInfo;
 };
 
-
 cbuffer ObjectCB : register(b1)
 {
     float4x4 gWorld;
+    float4 Albedo; 
+    float Roughness;
+    float Metallic;
+    float Emissive;
+    int DiffuseTexIdx;
+    int NormalTexIdx;
+    int RoughnessTexIdx;
+    int MetallicTexIdx;
 };
 
 cbuffer CameraCB : register(b2)
 {
     float4x4 gView;
     float4x4 gProj;
-    float3 CameraPos;
-    float Padding;
+    float3 gCameraPos;
+    float _pad0;
 };
 
-Texture2D gDiffuseTex : register(t0);
-Texture2D gNormalTex : register(t1);
-Texture2D gRoughnessTex : register(t2);
-Texture2D gMetallicTex : register(t3);
 
+Texture2D gTextures[2000] : register(t0); 
 SamplerState gLinearSampler : register(s0);
-SamplerState gClampSampler : register(s1);
 
-
-struct VS_DEFAULT_INPUT
+struct VS_IN
 {
-    float3 position : POSITION;
-    float3 normal : NORMAL;
-    float3 tangent : TANGENT;
-    float2 uv0 : TEXCOORD;
-    float4 color : COLOR;
+    float3 pos : POSITION;
+    float3 n : NORMAL;
+    float3 t : TANGENT;
+    float2 uv : TEXCOORD0;
+};
+struct VS_OUT
+{
+    float4 svPos : SV_POSITION;
+    float3 nWS : TEXCOORD0;
+    float2 uv : TEXCOORD1;
 };
 
-struct VS_DEFAULT_OUTPUT
+VS_OUT Default_VS(VS_IN i)
 {
-    float4 position : SV_POSITION;
-    float3 worldPos : TEXCOORD0;
-    float3 normal : TEXCOORD1;
-    float2 uv : TEXCOORD2;
-    float4 color : COLOR0;
+    VS_OUT o;
+    float4 wpos = mul(float4(i.pos, 1), gWorld);
+    float4 vpos = mul(wpos, gView);
+    o.svPos = mul(vpos, gProj);
+    o.nWS = mul(float4(i.n, 0), gWorld).xyz;
+    o.uv = i.uv;
+    return o;
+}
+
+struct PS_OUT
+{
+    float4 Albedo : SV_Target0;
+    float4 NormalRG : SV_Target1;
+    float4 MetalEmis : SV_Target2;
 };
 
-VS_DEFAULT_OUTPUT Default_VS(VS_DEFAULT_INPUT input)
+float4 SampleIfValid(int idx, float2 uv)
 {
-    VS_DEFAULT_OUTPUT output;
-
-    float4 worldPos = mul(float4(input.position, 1.0f), gWorld);
-    output.worldPos = worldPos.xyz;
-
-    float4 viewPos = mul(worldPos, gView);
-    output.position = mul(viewPos, gProj);
-
-    output.normal = mul(float4(input.normal, 0.0f), gWorld).xyz;
-    output.uv = input.uv0;
-    output.color = input.color;
-
-    return output;
+    if (idx < 0)
+    {
+        return float4(1, 1, 1, 1);
+    }
+    
+    uint uidx = (uint) idx;
+    return gTextures[NonUniformResourceIndex(uidx)].Sample(gLinearSampler, uv);
 }
 
-float4 Default_PS(VS_DEFAULT_OUTPUT input) : SV_TARGET
+PS_OUT Default_PS(VS_OUT i)
 {
-    float4 albedo = gDiffuseTex.Sample(gLinearSampler, input.uv);
-    return albedo; //* input.color;
+    PS_OUT o;
+
+    float4 texAlbedo = SampleIfValid(DiffuseTexIdx, i.uv);
+    o.Albedo = texAlbedo * Albedo; 
+
+    float3 n = normalize(i.nWS);
+    o.NormalRG.xyz = 0.5f * (n + 1.0f);
+
+
+    float rough = Roughness;
+    if (RoughnessTexIdx >= 0)
+        rough *= SampleIfValid(RoughnessTexIdx, i.uv).r;
+    o.NormalRG.w = saturate(rough);
+
+
+    float metal = Metallic;
+    if (MetallicTexIdx >= 0)
+        metal *= SampleIfValid(MetallicTexIdx, i.uv).r;
+    o.MetalEmis.x = saturate(metal);
+    o.MetalEmis.y = Emissive; 
+    o.MetalEmis.zw = 0;
+
+    return o;
 }
+
+
+//struct VS_SCREEN_OUT
+//{
+//    float4 position : SV_POSITION;
+//    float2 uv : TEXCOORD0;
+//};
+
+//static const VS_SCREEN_OUT g_FullscreenQuadCorners[4] =
+//{
+//    { float4(-1.0, 1.0, 0.0, 1.0), float2(0.0, 0.0) }, // top-left
+//    { float4(1.0, 1.0, 0.0, 1.0), float2(1.0, 0.0) }, // top-right
+//    { float4(1.0, -1.0, 0.0, 1.0), float2(1.0, 1.0) }, // bottom-right
+//    { float4(-1.0, -1.0, 0.0, 1.0), float2(0.0, 1.0) } // bottom-left
+//};
+
+//VS_SCREEN_OUT FullscreenQuad_VS(uint vid : SV_VertexID)
+//{
+//    static const uint indices[6] = { 0, 1, 2, 0, 2, 3 };
+
+//    return g_FullscreenQuadCorners[indices[vid]];
+//}
+
+
+//VS_SCREEN_OUT Default_VS(uint nVertexID : SV_VertexID)
+//{
+//    VS_SCREEN_OUT output;
+//    output = FullscreenQuad_VS(nVertexID);
+  
+//    return output;
+//}
+
+//float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
+//{
+//    float3 colorTexture = gTextures[DiffuseTexIdx].Sample(gLinearSampler, input.uv);
+//    return float4(colorTexture, 1.0f);
+//}
+

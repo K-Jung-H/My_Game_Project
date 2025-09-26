@@ -112,10 +112,22 @@ std::vector<UINT> ResourceRegistry::LoadMaterialTextures(ResourceManager& manage
 
                 switch (type)
                 {
-                case aiTextureType_DIFFUSE:           mat->diffuseTexId = tex->GetId(); break;
-                case aiTextureType_NORMALS:           mat->normalTexId = tex->GetId(); break;
-                case aiTextureType_DIFFUSE_ROUGHNESS: mat->roughnessTexId = tex->GetId(); break;
-                case aiTextureType_METALNESS:         mat->metallicTexId = tex->GetId(); break;
+                case aiTextureType_DIFFUSE:
+                    mat->diffuseTexId = tex->GetId();
+                    mat->diffuseTexSlot = tex->GetSlot();
+                    break;
+                case aiTextureType_NORMALS:
+                    mat->normalTexId = tex->GetId();
+                    mat->normalTexSlot = tex->GetSlot();
+                    break;
+                case aiTextureType_DIFFUSE_ROUGHNESS:
+                    mat->roughnessTexId = tex->GetId();
+                    mat->roughnessTexSlot = tex->GetSlot();
+                    break;
+                case aiTextureType_METALNESS:
+                    mat->metallicTexId = tex->GetId();
+                    mat->metallicTexSlot = tex->GetSlot();
+                    break;
                 }
 
                 continue;

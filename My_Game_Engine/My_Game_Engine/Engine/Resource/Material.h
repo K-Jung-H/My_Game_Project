@@ -22,4 +22,9 @@ public:
     UINT normalTexId = Engine::INVALID_ID;
     UINT roughnessTexId = Engine::INVALID_ID;
     UINT metallicTexId = Engine::INVALID_ID;
+
+    UINT diffuseTexSlot = UINT_MAX;
+    UINT normalTexSlot = UINT_MAX;
+    UINT roughnessTexSlot = UINT_MAX;
+    UINT metallicTexSlot = UINT_MAX;
 };
