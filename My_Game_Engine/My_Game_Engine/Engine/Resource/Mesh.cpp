@@ -33,7 +33,7 @@ void Mesh::FromAssimp(const aiMesh* mesh)
             tangents[i] = XMFLOAT3(mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z);
 
         if (mesh->HasTextureCoords(0))
-            uvs[i] = XMFLOAT2(mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y);
+            uvs[i] = XMFLOAT2(mesh->mTextureCoords[0][i].x, 1.0f - mesh->mTextureCoords[0][i].y);
 
         if (mesh->HasVertexColors(0))
             colors[i] = XMFLOAT4(mesh->mColors[0][i].r, mesh->mColors[0][i].g,
@@ -54,8 +54,6 @@ void Mesh::FromAssimp(const aiMesh* mesh)
         for (unsigned int j = 0; j < face.mNumIndices; j++)
             indices.push_back(face.mIndices[j]);
     }
-
-    materialIndex = mesh->mMaterialIndex;
 
     RendererContext rc = GameEngine::Get().Get_UploadContext();
 

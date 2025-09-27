@@ -90,11 +90,29 @@ void GameEngine::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wPa
 
 void GameEngine::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
+	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
+
 	switch (nMessageID)
 	{
 	case WM_KEYUP:
 		switch (wParam)
 		{
+		case 'Q':
+		{
+			XMFLOAT3 cur_pos = active_scene->GetActiveCamera()->GetPosition();
+			cur_pos.z += 1;
+			active_scene->GetActiveCamera()->SetPosition(cur_pos);
+		}
+		break;
+
+		case 'E':
+		{
+			XMFLOAT3 cur_pos = active_scene->GetActiveCamera()->GetPosition();
+			cur_pos.z -= 1;
+			active_scene->GetActiveCamera()->SetPosition(cur_pos);
+		}
+		break;
+
 		default:
 			break;
 		}

@@ -28,10 +28,14 @@ public:
     void SetViewport(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetScissorRect(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> cmdList);
+
     void SetPosition(const XMFLOAT3& pos);
     void SetTarget(const XMFLOAT3& tgt);
     void SetUp(const XMFLOAT3& up);
 
+    XMFLOAT3 GetPosition() { return mPosition; }
+    XMFLOAT3 GetTarget() { return mTarget; }
+    XMFLOAT3 GetUp() { return mUp; }
 
     XMMATRIX GetViewMatrix() const { return XMLoadFloat4x4(&mf4x4View); }
     XMMATRIX GetProjectionMatrix() const { return XMLoadFloat4x4(&mf4x4Projection); }
@@ -53,9 +57,9 @@ private:
     XMFLOAT4X4						mf4x4View;
     XMFLOAT4X4						mf4x4Projection;
 
-    DirectX::XMFLOAT3 mPosition;
-    DirectX::XMFLOAT3 mTarget;
-    DirectX::XMFLOAT3 mUp;
+    XMFLOAT3 mPosition;
+    XMFLOAT3 mTarget;
+    XMFLOAT3 mUp;
 
     float mFovY;    
     float mNearZ;

@@ -41,7 +41,6 @@ public:
 
     std::vector<UINT> indices;
 
-    UINT materialIndex = 0;
 
 private:
 

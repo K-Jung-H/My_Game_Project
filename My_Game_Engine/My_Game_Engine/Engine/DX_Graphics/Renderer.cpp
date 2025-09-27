@@ -697,6 +697,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     FrameResource& fr = mFrameResources[mFrameIndex];
     fr.ObjectCB.HeadOffset = 0;
 
+    int i = 0;
     for (auto& rd : renderables)
     {
         auto transform = rd.transform.lock();
@@ -731,18 +732,79 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); 
             };
 
+       
+
         cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
         cb.NormalTexIdx = toIdx(material->normalTexSlot);
         cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
         cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
 
+        // Test 0
+        //if (i == 8)
+        //{
+        //    OutputDebugStringA(mesh->GetAlias().data());
+        //    OutputDebugStringA("\n");
+
+        //    cb.DiffuseTexIdx = toIdx(2);
+        //}
+
+
+        // Test 1
+        //if (i  == 6)
+        //{
+        //    OutputDebugStringA(mesh->GetAlias().data());
+        //    OutputDebugStringA("\n");
+
+        //    cb.DiffuseTexIdx = toIdx(1);
+        //}
+
+        // Test 2
+        //if (i == 7)
+        //{
+        //    OutputDebugStringA(mesh->GetAlias().data());
+        //    OutputDebugStringA("\n");
+
+        //    cb.DiffuseTexIdx = toIdx(1);
+        //}
+
+
         fr.ObjectCB.MappedObjectCB[fr.ObjectCB.HeadOffset] = cb;
         transform->SetCbOffset(mFrameIndex, fr.ObjectCB.HeadOffset);
-
+        i++;
         fr.ObjectCB.HeadOffset++;
     }
 }
 
+void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
+{
+
+}
+
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<RenderData>& renderData_list)
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+    for (auto& rd : renderData_list)
+    {
+        auto renderer = rd.meshRenderer.lock();
+        auto transform = rd.transform.lock();
+
+        if (!renderer || !transform)
+            continue;
+
+        auto mesh = renderer->GetMesh();
+        if (!mesh)
+            continue;
+
+        UINT offset = transform->GetCbOffset(mFrameIndex);
+        D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + offset * sizeof(ObjectCBData);
+
+        cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
+
+
+        mesh->Bind(cmdList);
+        cmdList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);
+    }
+}
 
 void DX12_Renderer::PrepareCommandList()
 {
@@ -1070,37 +1132,6 @@ void DX12_Renderer::ImguiPass()
     }
 }
 
-void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
-{
-
-}
-
-void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<RenderData>& renderData_list)
-{
-    FrameResource& fr = mFrameResources[mFrameIndex];
-
-    for (auto& rd : renderData_list)
-    {
-        auto renderer = rd.meshRenderer.lock();
-        auto transform = rd.transform.lock();
-
-        if (!renderer || !transform)
-            continue;
-
-        auto mesh = renderer->GetMesh();
-        if (!mesh)
-            continue;
-
-        UINT offset = transform->GetCbOffset(mFrameIndex);
-        D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + offset * sizeof(ObjectCBData);
-
-        cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
-
-
-        mesh->Bind(cmdList);
-        cmdList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);
-    }
-}
 
 // ------------------- Utility -------------------
 void DX12_Renderer::WaitForFrame(UINT64 fenceValue)

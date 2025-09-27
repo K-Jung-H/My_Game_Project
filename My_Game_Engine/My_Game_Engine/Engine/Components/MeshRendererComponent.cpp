@@ -10,11 +10,3 @@ void MeshRendererComponent::SetMesh(UINT id)
     
     mMesh = rc->GetById<Mesh>(id);
 }
-
-void MeshRendererComponent::SetMaterial(UINT id)
-{
-    materialId = id;
-    auto rc = GameEngine::Get().GetResourceManager();
-
-    mMaterial = rc->GetById<Material>(id);
-}

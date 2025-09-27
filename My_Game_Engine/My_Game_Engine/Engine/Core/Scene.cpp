@@ -18,12 +18,15 @@ void Scene::Build()
 {
 	std::shared_ptr<Object> camera_obj = Object::Create("Main_Camera");
 	camera_obj->AddComponent<CameraComponent>();
-	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.0f, 5.0f });
+	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.5f, 5.1f });
+	camera_obj->GetComponent<CameraComponent>(Camera)->SetTarget({ 0.0f, 0.5f, 0.0f });
 
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
-	const std::string path = "assets/CP_100_0002_63.fbx";
+	const std::string path = "assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	Model::loadAndExport("assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
+
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
 
 	std::shared_ptr<Object> test_obj = Object::Create("test_obj");

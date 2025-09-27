@@ -27,6 +27,8 @@ struct Skeleton
 
 class Model : public Game_Resource
 {
+public:
+    static bool loadAndExport(const std::string& fbxPath, const std::string& outTxt = "mesh_texture_list.txt");
 
 public:
     static UINT CountNodes(const std::shared_ptr<Model>& model);

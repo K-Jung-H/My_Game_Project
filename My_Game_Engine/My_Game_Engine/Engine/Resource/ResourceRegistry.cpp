@@ -2,7 +2,7 @@
 #include "ResourceRegistry.h"
 #include "Model.h"
 
-LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx)
+LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view aalias, const RendererContext& ctx)
 {
     LoadResult result;
 
@@ -22,9 +22,15 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
     }
 
     auto model = std::make_shared<Model>();
+
+    if (scene->mName.length > 0)
+        model->SetAlias(scene->mName.C_Str());
+    else
+        model->SetAlias(std::filesystem::path(path).stem().string());
+
     model->SetId(mNextResourceID++);
     model->SetPath(path);
-    model->SetAlias(std::string(alias));
+
     manager.Add(model);
     result.modelId = model->GetId();
 
@@ -34,9 +40,15 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
     {
         auto mat = std::make_shared<Material>();
         mat->FromAssimp(scene->mMaterials[i]);
+
+        aiString matName = scene->mMaterials[i]->GetName();
+
+        if (matName.length > 0)
+            mat->SetAlias(matName.C_Str());
+        else
+            mat->SetAlias("Material_" + std::to_string(i));
         mat->SetId(mNextResourceID++);
         mat->SetPath(path);
-        mat->SetAlias(std::string(alias) + "_mat" + std::to_string(i));
 
         manager.Add(mat);
         result.materialIds.push_back(mat->GetId());
@@ -51,17 +63,26 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
     {
         auto mesh = std::make_shared<Mesh>();
         mesh->FromAssimp(scene->mMeshes[i]);
+
+        std::string meshName = scene->mMeshes[i]->mName.C_Str();
+        if (meshName.empty())
+            meshName = "Mesh_" + std::to_string(i);
+
+        mesh->SetAlias(meshName);
         mesh->SetId(mNextResourceID++);
         mesh->SetPath(path);
-        mesh->SetAlias(std::string(alias) + "_mesh" + std::to_string(i));
+
 
         Mesh::Submesh sub{};
         sub.indexCount = static_cast<UINT>(mesh->indices.size());
         sub.startIndexLocation = 0;
         sub.baseVertexLocation = 0;
+
         UINT matIndex = scene->mMeshes[i]->mMaterialIndex;
         sub.materialId = (matIndex < matIdTable.size()) ? matIdTable[matIndex] : Engine::INVALID_ID;
         mesh->submeshes.push_back(sub);
+
+
 
         manager.Add(mesh);
         result.meshIds.push_back(mesh->GetId());
@@ -147,10 +168,22 @@ std::vector<UINT> ResourceRegistry::LoadMaterialTextures(ResourceManager& manage
 
             switch (type)
             {
-            case aiTextureType_DIFFUSE:           mat->diffuseTexId = tex->GetId(); break;
-            case aiTextureType_NORMALS:           mat->normalTexId = tex->GetId(); break;
-            case aiTextureType_DIFFUSE_ROUGHNESS: mat->roughnessTexId = tex->GetId(); break;
-            case aiTextureType_METALNESS:         mat->metallicTexId = tex->GetId(); break;
+            case aiTextureType_DIFFUSE:
+                mat->diffuseTexId = tex->GetId();
+                mat->diffuseTexSlot = tex->GetSlot();
+                break;
+            case aiTextureType_NORMALS:
+                mat->normalTexId = tex->GetId();
+                mat->normalTexSlot = tex->GetSlot();
+                break;
+            case aiTextureType_DIFFUSE_ROUGHNESS:
+                mat->roughnessTexId = tex->GetId();
+                mat->roughnessTexSlot = tex->GetSlot();
+                break;
+            case aiTextureType_METALNESS:
+                mat->metallicTexId = tex->GetId();
+                mat->metallicTexSlot = tex->GetSlot();
+                break;
             }
         }
     }

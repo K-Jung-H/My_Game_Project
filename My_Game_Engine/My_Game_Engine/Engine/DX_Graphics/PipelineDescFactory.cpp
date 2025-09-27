@@ -152,7 +152,7 @@ RenderTargetDesc PipelineDescFactory::GetRenderTargetDesc(RenderTargetPreset pre
         rt.numRenderTargets = 3;
         rt.rtvFormats[0] = DXGI_FORMAT_R16G16B16A16_FLOAT; 
         rt.rtvFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT; 
-        rt.rtvFormats[2] = DXGI_FORMAT_R8G8B8A8_UNORM;
+        rt.rtvFormats[2] = DXGI_FORMAT_R16G16B16A16_FLOAT;
         rt.dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
         rt.sampleDesc = { 1, 0 };
         break;

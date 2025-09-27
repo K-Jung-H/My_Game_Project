@@ -1,0 +1,51 @@
+Mesh: body
+  Material: CH_100_0012_07
+    Diffuse Texture: CT_100_0012_07.png
+Mesh: body
+  Material: CH_100_0012_07_metal
+    Diffuse Texture: CT_100_0012_07.png
+Mesh: face
+  Material: CH_100_0012_07_face
+    Diffuse Texture: CT_100_0012_07_face.png
+Mesh: face
+  Material: CH_100_0012_07_eyebrow
+    Diffuse Texture: CT_100_0012_07_face.png
+Mesh: face
+  Material: CH_100_0012_07_eyelid
+    Diffuse Texture: CT_100_0012_07_face.png
+Mesh: face
+  Material: CH_100_0012_07_face_shadow
+    Diffuse Texture: CT_100_0012_07_face.png
+Mesh: face
+  Material: CH_100_0012_07_fakemouth
+    Diffuse Texture: CT_100_0012_07_face.png
+Mesh: face
+  Material: CH_100_0012_07_cheek
+    Diffuse Texture: CT_100_0012_07_cheek.png
+Mesh: hair
+  Material: CH_100_0012_07_hair
+    Diffuse Texture: CT_100_0012_07_hair.png
+Mesh: hair
+  Material: CH_100_0012_07_hair_metal
+    Diffuse Texture: CT_100_0012_07_hair.png
+Mesh: hair
+  Material: CH_100_0012_07_hairF
+    Diffuse Texture: CT_100_0012_07_hair.png
+Mesh: whisk01
+  Material: WP_CH_100_0012_07_metal
+    Diffuse Texture: WP_CT_100_0012_07.png
+Mesh: whisk01
+  Material: WP_CH_100_0012_07
+    Diffuse Texture: WP_CT_100_0012_07.png
+Mesh: whisk02
+  Material: WP_CH_100_0012_07_metal
+    Diffuse Texture: WP_CT_100_0012_07.png
+Mesh: whisk02
+  Material: WP_CH_100_0012_07
+    Diffuse Texture: WP_CT_100_0012_07.png
+Mesh: WP_CM_100_0012_07_bowl
+  Material: WP_CH_100_0012_07_bowl_chocolate
+    Diffuse Texture: WP_CT_100_0012_07bowl.png
+Mesh: WP_CM_100_0012_07_bowl
+  Material: WP_CH_100_0012_07_bowl
+    Diffuse Texture: WP_CT_100_0012_07bowl.png

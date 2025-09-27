@@ -15,18 +15,12 @@ public:
     ~MeshRendererComponent() = default;
 
     void SetMesh(UINT id);
-    void SetMaterial(UINT id);
-
     UINT GetMeshId() const { return meshId; }
-    UINT GetMaterialId() const { return materialId; }
 
     std::shared_ptr<Mesh> GetMesh() const { return mMesh.lock(); }
-    std::shared_ptr<Material> GetMaterial() const { return mMaterial.lock(); }
 
 private:
     UINT meshId = Engine::INVALID_ID;
-    UINT materialId = Engine::INVALID_ID;
 
     std::weak_ptr<Mesh> mMesh;
-    std::weak_ptr<Material> mMaterial;
 };
