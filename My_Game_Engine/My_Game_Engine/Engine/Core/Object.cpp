@@ -178,15 +178,35 @@ std::vector<std::shared_ptr<Object>> Object::GetSiblings()
 }
 
 
-void Object::Update(float dt)
+void Object::Update_Animate(float dt)
 {
-    //for (auto& [type, comp] : map_Components)
-    //    if (comp) 
-    //        comp->Update(dt);
-
-    //if (auto child = child_obj.lock())
-    //    child->Update(dt);
-
-    //if (auto sibling = sibling_obj.lock())
-    //    sibling->Update(dt);
 }
+
+void Object::Update_Transform_All()
+{
+    XMFLOAT4X4 identity;
+    XMStoreFloat4x4(&identity, XMMatrixIdentity());
+
+    Update_Transform(&identity, true);
+}
+
+void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty)
+{
+    const XMFLOAT4X4* worldForChildren = parentWorld;
+    bool myWorldDirty = parentWorldDirty;
+
+    auto transform = GetComponent<TransformComponent>(Transform);
+
+    if (transform) 
+    {
+        myWorldDirty = transform->Update(parentWorld, parentWorldDirty);
+        worldForChildren = &transform->GetWorldMatrix();
+    }
+
+    for (auto& child : children) 
+    {
+        if (!child) continue;
+        child->Update_Transform(worldForChildren, myWorldDirty);
+    }
+}
+

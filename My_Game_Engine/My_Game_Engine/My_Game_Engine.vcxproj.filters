@@ -123,6 +123,9 @@
     <ClInclude Include="Engine\Resource\Model.h">
       <Filter>Resource</Filter>
     </ClInclude>
+    <ClInclude Include="DXMathUtils.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="My_Game_Project.cpp">

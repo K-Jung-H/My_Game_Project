@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Renderer.h"
 #include "GameEngine.h"
+#include "DXMathUtils.h"
 #include "../Resource/Mesh.h"
 #include "../Resource/Material.h"
 #include <stdexcept>
@@ -720,8 +721,10 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         if (!material)
             continue;
 
+
+
         ObjectCBData cb{};
-        cb.World = transform->GetWorldMatrix();
+        cb.World = Matrix4x4::Transpose(transform->GetWorldMatrix());
 
         cb.Albedo = XMFLOAT4(material->albedoColor.x, material->albedoColor.y, material->albedoColor.z, 1.0f);
         cb.Roughness = material->roughness;
@@ -739,34 +742,8 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
         cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
 
-        // Test 0
-        //if (i == 8)
-        //{
-        //    OutputDebugStringA(mesh->GetAlias().data());
-        //    OutputDebugStringA("\n");
-
-        //    cb.DiffuseTexIdx = toIdx(2);
-        //}
-
-
-        // Test 1
-        //if (i  == 6)
-        //{
-        //    OutputDebugStringA(mesh->GetAlias().data());
-        //    OutputDebugStringA("\n");
-
-        //    cb.DiffuseTexIdx = toIdx(1);
-        //}
-
-        // Test 2
-        //if (i == 7)
-        //{
-        //    OutputDebugStringA(mesh->GetAlias().data());
-        //    OutputDebugStringA("\n");
-
-        //    cb.DiffuseTexIdx = toIdx(1);
-        //}
-
+        OutputDebugStringA(mesh->GetAlias().data());
+        OutputDebugStringA("\n");
 
         fr.ObjectCB.MappedObjectCB[fr.ObjectCB.HeadOffset] = cb;
         transform->SetCbOffset(mFrameIndex, fr.ObjectCB.HeadOffset);

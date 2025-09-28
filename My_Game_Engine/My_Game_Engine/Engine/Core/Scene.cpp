@@ -18,26 +18,27 @@ void Scene::Build()
 {
 	std::shared_ptr<Object> camera_obj = Object::Create("Main_Camera");
 	camera_obj->AddComponent<CameraComponent>();
-	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.5f, 5.1f });
-	camera_obj->GetComponent<CameraComponent>(Camera)->SetTarget({ 0.0f, 0.5f, 0.0f });
+	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.0f, 5.0f });
+	camera_obj->GetComponent<CameraComponent>(Camera)->SetTarget({ 0.0f, 0.0f, 0.0f });
 
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
-	const std::string path = "assets/CP_100_0012_07/CP_100_0012_07.fbx";
-	Model::loadAndExport("assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
+//	const std::string path = "assets/CP_100_0012_07/CP_100_0012_07.fbx";
+//	Model::loadAndExport("assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
 
+	const std::string path = "assets/Joltik/pm0595_00.fbx";
+	Model::loadAndExport("assets/Joltik/pm0595_00.fbx", "test_assimp_export.txt");
+	
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
 
-	std::shared_ptr<Object> test_obj = Object::Create("test_obj");
 
 	auto rcm = GameEngine::Get().GetResourceManager();
 	auto model_ptr = rcm->GetById<Model>(result.modelId);
 	std::shared_ptr<Object> test_model_obj = Object::Create(model_ptr);
-
+	test_model_obj->GetComponent<TransformComponent>(Transform)->SetPosition({0, -3, 0});
 
 	obj_list.push_back(camera_obj);
-	obj_list.push_back(test_obj);
 	obj_list.push_back(test_model_obj);
 
 	// For Debug
@@ -59,7 +60,11 @@ void Scene::Fixed_Update(float ElapsedTime)
 
 void Scene::Update(float ElapsedTime)
 {
-
+	for (auto obj_ptr : obj_list)
+	{
+		obj_ptr->Update_Animate(ElapsedTime);
+		obj_ptr->Update_Transform_All();
+	}
 }
 
 void Scene::Render()

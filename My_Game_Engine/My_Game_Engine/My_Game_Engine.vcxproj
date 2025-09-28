@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="DXMathUtils.h" />
     <ClInclude Include="Engine\Components\CameraComponent.h" />
     <ClInclude Include="Engine\Components\ColliderComponent.h" />
     <ClInclude Include="Engine\Components\MeshRendererComponent.h" />

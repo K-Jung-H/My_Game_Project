@@ -14,7 +14,7 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals);
 
-    if (!scene) 
+    if (!scene)
     {
         std::string errMsg = "[Assimp] Failed to load: " + path + "\nReason: " + importer.GetErrorString() + "\n";
         OutputDebugStringA(errMsg.c_str());
@@ -34,19 +34,37 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
     manager.Add(model);
     result.modelId = model->GetId();
 
+    // ---------- Name maps for duplicate handling ----------
+    std::unordered_map<std::string, int> matNameCount;
+    std::unordered_map<std::string, int> meshNameCount;
+
     std::vector<UINT> matIdTable(scene->mNumMaterials);
 
-    for (unsigned int i = 0; i < scene->mNumMaterials; i++) 
+    // ---------- Materials ----------
+    for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
         auto mat = std::make_shared<Material>();
         mat->FromAssimp(scene->mMaterials[i]);
 
         aiString matName = scene->mMaterials[i]->GetName();
 
+        std::string baseName;
         if (matName.length > 0)
-            mat->SetAlias(matName.C_Str());
+            baseName = matName.C_Str();
         else
-            mat->SetAlias("Material_" + std::to_string(i));
+            baseName = "Material_" + std::to_string(i);
+
+        // --- Duplicate name handling for Material ---
+        std::string uniqueName = baseName;
+        if (matNameCount.find(baseName) != matNameCount.end()) {
+            int count = ++matNameCount[baseName];
+            uniqueName = baseName + "_" + std::to_string(count);
+        }
+        else {
+            matNameCount[baseName] = 0;
+        }
+
+        mat->SetAlias(uniqueName);
         mat->SetId(mNextResourceID++);
         mat->SetPath(path);
 
@@ -58,20 +76,30 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
         result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
     }
 
+    // ---------- Meshes ----------
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
-    for (unsigned int i = 0; i < scene->mNumMeshes; i++) 
+    for (unsigned int i = 0; i < scene->mNumMeshes; i++)
     {
         auto mesh = std::make_shared<Mesh>();
         mesh->FromAssimp(scene->mMeshes[i]);
 
-        std::string meshName = scene->mMeshes[i]->mName.C_Str();
-        if (meshName.empty())
-            meshName = "Mesh_" + std::to_string(i);
+        std::string baseName = scene->mMeshes[i]->mName.C_Str();
+        if (baseName.empty())
+            baseName = "Mesh_" + std::to_string(i);
 
-        mesh->SetAlias(meshName);
+        // --- Duplicate name handling for Mesh ---
+        std::string uniqueName = baseName;
+        if (meshNameCount.find(baseName) != meshNameCount.end()) {
+            int count = ++meshNameCount[baseName];
+            uniqueName = baseName + "_" + std::to_string(count);
+        }
+        else {
+            meshNameCount[baseName] = 0;
+        }
+
+        mesh->SetAlias(uniqueName);
         mesh->SetId(mNextResourceID++);
         mesh->SetPath(path);
-
 
         Mesh::Submesh sub{};
         sub.indexCount = static_cast<UINT>(mesh->indices.size());
@@ -81,8 +109,6 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
         UINT matIndex = scene->mMeshes[i]->mMaterialIndex;
         sub.materialId = (matIndex < matIdTable.size()) ? matIdTable[matIndex] : Engine::INVALID_ID;
         mesh->submeshes.push_back(sub);
-
-
 
         manager.Add(mesh);
         result.meshIds.push_back(mesh->GetId());
@@ -101,13 +127,11 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
     return result;
 }
 
-
-
 std::vector<UINT> ResourceRegistry::LoadMaterialTextures(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx)
 {
     std::vector<UINT> textureIds;
 
-    static const std::vector<std::pair<aiTextureType, std::string>> textureTypes = 
+    static const std::vector<std::pair<aiTextureType, std::string>> textureTypes =
     {
         { aiTextureType_DIFFUSE,           "diffuse" },
         { aiTextureType_NORMALS,           "normal" },
@@ -209,7 +233,6 @@ std::shared_ptr<Model::Node> ResourceRegistry::ProcessNode(aiNode* ainode, const
     for (unsigned int i = 0; i < ainode->mNumChildren; i++)
         node->children.push_back(ProcessNode(ainode->mChildren[i], scene, loadedMeshes));
 
-
     return node;
 }
 
@@ -218,20 +241,20 @@ Skeleton ResourceRegistry::BuildSkeleton(const aiScene* scene)
     Skeleton skeleton;
     std::unordered_map<std::string, int> boneNameToIndex;
 
-    for (unsigned int m = 0; m < scene->mNumMeshes; m++) 
+    for (unsigned int m = 0; m < scene->mNumMeshes; m++)
     {
         aiMesh* aMesh = scene->mMeshes[m];
-        for (unsigned int b = 0; b < aMesh->mNumBones; b++) 
+        for (unsigned int b = 0; b < aMesh->mNumBones; b++)
         {
             aiBone* aBone = aMesh->mBones[b];
             std::string boneName = aBone->mName.C_Str();
 
-            if (boneNameToIndex.count(boneName)) continue; 
+            if (boneNameToIndex.count(boneName)) continue;
 
             int idx = static_cast<int>(skeleton.BoneList.size());
 
             boneNameToIndex[boneName] = idx;
-            
+
             skeleton.BoneNames.insert(boneName);
 
             Bone bone{};
@@ -246,14 +269,14 @@ Skeleton ResourceRegistry::BuildSkeleton(const aiScene* scene)
         }
     }
 
-    for (auto& [boneName, idx] : boneNameToIndex) 
+    for (auto& [boneName, idx] : boneNameToIndex)
     {
         aiNode* node = scene->mRootNode->FindNode(aiString(boneName.c_str()));
-        if (node && node->mParent) 
+        if (node && node->mParent)
         {
             std::string parentName = node->mParent->mName.C_Str();
             auto it = boneNameToIndex.find(parentName);
-            if (it != boneNameToIndex.end()) 
+            if (it != boneNameToIndex.end())
             {
                 skeleton.BoneList[idx].parentIndex = it->second;
             }

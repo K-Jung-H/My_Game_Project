@@ -39,8 +39,9 @@ public:
     std::vector<std::shared_ptr<Object>> GetSiblings();
 
 
-
-    void Update(float dt);
+    void Update_Animate(float dt);
+    void Update_Transform_All();
+    void Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty);
 
 private:
     explicit Object(const std::string& name) : mName(name) {}
