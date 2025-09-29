@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "GameEngine.h"
 
 void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)

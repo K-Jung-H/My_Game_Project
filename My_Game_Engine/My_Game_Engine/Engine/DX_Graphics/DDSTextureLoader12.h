@@ -19,7 +19,6 @@
 //--------------------------------------------------------------------------------------
 
 #pragma once
-#include "pch.h"
 #include <assert.h>
 #include <algorithm>
 #include <memory>

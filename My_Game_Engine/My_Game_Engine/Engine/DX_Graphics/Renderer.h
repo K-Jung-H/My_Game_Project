@@ -1,9 +1,8 @@
 #pragma once
-#include "pch.h"
 #include "DescriptorManager.h"
 #include "Graphic_Shader.h"
-#include "../Core/Scene.h"
-#include "../Components/CameraComponent.h"
+#include "Core/Scene.h"
+#include "Components/CameraComponent.h"
 
 struct ResourceStateTracker
 {

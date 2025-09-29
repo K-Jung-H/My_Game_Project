@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "ComponentRegistry.h"
 #include "GameEngine.h"
 

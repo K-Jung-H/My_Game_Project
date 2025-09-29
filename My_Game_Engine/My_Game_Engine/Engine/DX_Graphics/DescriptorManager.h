@@ -1,4 +1,3 @@
-#include "pch.h"
 
 constexpr UINT MAX_CBV = 1000;
 constexpr UINT MAX_SRV = 1000;

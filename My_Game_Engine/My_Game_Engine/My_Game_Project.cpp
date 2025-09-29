@@ -1,6 +1,5 @@
-﻿#include "pch.h"
-#include "My_Game_Project.h"
-#include "GameEngine.h"
+﻿#include "My_Game_Project.h"
+#include "Engine/GameEngine.h"
 
 #define MAX_LOADSTRING 100
 
@@ -81,6 +80,17 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
+    if (!RegisterClassExW(&wcex))
+    {
+        DWORD err = GetLastError();
+        wchar_t buf[256];
+        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr, err,
+            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+            buf, (sizeof buf / sizeof * buf), nullptr);
+        MessageBoxW(nullptr, buf, L"CreateWindow failed", MB_OK);
+        return FALSE;
+    }
     return RegisterClassExW(&wcex);
 }
 
@@ -95,7 +105,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    AdjustWindowRect(&rc, dwStyle, FALSE);
    HWND hWnd = CreateWindow(szWindowClass, szTitle, dwStyle, CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top, NULL, NULL, hInstance, NULL);
 
-   if (!hWnd) return(FALSE);
+   if (!hWnd) {
+       DWORD err = GetLastError();
+       wchar_t buf[256];
+       FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+           nullptr, err,
+           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+           buf, (sizeof buf / sizeof * buf), nullptr);
+       MessageBoxW(nullptr, buf, L"CreateWindow failed", MB_OK);
+       return FALSE;
+   }
 
    GameEngine::Get().OnCreate(hInstance, hWnd);
 

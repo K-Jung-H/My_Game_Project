@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "MeshRendererComponent.h"
 #include "GameEngine.h"
 

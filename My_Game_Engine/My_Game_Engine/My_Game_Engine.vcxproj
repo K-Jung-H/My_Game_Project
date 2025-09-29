@@ -143,7 +143,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="DXMathUtils.h" />
     <ClInclude Include="Engine\Components\CameraComponent.h" />
     <ClInclude Include="Engine\Components\ColliderComponent.h" />
     <ClInclude Include="Engine\Components\MeshRendererComponent.h" />
@@ -152,6 +151,7 @@
     <ClInclude Include="Engine\Core\ComponentRegistry.h" />
     <ClInclude Include="Engine\Core\Object.h" />
     <ClInclude Include="Engine\Core\Scene.h" />
+    <ClInclude Include="Engine\DXMathUtils.h" />
     <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h" />
     <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h" />
     <ClInclude Include="Engine\DX_Graphics\Graphic_RootSignature.h" />
@@ -160,6 +160,7 @@
     <ClInclude Include="Engine\DX_Graphics\Renderer.h" />
     <ClInclude Include="Engine\DX_Graphics\ResourceUtils.h" />
     <ClInclude Include="Engine\DX_Graphics\WICTextureLoader12.h" />
+    <ClInclude Include="Engine\GameEngine.h" />
     <ClInclude Include="Engine\Managers\PhysicsManager.h" />
     <ClInclude Include="Engine\Managers\RendererManager.h" />
     <ClInclude Include="Engine\Resource\Material.h" />
@@ -169,11 +170,10 @@
     <ClInclude Include="Engine\Resource\ResourceManager.h" />
     <ClInclude Include="Engine\Resource\ResourceRegistry.h" />
     <ClInclude Include="Engine\Resource\Texture.h" />
-    <ClInclude Include="GameEngine.h" />
+    <ClInclude Include="Engine\Scene_Manager.h" />
     <ClInclude Include="My_Game_Project.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
-    <ClInclude Include="Scene_Manager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Engine\Components\CameraComponent.cpp" />
@@ -192,6 +192,7 @@
     <ClCompile Include="Engine\DX_Graphics\Renderer.cpp" />
     <ClCompile Include="Engine\DX_Graphics\ResourceUtils.cpp" />
     <ClCompile Include="Engine\DX_Graphics\WICTextureLoader12.cpp" />
+    <ClCompile Include="Engine\GameEngine.cpp" />
     <ClCompile Include="Engine\Managers\PhysicsManager.cpp" />
     <ClCompile Include="Engine\Managers\RendererManager.cpp" />
     <ClCompile Include="Engine\Resource\Material.cpp" />
@@ -201,7 +202,7 @@
     <ClCompile Include="Engine\Resource\ResourceManager.cpp" />
     <ClCompile Include="Engine\Resource\ResourceRegistry.cpp" />
     <ClCompile Include="Engine\Resource\Texture.cpp" />
-    <ClCompile Include="GameEngine.cpp" />
+    <ClCompile Include="Engine\Scene_Manager.cpp" />
     <ClCompile Include="My_Game_Project.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -209,7 +210,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Scene_Manager.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="My_Game_Engine.rc" />

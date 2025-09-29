@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "Scene_Manager.h"
 
 void SceneManager::Check_Inputs()

@@ -13,23 +13,26 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Core">
-      <UniqueIdentifier>{1fe7aff7-2266-4bde-b449-b41895f378d2}</UniqueIdentifier>
+    <Filter Include="Engine">
+      <UniqueIdentifier>{1ad1615c-b622-4eb6-9425-96ca7cb7aa4a}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Components">
-      <UniqueIdentifier>{9c93f76b-176d-4e03-b970-3225c1ed07f7}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Resource">
+    <Filter Include="Engine\Resource">
       <UniqueIdentifier>{572d3ccb-92a1-434a-9a01-6b7262fc9fb2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Component_Managers">
-      <UniqueIdentifier>{16579667-0328-4af5-b109-fdd940bf7050}</UniqueIdentifier>
+    <Filter Include="Engine\shaders">
+      <UniqueIdentifier>{717d1b20-7191-4dba-b767-dbfc370d1e61}</UniqueIdentifier>
     </Filter>
-    <Filter Include="DX_Graphics">
+    <Filter Include="Engine\DX_Graphics">
       <UniqueIdentifier>{118fcaf8-6336-4840-8e7f-48ca2c448ec5}</UniqueIdentifier>
     </Filter>
-    <Filter Include="shaders">
-      <UniqueIdentifier>{717d1b20-7191-4dba-b767-dbfc370d1e61}</UniqueIdentifier>
+    <Filter Include="Engine\Core">
+      <UniqueIdentifier>{1fe7aff7-2266-4bde-b449-b41895f378d2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Components">
+      <UniqueIdentifier>{9c93f76b-176d-4e03-b970-3225c1ed07f7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Engine\Component_Managers">
+      <UniqueIdentifier>{16579667-0328-4af5-b109-fdd940bf7050}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -42,89 +45,89 @@
     <ClInclude Include="pch.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
-    <ClInclude Include="GameEngine.h">
-      <Filter>헤더 파일</Filter>
-    </ClInclude>
     <ClInclude Include="Engine\Core\Component.h">
-      <Filter>Core</Filter>
+      <Filter>Engine\Core</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Core\ComponentRegistry.h">
-      <Filter>Core</Filter>
+      <Filter>Engine\Core</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Components\CameraComponent.h">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Components\ColliderComponent.h">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Components\MeshRendererComponent.h">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Components\TransformComponent.h">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Managers\PhysicsManager.h">
-      <Filter>Component_Managers</Filter>
+      <Filter>Engine\Component_Managers</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Managers\RendererManager.h">
-      <Filter>Component_Managers</Filter>
+      <Filter>Engine\Component_Managers</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\Mesh.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\ResourceManager.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\Game_Resource.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\ResourceRegistry.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\Texture.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\Material.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\DescriptorManager.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\Renderer.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\DDSTextureLoader12.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\WICTextureLoader12.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\ResourceUtils.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\Graphic_RootSignature.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\Graphic_Shader.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\DX_Graphics\PipelineDescFactory.h">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Core\Scene.h">
-      <Filter>Core</Filter>
-    </ClInclude>
-    <ClInclude Include="Scene_Manager.h">
-      <Filter>헤더 파일</Filter>
+      <Filter>Engine\Core</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Core\Object.h">
-      <Filter>Core</Filter>
+      <Filter>Engine\Core</Filter>
     </ClInclude>
     <ClInclude Include="Engine\Resource\Model.h">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClInclude>
-    <ClInclude Include="DXMathUtils.h">
-      <Filter>헤더 파일</Filter>
+    <ClInclude Include="Engine\DXMathUtils.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\GameEngine.h">
+      <Filter>Engine</Filter>
+    </ClInclude>
+    <ClInclude Include="Engine\Scene_Manager.h">
+      <Filter>Engine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -134,86 +137,86 @@
     <ClCompile Include="pch.cpp">
       <Filter>소스 파일</Filter>
     </ClCompile>
-    <ClCompile Include="GameEngine.cpp">
-      <Filter>소스 파일</Filter>
-    </ClCompile>
     <ClCompile Include="Engine\Core\Component.cpp">
-      <Filter>Core</Filter>
+      <Filter>Engine\Core</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Core\ComponentRegistry.cpp">
-      <Filter>Core</Filter>
+      <Filter>Engine\Core</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Components\CameraComponent.cpp">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Components\ColliderComponent.cpp">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Components\MeshRendererComponent.cpp">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Components\TransformComponent.cpp">
-      <Filter>Components</Filter>
+      <Filter>Engine\Components</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Managers\PhysicsManager.cpp">
-      <Filter>Component_Managers</Filter>
+      <Filter>Engine\Component_Managers</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Managers\RendererManager.cpp">
-      <Filter>Component_Managers</Filter>
+      <Filter>Engine\Component_Managers</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\Mesh.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\ResourceManager.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\Game_Resource.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\ResourceRegistry.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\Texture.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\Material.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\DescriptorManager.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\Renderer.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\DDSTextureLoader12.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\WICTextureLoader12.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\ResourceUtils.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\Graphic_RootSignature.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\Graphic_Shader.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\DX_Graphics\PipelineDescFactory.cpp">
-      <Filter>DX_Graphics</Filter>
+      <Filter>Engine\DX_Graphics</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Core\Scene.cpp">
-      <Filter>Core</Filter>
-    </ClCompile>
-    <ClCompile Include="Scene_Manager.cpp">
-      <Filter>소스 파일</Filter>
+      <Filter>Engine\Core</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Core\Object.cpp">
-      <Filter>Core</Filter>
+      <Filter>Engine\Core</Filter>
     </ClCompile>
     <ClCompile Include="Engine\Resource\Model.cpp">
-      <Filter>Resource</Filter>
+      <Filter>Engine\Resource</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\GameEngine.cpp">
+      <Filter>Engine</Filter>
+    </ClCompile>
+    <ClCompile Include="Engine\Scene_Manager.cpp">
+      <Filter>Engine</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -231,21 +234,21 @@
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="shaders\Geometry_Shader.hlsl">
-      <Filter>shaders</Filter>
+      <Filter>Engine\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\Blit_Shader.hlsl">
-      <Filter>shaders</Filter>
+      <Filter>Engine\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\Composite_Shader.hlsl">
-      <Filter>shaders</Filter>
+      <Filter>Engine\shaders</Filter>
     </FxCompile>
     <FxCompile Include="shaders\PostProcess_Shader.hlsl">
-      <Filter>shaders</Filter>
+      <Filter>Engine\shaders</Filter>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\PostFX_Util.hlsli">
-      <Filter>shaders</Filter>
+      <Filter>Engine\shaders</Filter>
     </None>
   </ItemGroup>
 </Project>

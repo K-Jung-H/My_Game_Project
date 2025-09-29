@@ -1,9 +1,8 @@
-#include "pch.h"
 #include "Renderer.h"
 #include "GameEngine.h"
 #include "DXMathUtils.h"
-#include "../Resource/Mesh.h"
-#include "../Resource/Material.h"
+#include "Resource/Mesh.h"
+#include "Resource/Material.h"
 #include <stdexcept>
 
 
@@ -38,7 +37,7 @@ float DX12_Renderer::clear_color[4] = { 0.95f, 0.55f, 0.60f, 1.00f };
 bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
 {
 
-#if defined(_DEBUG)
+//#if defined(_DEBUG)
     ComPtr<ID3D12Debug> debugController;
     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
     {
@@ -51,23 +50,24 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
             OutputDebugStringA("[D3D12] GPU-based validation enabled.\n");
         }
     }
-#endif
+//#endif
 
     mWidth = width;
     mHeight = height;
 
-    if (!CreateDeviceAndFactory()) return false;
-    if (!CheckMsaaSupport()) return false;
-    if (!CreateCommandQueue()) return false;
-    if (!CreateSwapChain(hWnd, width, height)) return false;
-    if (!CreateDescriptorHeaps()) return false;
-    if (!CreateFrameResources()) return false;
-    if (!CreateCommandList()) return false;
-    if (!CreateFenceObjects()) return false;
-    if (!CreateCommandList_Upload()) return false;
-    
-    if (!Create_Shader()) return false;
-    if (!Create_SceneCBV()) return false;
+    bool success = true;
+
+    success &= CreateDeviceAndFactory();
+    success &= CheckMsaaSupport();
+    success &= CreateCommandQueue();
+    success &= CreateSwapChain(hWnd, width, height);
+    success &= CreateDescriptorHeaps();
+    success &= CreateFrameResources();
+    success &= CreateCommandList();
+    success &= CreateFenceObjects();
+    success &= CreateCommandList_Upload();
+    success &= Create_Shader();
+    success &= Create_SceneCBV();
 
 
     //---------------------------------------------------------------------
@@ -207,18 +207,23 @@ bool DX12_Renderer::CreateDescriptorHeaps()
 
 bool DX12_Renderer::CreateFrameResources()
 {
-    for (UINT i = 0; i < FrameCount; i++)
+    bool success = true;
+
+    for (UINT i = 0; i < FrameCount; ++i)
     {
         FrameResource& fr = mFrameResources[i];
 
-        if (!CreateCommandAllocator(fr)) return false;
-        if (!CreateBackBufferRTV(i, fr)) return false;
-        if (!CreateDSV(i, fr)) return false;
-        if (!CreateGBuffer(i, fr)) return false;
-        if (!Create_Merge_RenderTargets(i, fr)) return false;
-        if (!CreateObjectCB(fr, 1000)) return false;
+        success &= CreateCommandAllocator(fr);
+        success &= CreateBackBufferRTV(i, fr);
+        success &= CreateDSV(i, fr);
+        success &= CreateGBuffer(i, fr);
+        success &= Create_Merge_RenderTargets(i, fr);
+        success &= CreateObjectCB(fr, 50);
+
+        if (!success) return false;
     }
-    return true;
+
+    return success;
 }
 
 bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
@@ -506,11 +511,11 @@ bool DX12_Renderer::Create_Shader()
     pso_manager.Init(mDevice);
 
     ShaderSetting geometry_ss;
-    geometry_ss.vs.file = L"shaders/Geometry_Shader.hlsl";
+    geometry_ss.vs.file = L"Shaders/Geometry_Shader.hlsl";
     geometry_ss.vs.entry = "Default_VS";
     geometry_ss.vs.target = "vs_5_1";
 
-    geometry_ss.ps.file = L"shaders/Geometry_Shader.hlsl";
+    geometry_ss.ps.file = L"Shaders/Geometry_Shader.hlsl";
     geometry_ss.ps.entry = "Default_PS";
     geometry_ss.ps.target = "ps_5_1";
 
@@ -537,11 +542,11 @@ bool DX12_Renderer::Create_Shader()
     //==================================
 
     ShaderSetting composite_ss;
-    composite_ss.vs.file = L"shaders/Composite_Shader.hlsl";
+    composite_ss.vs.file = L"Shaders/Composite_Shader.hlsl";
     composite_ss.vs.entry = "Default_VS";
     composite_ss.vs.target = "vs_5_1";
 
-    composite_ss.ps.file = L"shaders/Composite_Shader.hlsl";
+    composite_ss.ps.file = L"Shaders/Composite_Shader.hlsl";
     composite_ss.ps.entry = "Default_PS";
     composite_ss.ps.target = "ps_5_1";
 
@@ -567,11 +572,11 @@ bool DX12_Renderer::Create_Shader()
     //==================================
 
     ShaderSetting postprocess_ss;
-    postprocess_ss.vs.file = L"shaders/PostProcess_Shader.hlsl";
+    postprocess_ss.vs.file = L"Shaders/PostProcess_Shader.hlsl";
     postprocess_ss.vs.entry = "Default_VS";
     postprocess_ss.vs.target = "vs_5_1";
 
-    postprocess_ss.ps.file = L"shaders/PostProcess_Shader.hlsl";
+    postprocess_ss.ps.file = L"Shaders/PostProcess_Shader.hlsl";
     postprocess_ss.ps.entry = "Default_PS";
     postprocess_ss.ps.target = "ps_5_1";
 
@@ -597,11 +602,11 @@ bool DX12_Renderer::Create_Shader()
     //==================================
 
     ShaderSetting blit_ss;
-    blit_ss.vs.file = L"shaders/Blit_Shader.hlsl";
+    blit_ss.vs.file = L"Shaders/Blit_Shader.hlsl";
     blit_ss.vs.entry = "Default_VS";
     blit_ss.vs.target = "vs_5_1";
 
-    blit_ss.ps.file = L"shaders/Blit_Shader.hlsl";
+    blit_ss.ps.file = L"Shaders/Blit_Shader.hlsl";
     blit_ss.ps.entry = "Default_PS";
     blit_ss.ps.target = "ps_5_1";
 
@@ -665,6 +670,8 @@ bool DX12_Renderer::CreateObjectCB(FrameResource& fr, UINT maxObjects)
         throw std::runtime_error("Failed to map ObjectCB buffer");
 
     fr.ObjectCB.HeadOffset = 0;
+
+    return true;
 }
 
 // ------------------- Rendering Steps -------------------

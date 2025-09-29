@@ -1,6 +1,5 @@
 #pragma once
-#include "pch.h"
-#include "Engine/Core/Scene.h"
+#include "Core/Scene.h"
 
 struct SceneEntry
 {

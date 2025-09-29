@@ -1,6 +1,5 @@
 #pragma once
-#include "pch.h"
-#include "../DX_Graphics/Renderer.h"
+#include "DX_Graphics/Renderer.h"
 
 class ResourceRegistry;
 

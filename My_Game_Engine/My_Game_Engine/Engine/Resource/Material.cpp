@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "Material.h"
 
 Material::Material() : Game_Resource()

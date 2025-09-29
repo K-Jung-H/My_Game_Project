@@ -1,6 +1,5 @@
-#include "pch.h"
 #include "PhysicsManager.h"
-#include "../Components/ColliderComponent.h"
+#include "Components/ColliderComponent.h"
 
 
 void PhysicsManager::Register(std::weak_ptr<Component> com) 

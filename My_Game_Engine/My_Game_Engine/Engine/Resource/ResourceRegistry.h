@@ -1,5 +1,4 @@
 #pragma once
-#include "pch.h"
 #include "Game_Resource.h"
 #include "ResourceManager.h"
 #include "Model.h"

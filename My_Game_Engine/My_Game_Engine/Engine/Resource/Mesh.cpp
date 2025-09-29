@@ -1,5 +1,4 @@
-#include "pch.h"
-#include "../DX_Graphics/ResourceUtils.h"
+#include "DX_Graphics/ResourceUtils.h"
 #include "GameEngine.h"
 #include "Mesh.h"
 #include "Model.h"

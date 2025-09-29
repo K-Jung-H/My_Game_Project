@@ -1,7 +1,6 @@
-#include "pch.h"
 #include "CameraComponent.h"
 #include "GameEngine.h"
-#include "Engine/DX_Graphics/Renderer.h"
+#include "DX_Graphics/Renderer.h"
 
 CameraComponent::CameraComponent()
     : mPosition(0.0f, 0.0f, -5.0f), 

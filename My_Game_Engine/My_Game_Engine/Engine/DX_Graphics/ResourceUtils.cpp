@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "ResourceUtils.h"
 #include "DDSTextureLoader12.h"
 #include "WICTextureLoader12.h"

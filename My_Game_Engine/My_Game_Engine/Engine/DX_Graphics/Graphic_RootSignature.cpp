@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "Graphic_RootSignature.h"
 
 void RootSignatureFactory::Init(ID3D12Device* device)

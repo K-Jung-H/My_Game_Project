@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "Graphic_Shader.h"
 
 ComPtr<ID3DBlob> Shader::CompileShader(const ShaderStage& stage)

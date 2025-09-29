@@ -1,4 +1,3 @@
-#include "pch.h"
 
 enum class GBufferType : UINT
 {

@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "TransformComponent.h"
 #include "DXMathUtils.h" 
 

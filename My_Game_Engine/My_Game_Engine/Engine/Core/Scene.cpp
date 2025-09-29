@@ -1,8 +1,7 @@
-#include "pch.h"
 #include "Scene.h"
 #include "GameEngine.h"
-#include "../Resource/ResourceRegistry.h"
-#include "../Resource/Model.h"
+#include "Resource/ResourceRegistry.h"
+#include "Resource/Model.h"
 
 Scene::Scene() 
 { 
@@ -24,11 +23,11 @@ void Scene::Build()
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
-//	const std::string path = "assets/CP_100_0012_07/CP_100_0012_07.fbx";
-//	Model::loadAndExport("assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
+	const std::string path = "assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	Model::loadAndExport("assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
 
-	const std::string path = "assets/Joltik/pm0595_00.fbx";
-	Model::loadAndExport("assets/Joltik/pm0595_00.fbx", "test_assimp_export.txt");
+	//const std::string path = "assets/Joltik/pm0595_00.fbx";
+	//Model::loadAndExport("assets/Joltik/pm0595_00.fbx", "test_assimp_export.txt");
 	
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
 

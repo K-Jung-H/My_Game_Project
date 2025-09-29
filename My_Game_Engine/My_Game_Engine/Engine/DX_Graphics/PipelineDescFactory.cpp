@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "PipelineDescFactory.h"
 
 D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset preset)

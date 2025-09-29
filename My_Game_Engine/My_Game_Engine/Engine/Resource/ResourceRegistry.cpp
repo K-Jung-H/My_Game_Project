@@ -1,4 +1,3 @@
-#include "pch.h"
 #include "ResourceRegistry.h"
 #include "Model.h"
 

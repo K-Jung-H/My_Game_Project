@@ -1,5 +1,3 @@
-#include "pch.h"
-
 enum class InputLayoutPreset
 {
     Default,
