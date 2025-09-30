@@ -16,19 +16,23 @@ public:
         INT  baseVertexLocation = 0;
         UINT materialId = Engine::INVALID_ID;
     };
-    
+
 public:
     Mesh();
     virtual ~Mesh() = default;
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
 
-    virtual  void FromAssimp(const aiMesh* mesh);
+    virtual void FromAssimp(const aiMesh* mesh);
+    virtual void FromFbxSDK(FbxMesh* fbxMesh);
 
     UINT GetSlot() const { return -1; }
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
     UINT GetMaterialID() const { return submeshes[0].materialId;; }
 
     void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
+
+private:
+    void UploadToGPU();
 
 public:
     std::vector<Submesh> submeshes;
@@ -87,6 +91,7 @@ public:
     };
 
     virtual void FromAssimp(const aiMesh* mesh);
+    virtual void FromFbxSDK(FbxMesh* fbxMesh);
     void Skinning_Skeleton_Bones(const Skeleton& skeleton);
 
 public:

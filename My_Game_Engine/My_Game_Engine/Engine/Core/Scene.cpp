@@ -23,11 +23,11 @@ void Scene::Build()
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
-	const std::string path = "assets/CP_100_0012_07/CP_100_0012_07.fbx";
-	Model::loadAndExport("assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
+	//const std::string path = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	//Model::loadAndExport("Assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
 
-	//const std::string path = "assets/Joltik/pm0595_00.fbx";
-	//Model::loadAndExport("assets/Joltik/pm0595_00.fbx", "test_assimp_export.txt");
+	const std::string path = "Assets/Emolga/Emolga.FBX";
+	Model::loadAndExport("Assets/Emolga/Emolga.FBX", "test_assimp_export.txt");
 	
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
 

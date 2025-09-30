@@ -37,7 +37,7 @@ float DX12_Renderer::clear_color[4] = { 0.95f, 0.55f, 0.60f, 1.00f };
 bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
 {
 
-//#if defined(_DEBUG)
+#if defined(_DEBUG)
     ComPtr<ID3D12Debug> debugController;
     if (SUCCEEDED(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController))))
     {
@@ -50,7 +50,7 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
             OutputDebugStringA("[D3D12] GPU-based validation enabled.\n");
         }
     }
-//#endif
+#endif
 
     mWidth = width;
     mHeight = height;

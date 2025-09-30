@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 
 project(MyGame LANGUAGES CXX)
 
-# ── 전체 타겟 공통: C++ 미리 보기(Preview) 표준
+# 전체 타겟 공통: C++ 미리 보기(Preview) 표준
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -14,8 +14,8 @@ set(CMAKE_SUPPRESS_REGENERATION ON)
 
 
 # 하위 모듈 추가 
-add_subdirectory(My_Game_Engine/My_Game_Engine/Engine)
-add_subdirectory(My_Game_Engine/Editor_Source)
+add_subdirectory(My_Game_Engine/My_Game_Engine/Engine MyProject/My_Game_Engine/Engine)
+add_subdirectory(My_Game_Engine/Editor_Source         MyProject/My_Game_Engine/Editor_Source)
 
 
 # 실행 파일
@@ -67,4 +67,44 @@ add_custom_command(
             ${GAME_ASSET_DIR}  $<TARGET_FILE_DIR:MyGame>/Assets
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${GAME_SHADER_DIR} $<TARGET_FILE_DIR:MyGame>/Shaders
+)
+
+
+# ==========================
+# FBX SDK 설정
+# ==========================
+set(FBXSDK_ROOT "C:/Program Files/Autodesk/FBX/FBX SDK/2020.3.7")
+
+# FBX SDK 인터페이스 라이브러리
+add_library(FBXSDK INTERFACE)
+
+target_include_directories(FBXSDK INTERFACE
+    "${FBXSDK_ROOT}/include"
+)
+
+target_link_libraries(FBXSDK INTERFACE
+    "$<$<CONFIG:Debug>:${FBXSDK_ROOT}/lib/x64/debug/libfbxsdk.lib>"
+    "$<$<CONFIG:Release>:${FBXSDK_ROOT}/lib/x64/release/libfbxsdk.lib>"
+)
+
+# FBX SDK를 필요한 타겟에 붙여줌
+target_link_libraries(Engine PRIVATE FBXSDK)
+target_link_libraries(Editor PRIVATE FBXSDK)
+target_link_libraries(MyGame PRIVATE FBXSDK)
+
+target_compile_definitions(Engine PRIVATE FBXSDK_SHARED)
+target_compile_definitions(Editor PRIVATE FBXSDK_SHARED)
+target_compile_definitions(MyGame PRIVATE FBXSDK_SHARED)
+
+# ==========================
+# FBX SDK DLL 자동 복사
+# ==========================
+set(FBXSDK_DLL_DEBUG   "${FBXSDK_ROOT}/lib/x64/debug/libfbxsdk.dll")
+set(FBXSDK_DLL_RELEASE "${FBXSDK_ROOT}/lib/x64/release/libfbxsdk.dll")
+
+add_custom_command(TARGET MyGame POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<$<CONFIG:Debug>:${FBXSDK_DLL_DEBUG}>"
+        "$<$<CONFIG:Release>:${FBXSDK_DLL_RELEASE}>"
+        $<TARGET_FILE_DIR:MyGame>
 )

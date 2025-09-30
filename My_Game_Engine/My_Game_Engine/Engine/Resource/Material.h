@@ -10,6 +10,7 @@ public:
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
 
     void FromAssimp(const aiMaterial* material);
+    void FromFbxSDK(const FbxSurfaceMaterial* material);
 
     void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) {}
 

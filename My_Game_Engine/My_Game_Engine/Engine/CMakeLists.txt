@@ -32,8 +32,8 @@ file(GLOB_RECURSE SHADER_FILES
 
 source_group("Shaders" FILES ${SHADER_FILES})
 
+
+
+# 엔진 타겟에 포함 (빌드 제외)
 set_source_files_properties(${SHADER_FILES} PROPERTIES HEADER_FILE_ONLY ON)
-
-
-# 엔진 타겟에 포함(빌드 제외)
 target_sources(Engine PRIVATE ${SHADER_FILES})

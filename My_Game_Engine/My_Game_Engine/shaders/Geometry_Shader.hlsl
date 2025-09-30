@@ -94,7 +94,6 @@ PS_OUT Default_PS(VS_OUT i)
     o.MetalEmis.x = saturate(metal);
     o.MetalEmis.y = Emissive; 
     o.MetalEmis.zw = 0;
-
     return o;
 }
 

@@ -13,6 +13,49 @@ bool Mesh::LoadFromFile(std::string_view path, const RendererContext& ctx)
 	return true;
 }
 
+void Mesh::UploadToGPU()
+{
+    const size_t vCount = positions.size();
+
+    RendererContext rc = GameEngine::Get().Get_UploadContext();
+
+    auto CreateVB = [&](const void* src, UINT stride, UINT count,
+        ComPtr<ID3D12Resource>& buffer, ComPtr<ID3D12Resource>& upload,
+        D3D12_VERTEX_BUFFER_VIEW& view,
+        D3D12_RESOURCE_STATES finalState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
+        {
+            buffer = ResourceUtils::CreateBufferResource(rc, (void*)src, stride * count,
+                D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE, finalState, upload);
+
+            view.BufferLocation = buffer->GetGPUVirtualAddress();
+            view.StrideInBytes = stride;
+            view.SizeInBytes = stride * count;
+        };
+
+    if (!positions.empty())
+        CreateVB(positions.data(), sizeof(XMFLOAT3), (UINT)vCount, posBuffer, posUpload, posVBV);
+    if (!normals.empty())
+        CreateVB(normals.data(), sizeof(XMFLOAT3), (UINT)vCount, normalBuffer, normalUpload, normalVBV);
+    if (!tangents.empty())
+        CreateVB(tangents.data(), sizeof(XMFLOAT3), (UINT)vCount, tangentBuffer, tangentUpload, tangentVBV);
+    if (!uvs.empty())
+        CreateVB(uvs.data(), sizeof(XMFLOAT2), (UINT)vCount, uvBuffer, uvUpload, uvVBV);
+    if (!colors.empty())
+        CreateVB(colors.data(), sizeof(XMFLOAT4), (UINT)vCount, colorBuffer, colorUpload, colorVBV);
+
+    if (!indices.empty())
+    {
+        indexBuffer = ResourceUtils::CreateBufferResource(rc, indices.data(),
+            (UINT)(sizeof(UINT) * indices.size()),
+            D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_INDEX_BUFFER, indexUpload);
+
+        indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
+        indexView.SizeInBytes = (UINT)(sizeof(UINT) * indices.size());
+        indexView.Format = DXGI_FORMAT_R32_UINT;
+    }
+}
+
 void Mesh::FromAssimp(const aiMesh* mesh)
 {
     positions.resize(mesh->mNumVertices);
@@ -54,38 +97,126 @@ void Mesh::FromAssimp(const aiMesh* mesh)
             indices.push_back(face.mIndices[j]);
     }
 
-    RendererContext rc = GameEngine::Get().Get_UploadContext();
+    UploadToGPU();
+}
 
-    auto CreateVB = [&](const void* src, UINT stride, UINT count,
-        ComPtr<ID3D12Resource>& buffer, ComPtr<ID3D12Resource>& upload,
-        D3D12_VERTEX_BUFFER_VIEW& view,
-        D3D12_RESOURCE_STATES finalState = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER)
-        {
-            buffer = ResourceUtils::CreateBufferResource(rc, (void*)src, stride * count,
-                D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE, finalState, upload);
+void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
+{
+    if (!fbxMesh) return;
 
-            view.BufferLocation = buffer->GetGPUVirtualAddress();
-            view.StrideInBytes = stride;
-            view.SizeInBytes = stride * count;
-        };
+    int vCount = fbxMesh->GetControlPointsCount();
+    positions.resize(vCount);
 
-    CreateVB(positions.data(), sizeof(XMFLOAT3), (UINT)vCount, posBuffer, posUpload, posVBV);
-    CreateVB(normals.data(), sizeof(XMFLOAT3), (UINT)vCount, normalBuffer, normalUpload, normalVBV);
-    CreateVB(tangents.data(), sizeof(XMFLOAT3), (UINT)vCount, tangentBuffer, tangentUpload, tangentVBV);
-    CreateVB(uvs.data(), sizeof(XMFLOAT2), (UINT)vCount, uvBuffer, uvUpload, uvVBV);
-    CreateVB(colors.data(), sizeof(XMFLOAT4), (UINT)vCount, colorBuffer, colorUpload, colorVBV);
-
-    if (!indices.empty())
+    FbxVector4* ctrlPoints = fbxMesh->GetControlPoints();
+    for (int i = 0; i < vCount; i++)
     {
-        indexBuffer = ResourceUtils::CreateBufferResource(rc, indices.data(),
-            (UINT)(sizeof(UINT) * indices.size()),
-            D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE,
-            D3D12_RESOURCE_STATE_INDEX_BUFFER, indexUpload);
-
-        indexView.BufferLocation = indexBuffer->GetGPUVirtualAddress();
-        indexView.SizeInBytes = (UINT)(sizeof(UINT) * indices.size());
-        indexView.Format = DXGI_FORMAT_R32_UINT;
+        positions[i] = XMFLOAT3((float)ctrlPoints[i][0], (float)ctrlPoints[i][1], (float)ctrlPoints[i][2]);
     }
+
+    // --- Normals ---
+    if (fbxMesh->GetElementNormalCount() > 0)
+    {
+        normals.resize(vCount);
+        FbxArray<FbxVector4> normalArray;
+        fbxMesh->GetPolygonVertexNormals(normalArray);
+
+        for (int i = 0; i < normalArray.Size() && i < vCount; i++)
+        {
+            normals[i] = XMFLOAT3(
+                (float)normalArray[i][0],
+                (float)normalArray[i][1],
+                (float)normalArray[i][2]);
+        }
+    }
+
+    // --- Tangents ---
+    if (fbxMesh->GetElementTangentCount() > 0)
+    {
+        tangents.resize(vCount);
+        FbxGeometryElementTangent* tangentElem = fbxMesh->GetElementTangent(0);
+
+        if (tangentElem->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+        {
+            for (int i = 0; i < vCount; i++)
+            {
+                FbxVector4 t = tangentElem->GetDirectArray().GetAt(i);
+                tangents[i] = XMFLOAT3((float)t[0], (float)t[1], (float)t[2]);
+            }
+        }
+        else if (tangentElem->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+        {
+            // polygon-vertex 단위 == indices 기준으로 채워야 함
+            tangents.resize(fbxMesh->GetPolygonVertexCount());
+            int idx = 0;
+            for (int p = 0; p < fbxMesh->GetPolygonCount(); p++)
+            {
+                for (int v = 0; v < fbxMesh->GetPolygonSize(p); v++)
+                {
+                    int ctrlPointIndex = fbxMesh->GetPolygonVertex(p, v);
+                    FbxVector4 t = tangentElem->GetDirectArray().GetAt(idx++);
+                    tangents[ctrlPointIndex] = XMFLOAT3((float)t[0], (float)t[1], (float)t[2]);
+                }
+            }
+        }
+    }
+
+    // --- UVs ---
+    if (fbxMesh->GetElementUVCount() > 0)
+    {
+        FbxStringList uvSetNames;
+        fbxMesh->GetUVSetNames(uvSetNames);
+
+        if (uvSetNames.GetCount() > 0)
+        {
+            FbxArray<FbxVector2> uvArray;
+            fbxMesh->GetPolygonVertexUVs(uvSetNames[0], uvArray);
+
+            uvs.resize(uvArray.Size());
+            for (int i = 0; i < uvArray.Size(); i++)
+            {
+                uvs[i] = XMFLOAT2(
+                    (float)uvArray[i][0],
+                    1.0f - (float)uvArray[i][1]); // flip V
+            }
+        }
+    }
+
+    // --- Colors ---
+    if (fbxMesh->GetElementVertexColorCount() > 0)
+    {
+        FbxGeometryElementVertexColor* colorElem = fbxMesh->GetElementVertexColor(0);
+        colors.resize(vCount);
+
+        if (colorElem->GetMappingMode() == FbxGeometryElement::eByControlPoint)
+        {
+            for (int i = 0; i < vCount; i++)
+            {
+                FbxColor c = colorElem->GetDirectArray().GetAt(i);
+                colors[i] = XMFLOAT4((float)c.mRed, (float)c.mGreen, (float)c.mBlue, (float)c.mAlpha);
+            }
+        }
+    }
+
+    // --- Indices ---
+    int polyCount = fbxMesh->GetPolygonCount();
+    indices.reserve(polyCount * 3);
+    for (int p = 0; p < polyCount; p++)
+    {
+        int vCountInPoly = fbxMesh->GetPolygonSize(p);
+        for (int v = 0; v < vCountInPoly; v++)
+        {
+            int ctrlPointIndex = fbxMesh->GetPolygonVertex(p, v);
+            indices.push_back(ctrlPointIndex);
+        }
+    }
+
+    const size_t count = positions.size();
+    if (normals.empty())   normals.assign(count, XMFLOAT3(0, 0, 1));
+    if (tangents.empty())  tangents.assign(count, XMFLOAT3(1, 0, 0));
+    if (uvs.empty())       uvs.assign(count, XMFLOAT2(0, 0));
+    if (colors.empty())    colors.assign(count, XMFLOAT4(1, 1, 1, 1));
+
+    UploadToGPU();
 }
 
 
@@ -132,6 +263,47 @@ void SkinnedMesh::FromAssimp(const aiMesh* mesh)
         }
     }
 }
+
+void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
+{
+    Mesh::FromFbxSDK(fbxMesh);
+
+    bone_mapping_data.clear();
+
+    int skinCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
+    if (skinCount == 0)
+        return; 
+
+    for (int s = 0; s < skinCount; s++)
+    {
+        FbxSkin* skin = static_cast<FbxSkin*>(fbxMesh->GetDeformer(s, FbxDeformer::eSkin));
+        if (!skin) continue;
+
+        int clusterCount = skin->GetClusterCount();
+        for (int c = 0; c < clusterCount; c++)
+        {
+            FbxCluster* cluster = skin->GetCluster(c);
+            if (!cluster) continue;
+
+            std::string boneName = cluster->GetLink()->GetName();
+
+            int* indices = cluster->GetControlPointIndices();
+            double* weights = cluster->GetControlPointWeights();
+            int idxCount = cluster->GetControlPointIndicesCount();
+
+            for (int i = 0; i < idxCount; i++)
+            {
+                BoneMappingData mapping;
+                mapping.boneName = boneName;
+                mapping.vertexId = indices[i];
+                mapping.weight = static_cast<float>(weights[i]);
+
+                bone_mapping_data.push_back(std::move(mapping));
+            }
+        }
+    }
+}
+
 
 void SkinnedMesh::Skinning_Skeleton_Bones(const Skeleton& skeleton)
 {
