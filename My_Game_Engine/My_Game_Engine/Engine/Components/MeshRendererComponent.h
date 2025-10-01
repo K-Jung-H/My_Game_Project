@@ -1,6 +1,5 @@
 #pragma once
 #include "Core/Component.h"
-#include "Resource/Mesh.h"
 
 class Mesh;
 

@@ -743,7 +743,6 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             fr.ObjectCB.MappedObjectCB[cbIndex] = cb;
             fr.ObjectCB.HeadOffset++;
 
-
             DrawItem di;
             di.mesh = mesh.get();
             di.sub = sub;

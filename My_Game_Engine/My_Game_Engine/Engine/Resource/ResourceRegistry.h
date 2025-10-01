@@ -40,11 +40,11 @@ private:
     std::vector<UINT> LoadMaterialTexturesFbx(ResourceManager& manager, FbxSurfaceMaterial* fbxMat, 
         const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);
 
-    std::shared_ptr<Model::Node> ProcessFbxNode(FbxNode* fbxNode, ResourceManager& manager, std::vector<UINT>& matMap, 
+    std::shared_ptr<Model::Node> ProcessFbxNode(FbxNode* fbxNode, ResourceManager& manager, std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap,
         const std::string& path, const RendererContext& ctx, std::vector<std::shared_ptr<Mesh>>& loadedMeshes);
 
     std::shared_ptr<Mesh> CreateMeshFromFbxNode(FbxNode* fbxNode, ResourceManager& manager,
-        std::vector<UINT>& matMap, const std::string& path, const RendererContext& ctx);
+        std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap, const std::string& path, const RendererContext& ctx);
 
     Skeleton BuildSkeletonFbx(FbxScene* fbxScene);
 

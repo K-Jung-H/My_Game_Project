@@ -16,17 +16,15 @@ void Scene::Build()
 {
 	std::shared_ptr<Object> camera_obj = Object::Create("Main_Camera");
 	camera_obj->AddComponent<CameraComponent>();
-	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.0f, 10.0f });
+	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.0f, 50.0f });
 	camera_obj->GetComponent<CameraComponent>(Camera)->SetTarget({ 0.0f, 0.0f, 0.0f });
 
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
-	const std::string path = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
-	Model::loadAndExport("Assets/CP_100_0012_07/CP_100_0012_07.fbx", "test_assimp_export.txt");
-
-//	const std::string path = "Assets/Emolga/Emolga.FBX";
-//	Model::loadAndExport("Assets/Emolga/Emolga.FBX", "test_assimp_export.txt");
+	const std::string path = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
+//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
+	Model::loadAndExport(path, "test_assimp_export.txt");
 	
 	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
 
@@ -34,8 +32,9 @@ void Scene::Build()
 	auto rcm = GameEngine::Get().GetResourceManager();
 	auto model_ptr = rcm->GetById<Model>(result.modelId);
 	std::shared_ptr<Object> test_model_obj = Object::Create(model_ptr);
-	test_model_obj->GetComponent<TransformComponent>(Transform)->SetScale({ 15, 15, 15 });
+	test_model_obj->GetComponent<TransformComponent>(Transform)->SetScale({ 5, 5, 5 });
 	test_model_obj->GetComponent<TransformComponent>(Transform)->SetPosition({0, 0, 0});
+
 	obj_list.push_back(camera_obj);
 	obj_list.push_back(test_model_obj);
 

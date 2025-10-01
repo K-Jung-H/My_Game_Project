@@ -2,9 +2,6 @@
 #include "Object.h"
 #include "DX_Graphics/RenderData.h"
 
-class MeshRendererComponent;
-class CameraComponent;
-class RenderData;
 
 class SceneManager;
 

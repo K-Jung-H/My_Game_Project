@@ -104,117 +104,89 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
 {
     if (!fbxMesh) return;
 
-    int vCount = fbxMesh->GetControlPointsCount();
-    positions.resize(vCount);
-
-    FbxVector4* ctrlPoints = fbxMesh->GetControlPoints();
-    for (int i = 0; i < vCount; i++)
-    {
-        positions[i] = XMFLOAT3((float)ctrlPoints[i][0], (float)ctrlPoints[i][1], (float)ctrlPoints[i][2]);
-    }
-
-    // --- Normals ---
-    if (fbxMesh->GetElementNormalCount() > 0)
-    {
-        normals.resize(vCount);
-        FbxArray<FbxVector4> normalArray;
-        fbxMesh->GetPolygonVertexNormals(normalArray);
-
-        for (int i = 0; i < normalArray.Size() && i < vCount; i++)
-        {
-            normals[i] = XMFLOAT3(
-                (float)normalArray[i][0],
-                (float)normalArray[i][1],
-                (float)normalArray[i][2]);
-        }
-    }
-
-    // --- Tangents ---
-    if (fbxMesh->GetElementTangentCount() > 0)
-    {
-        tangents.resize(vCount);
-        FbxGeometryElementTangent* tangentElem = fbxMesh->GetElementTangent(0);
-
-        if (tangentElem->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-        {
-            for (int i = 0; i < vCount; i++)
-            {
-                FbxVector4 t = tangentElem->GetDirectArray().GetAt(i);
-                tangents[i] = XMFLOAT3((float)t[0], (float)t[1], (float)t[2]);
-            }
-        }
-        else if (tangentElem->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
-        {
-            // polygon-vertex 단위 == indices 기준으로 채워야 함
-            tangents.resize(fbxMesh->GetPolygonVertexCount());
-            int idx = 0;
-            for (int p = 0; p < fbxMesh->GetPolygonCount(); p++)
-            {
-                for (int v = 0; v < fbxMesh->GetPolygonSize(p); v++)
-                {
-                    int ctrlPointIndex = fbxMesh->GetPolygonVertex(p, v);
-                    FbxVector4 t = tangentElem->GetDirectArray().GetAt(idx++);
-                    tangents[ctrlPointIndex] = XMFLOAT3((float)t[0], (float)t[1], (float)t[2]);
-                }
-            }
-        }
-    }
-
-    // --- UVs ---
-    if (fbxMesh->GetElementUVCount() > 0)
-    {
-        FbxStringList uvSetNames;
-        fbxMesh->GetUVSetNames(uvSetNames);
-
-        if (uvSetNames.GetCount() > 0)
-        {
-            FbxArray<FbxVector2> uvArray;
-            fbxMesh->GetPolygonVertexUVs(uvSetNames[0], uvArray);
-
-            uvs.resize(uvArray.Size());
-            for (int i = 0; i < uvArray.Size(); i++)
-            {
-                uvs[i] = XMFLOAT2(
-                    (float)uvArray[i][0],
-                    1.0f - (float)uvArray[i][1]); // flip V
-            }
-        }
-    }
-
-    // --- Colors ---
-    if (fbxMesh->GetElementVertexColorCount() > 0)
-    {
-        FbxGeometryElementVertexColor* colorElem = fbxMesh->GetElementVertexColor(0);
-        colors.resize(vCount);
-
-        if (colorElem->GetMappingMode() == FbxGeometryElement::eByControlPoint)
-        {
-            for (int i = 0; i < vCount; i++)
-            {
-                FbxColor c = colorElem->GetDirectArray().GetAt(i);
-                colors[i] = XMFLOAT4((float)c.mRed, (float)c.mGreen, (float)c.mBlue, (float)c.mAlpha);
-            }
-        }
-    }
-
-    // --- Indices ---
     int polyCount = fbxMesh->GetPolygonCount();
-    indices.reserve(polyCount * 3);
+    int vertexCount = fbxMesh->GetPolygonVertexCount(); // polygon-vertex
+
+    positions.resize(vertexCount);
+    normals.resize(vertexCount, XMFLOAT3(0, 0, 1));
+    tangents.resize(vertexCount, XMFLOAT3(1, 0, 0));
+    uvs.resize(vertexCount, XMFLOAT2(0, 0));
+    colors.resize(vertexCount, XMFLOAT4(1, 1, 1, 1));
+    indices.resize(vertexCount);
+
+    // UV Element
+    FbxGeometryElementUV* uvElem = (fbxMesh->GetElementUVCount() > 0) ? fbxMesh->GetElementUV(0) : nullptr;
+    FbxGeometryElement::EMappingMode uvMapMode = uvElem ? uvElem->GetMappingMode() : FbxGeometryElement::eNone;
+    FbxGeometryElement::EReferenceMode uvRefMode = uvElem ? uvElem->GetReferenceMode() : FbxGeometryElement::eDirect;
+
+    // Tangent Element
+    FbxGeometryElementTangent* tangentElem = (fbxMesh->GetElementTangentCount() > 0) ? fbxMesh->GetElementTangent(0) : nullptr;
+
+    // Color Element
+    FbxGeometryElementVertexColor* colorElem = (fbxMesh->GetElementVertexColorCount() > 0) ? fbxMesh->GetElementVertexColor(0) : nullptr;
+
+    int idx = 0;
     for (int p = 0; p < polyCount; p++)
     {
         int vCountInPoly = fbxMesh->GetPolygonSize(p);
         for (int v = 0; v < vCountInPoly; v++)
         {
             int ctrlPointIndex = fbxMesh->GetPolygonVertex(p, v);
-            indices.push_back(ctrlPointIndex);
+
+            // --- Position ---
+            FbxVector4 pos = fbxMesh->GetControlPointAt(ctrlPointIndex);
+            positions[idx] = XMFLOAT3((float)pos[0], (float)pos[1], (float)pos[2]);
+
+            // --- Normal ---
+            FbxVector4 n;
+            if (fbxMesh->GetPolygonVertexNormal(p, v, n))
+                normals[idx] = XMFLOAT3((float)n[0], (float)n[1], (float)n[2]);
+
+            // --- Tangent ---
+            if (tangentElem && tangentElem->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+            {
+                int tIndex = (tangentElem->GetReferenceMode() == FbxGeometryElement::eDirect) ? idx : tangentElem->GetIndexArray().GetAt(idx);
+                FbxVector4 t = tangentElem->GetDirectArray().GetAt(tIndex);
+                tangents[idx] = XMFLOAT3((float)t[0], (float)t[1], (float)t[2]);
+            }
+
+            // --- UV ---
+            if (uvElem)
+            {
+                FbxVector2 uv(0, 0);
+                if (uvMapMode == FbxGeometryElement::eByControlPoint)
+                {
+                    int uvIdx = (uvRefMode == FbxGeometryElement::eDirect)
+                        ? ctrlPointIndex
+                        : uvElem->GetIndexArray().GetAt(ctrlPointIndex);
+                    uv = uvElem->GetDirectArray().GetAt(uvIdx);
+                }
+                else if (uvMapMode == FbxGeometryElement::eByPolygonVertex)
+                {
+                    int uvIdx = (uvRefMode == FbxGeometryElement::eDirect)
+                        ? idx
+                        : uvElem->GetIndexArray().GetAt(idx);
+                    uv = uvElem->GetDirectArray().GetAt(uvIdx);
+                }
+                uvs[idx] = XMFLOAT2((float)uv[0], 1.0f - (float)uv[1]);
+            }
+
+            // --- Color ---
+            if (colorElem && colorElem->GetMappingMode() == FbxGeometryElement::eByPolygonVertex)
+            {
+                int cIdx = (colorElem->GetReferenceMode() == FbxGeometryElement::eDirect)
+                    ? idx
+                    : colorElem->GetIndexArray().GetAt(idx);
+                FbxColor c = colorElem->GetDirectArray().GetAt(cIdx);
+                colors[idx] = XMFLOAT4((float)c.mRed, (float)c.mGreen, (float)c.mBlue, (float)c.mAlpha);
+            }
+
+            // --- Index ---
+            // flatten → index == vertex
+            indices[idx] = idx; 
+            idx++;
         }
     }
-
-    const size_t count = positions.size();
-    if (normals.empty())   normals.assign(count, XMFLOAT3(0, 0, 1));
-    if (tangents.empty())  tangents.assign(count, XMFLOAT3(1, 0, 0));
-    if (uvs.empty())       uvs.assign(count, XMFLOAT2(0, 0));
-    if (colors.empty())    colors.assign(count, XMFLOAT4(1, 1, 1, 1));
 
     UploadToGPU();
 }

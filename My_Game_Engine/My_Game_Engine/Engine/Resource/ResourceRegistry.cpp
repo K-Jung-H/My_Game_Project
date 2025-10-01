@@ -5,7 +5,7 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
 {
     LoadResult result;
 
-   // if (LoadWithAssimp(manager, path, alias, ctx, result))  return result;
+    if (LoadWithAssimp(manager, path, alias, ctx, result))  return result;
     if (LoadWithFbxSdk(manager, path, alias, ctx, result))  return result;
 
 
@@ -328,7 +328,7 @@ bool ResourceRegistry::LoadWithFbxSdk(
     fbxImporter->Import(fbxScene);
     fbxImporter->Destroy();
 
-    // --- Model  ---
+    // --- Model ---
     auto model = std::make_shared<Model>();
     model->SetAlias(std::filesystem::path(path).stem().string());
     model->SetId(mNextResourceID++);
@@ -339,14 +339,14 @@ bool ResourceRegistry::LoadWithFbxSdk(
 
     //--------------------- Material -----------------------
     std::unordered_map<std::string, int> matNameCount;
-    std::vector<UINT> matMap; 
-
-    matMap.resize(fbxScene->GetMaterialCount(), Engine::INVALID_ID);
+    std::unordered_map<FbxSurfaceMaterial*, UINT> matMap; 
 
     int matCount = fbxScene->GetMaterialCount();
     for (int i = 0; i < matCount; i++)
     {
         FbxSurfaceMaterial* fbxMat = fbxScene->GetMaterial(i);
+        if (!fbxMat) continue;
+
         auto mat = std::make_shared<Material>();
         mat->FromFbxSDK(fbxMat);
 
@@ -367,9 +367,10 @@ bool ResourceRegistry::LoadWithFbxSdk(
 
         manager.Add(mat);
         load_result.materialIds.push_back(mat->GetId());
-        matMap[i] = mat->GetId();
 
-        // --- Texture ·Îµå ---
+        matMap[fbxMat] = mat->GetId();
+
+        // --- Texture ---
         auto texIds = LoadMaterialTexturesFbx(manager, fbxMat, path, mat, ctx);
         load_result.textureIds.insert(load_result.textureIds.end(), texIds.begin(), texIds.end());
     }
@@ -379,8 +380,8 @@ bool ResourceRegistry::LoadWithFbxSdk(
     if (fbxScene->GetRootNode())
         model->SetRoot(ProcessFbxNode(fbxScene->GetRootNode(), manager, matMap, path, ctx, loadedMeshes));
 
-    //--------------------- Skeleton  -----------------------
-    Skeleton skeleton = BuildSkeletonFbx(fbxScene); 
+    //--------------------- Skeleton -----------------------
+    Skeleton skeleton = BuildSkeletonFbx(fbxScene);
     model->SetSkeleton(skeleton);
 
     result = load_result;
@@ -391,11 +392,11 @@ bool ResourceRegistry::LoadWithFbxSdk(
 
 
 std::shared_ptr<Model::Node> ResourceRegistry::ProcessFbxNode(
-    FbxNode* fbxNode, 
-    ResourceManager& manager, 
-    std::vector<UINT>& matMap,
-    const std::string& path, 
-    const RendererContext& ctx, 
+    FbxNode* fbxNode,
+    ResourceManager& manager,
+    std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap,
+    const std::string& path,
+    const RendererContext& ctx,
     std::vector<std::shared_ptr<Mesh>>& loadedMeshes)
 {
     if (!fbxNode) return nullptr;
@@ -403,11 +404,14 @@ std::shared_ptr<Model::Node> ResourceRegistry::ProcessFbxNode(
     auto node = std::make_shared<Model::Node>();
     node->name = fbxNode->GetName();
 
-
     FbxAMatrix local = fbxNode->EvaluateLocalTransform();
-    XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&local)));    
-    XMStoreFloat4x4(&node->localTransform, xm);
+    XMFLOAT4X4 m;
+    for (int r = 0; r < 4; r++)
+        for (int c = 0; c < 4; c++)
+            m.m[r][c] = static_cast<float>(local.Get(r, c));
 
+    XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(&m));
+    XMStoreFloat4x4(&node->localTransform, xm);
 
     if (auto mesh = CreateMeshFromFbxNode(fbxNode, manager, matMap, path, ctx))
     {
@@ -425,6 +429,7 @@ std::shared_ptr<Model::Node> ResourceRegistry::ProcessFbxNode(
 
     return node;
 }
+
 
 std::vector<UINT> ResourceRegistry::LoadMaterialTexturesFbx(
     ResourceManager& manager,
@@ -487,18 +492,16 @@ std::vector<UINT> ResourceRegistry::LoadMaterialTexturesFbx(
 std::shared_ptr<Mesh> ResourceRegistry::CreateMeshFromFbxNode(
     FbxNode* fbxNode,
     ResourceManager& manager,
-    std::vector<UINT>& matMap,
+    std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap,
     const std::string& path,
     const RendererContext& ctx)
 {
     if (!fbxNode) return nullptr;
-
     FbxMesh* fbxMesh = fbxNode->GetMesh();
     if (!fbxMesh) return nullptr;
 
     auto mesh = std::make_shared<Mesh>();
-    mesh->FromFbxSDK(fbxMesh);
-
+    mesh->FromFbxSDK(fbxMesh); // Flatten only
 
     std::string baseName = fbxNode->GetName();
     if (baseName.empty())
@@ -508,45 +511,54 @@ std::shared_ptr<Mesh> ResourceRegistry::CreateMeshFromFbxNode(
     mesh->SetId(mNextResourceID++);
     mesh->SetPath(path);
 
-    // --- Submesh ---
-    int matCount = fbxNode->GetMaterialCount();
+    // --- Submesh by material ---
+    int polyCount = fbxMesh->GetPolygonCount();
     FbxGeometryElementMaterial* matElem = fbxMesh->GetElementMaterial();
 
-    if (matElem && matCount > 0)
+    if (matElem && fbxNode->GetMaterialCount() > 0)
     {
-        int polyCount = fbxMesh->GetPolygonCount();
-        std::unordered_map<int, std::vector<UINT>> polyByMat;
+        std::unordered_map<int, std::vector<UINT>> polyByMatSlot;
 
+        int idx = 0;
         for (int p = 0; p < polyCount; p++)
         {
-            int matIndex = matElem->GetIndexArray().GetAt(p);
-            for (int v = 0; v < fbxMesh->GetPolygonSize(p); v++)
+            int matSlot = matElem->GetIndexArray().GetAt(p);
+            int vCountInPoly = fbxMesh->GetPolygonSize(p);
+
+            for (int v = 0; v < vCountInPoly; v++)
             {
-                int ctrlPointIndex = fbxMesh->GetPolygonVertex(p, v);
-                polyByMat[matIndex].push_back(ctrlPointIndex);
+                polyByMatSlot[matSlot].push_back(mesh->indices[idx]);
+                idx++;
             }
         }
 
-        UINT currentOffset = 0; 
-
-        for (auto& [matIndex, localIndices] : polyByMat)
+        UINT indexOffset = 0;
+        for (auto& [matSlot, idxList] : polyByMatSlot)
         {
             Mesh::Submesh sub{};
-            sub.indexCount = (UINT)localIndices.size();
-            sub.startIndexLocation = currentOffset; 
-            sub.baseVertexLocation = 0; 
-            sub.materialId = (matIndex >= 0 && matIndex < (int)matMap.size())
-                ? matMap[matIndex] : Engine::INVALID_ID;
+            sub.startIndexLocation = indexOffset;
+            sub.indexCount = (UINT)idxList.size();
+            sub.baseVertexLocation = 0;
+
+            
+            FbxSurfaceMaterial* fbxMat =
+                (matSlot >= 0 && matSlot < fbxNode->GetMaterialCount())
+                ? fbxNode->GetMaterial(matSlot)
+                : nullptr;
+
+            auto it = (fbxMat ? matMap.find(fbxMat) : matMap.end());
+            sub.materialId = (it != matMap.end()) ? it->second : Engine::INVALID_ID;
 
             mesh->submeshes.push_back(sub);
 
-            currentOffset += sub.indexCount;
+            std::copy(idxList.begin(), idxList.end(), mesh->indices.begin() + indexOffset);
+            indexOffset += (UINT)idxList.size();
         }
     }
     else
     {
         Mesh::Submesh sub{};
-        sub.indexCount = static_cast<UINT>(mesh->indices.size());
+        sub.indexCount = (UINT)mesh->indices.size();
         sub.startIndexLocation = 0;
         sub.baseVertexLocation = 0;
         sub.materialId = Engine::INVALID_ID;
@@ -556,6 +568,9 @@ std::shared_ptr<Mesh> ResourceRegistry::CreateMeshFromFbxNode(
     manager.Add(mesh);
     return mesh;
 }
+
+
+
 
 Skeleton ResourceRegistry::BuildSkeletonFbx(FbxScene* fbxScene)
 {

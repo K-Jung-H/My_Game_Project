@@ -4,8 +4,6 @@
 #include "Components/TransformComponent.h"
 #include "Resource/Mesh.h"
 
-class TransformComponent;
-class MeshRendererComponent;
 
 struct RenderData
 {
