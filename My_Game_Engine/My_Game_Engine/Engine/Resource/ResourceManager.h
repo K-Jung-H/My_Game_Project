@@ -2,7 +2,7 @@
 #include "Mesh.h"
 #include "Texture.h"
 #include "Material.h"
-#include "Game_Resource.h"
+#include "Model.h"
 
 struct ResourceEntry
 {

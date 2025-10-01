@@ -1,12 +1,11 @@
 #include "ResourceRegistry.h"
-#include "Model.h"
 #include "DXMathUtils.h"
 
 LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx)
 {
     LoadResult result;
 
-    if (LoadWithAssimp(manager, path, alias, ctx, result))  return result;
+   // if (LoadWithAssimp(manager, path, alias, ctx, result))  return result;
     if (LoadWithFbxSdk(manager, path, alias, ctx, result))  return result;
 
 
@@ -528,18 +527,20 @@ std::shared_ptr<Mesh> ResourceRegistry::CreateMeshFromFbxNode(
             }
         }
 
-        for (auto& [matIndex, indices] : polyByMat)
+        UINT currentOffset = 0; 
+
+        for (auto& [matIndex, localIndices] : polyByMat)
         {
             Mesh::Submesh sub{};
-            sub.indexCount = static_cast<UINT>(indices.size());
-            sub.startIndexLocation = 0;
-            sub.baseVertexLocation = 0;
-            sub.materialId = Engine::INVALID_ID;
-
-            if (matIndex >= 0 && matIndex < (int)matMap.size())
-                sub.materialId = matMap[matIndex];
+            sub.indexCount = (UINT)localIndices.size();
+            sub.startIndexLocation = currentOffset; 
+            sub.baseVertexLocation = 0; 
+            sub.materialId = (matIndex >= 0 && matIndex < (int)matMap.size())
+                ? matMap[matIndex] : Engine::INVALID_ID;
 
             mesh->submeshes.push_back(sub);
+
+            currentOffset += sub.indexCount;
         }
     }
     else

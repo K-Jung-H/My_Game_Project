@@ -1,6 +1,7 @@
 #include "ComponentRegistry.h"
 #include "GameEngine.h"
 
+
 void ComponentRegistry::Notify(std::weak_ptr<Component> comp)
 {
     if (auto c = comp.lock())

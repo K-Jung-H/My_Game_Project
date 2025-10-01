@@ -1,8 +1,8 @@
 #pragma once
-#include "../Core/Component.h"
+#include "Core/Component.h"
+#include "Resource/Mesh.h"
 
 class Mesh;
-class Material;
 
 class MeshRendererComponent : public Component
 {

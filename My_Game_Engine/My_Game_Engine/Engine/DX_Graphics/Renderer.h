@@ -2,7 +2,7 @@
 #include "DescriptorManager.h"
 #include "Graphic_Shader.h"
 #include "Core/Scene.h"
-#include "Components/CameraComponent.h"
+
 
 struct ResourceStateTracker
 {
@@ -35,21 +35,6 @@ struct GBuffer
 };
 
 //=================================================================
-
-struct alignas(256) ObjectCBData
-{
-    XMFLOAT4X4 World;
-
-    XMFLOAT4   Albedo;
-    float      Roughness;
-    float      Metallic;
-    float      Emissive;
-
-    int       DiffuseTexIdx;
-    int       NormalTexIdx;
-    int       RoughnessTexIdx;
-    int       MetallicTexIdx;
-};
 
 struct ObjectCBResource
 {
@@ -108,6 +93,8 @@ struct RendererContext
     DescriptorManager* resourceHeap;
 };
 
+class RenderData;
+class DrawItem;
 
 class DX12_Renderer
 {
@@ -174,6 +161,9 @@ private:
     ComPtr<ID3D12Resource> mSceneData_CB;
     SceneData* mappedSceneDataCB;
 
+    //==== Render DrawCall Target
+    std::vector<DrawItem> mDrawItems;
+
 private:
     // === Initialization steps ===
     bool CreateDeviceAndFactory();
@@ -231,7 +221,7 @@ private:
     void ImguiPass();
 
     void SortByRenderType(std::vector<RenderData> renderData_list);
-    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const 	std::vector<RenderData>& renderData_list);
+    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
     void Update_SceneCBV();
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);

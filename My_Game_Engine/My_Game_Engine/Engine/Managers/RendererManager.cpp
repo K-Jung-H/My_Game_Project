@@ -1,8 +1,6 @@
 #include "RendererManager.h"
 #include "Components/MeshRendererComponent.h"
-#include "Components/CameraComponent.h"
 #include "Components/TransformComponent.h"
-#include "Core/Object.h"
 
 
 void RendererManager::Register(std::weak_ptr<Component> comp) 

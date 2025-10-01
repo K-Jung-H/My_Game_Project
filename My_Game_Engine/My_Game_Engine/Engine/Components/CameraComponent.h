@@ -1,5 +1,5 @@
 #pragma once
-#include "../Core/Component.h"
+#include "Core/Component.h"
 #include <DirectXMath.h>
 
 struct RendererContext;

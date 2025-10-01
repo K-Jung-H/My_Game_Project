@@ -1,7 +1,5 @@
 #pragma once
-#include "Game_Resource.h"
 #include "ResourceManager.h"
-#include "Model.h"
 
 struct LoadResult 
 {

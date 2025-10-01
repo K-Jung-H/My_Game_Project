@@ -1,11 +1,10 @@
 #pragma once
 #include "Object.h"
+#include "DX_Graphics/RenderData.h"
 
-struct RenderData
-{
-    std::weak_ptr<TransformComponent> transform;
-    std::weak_ptr<MeshRendererComponent> meshRenderer;
-};
+class MeshRendererComponent;
+class CameraComponent;
+class RenderData;
 
 class SceneManager;
 

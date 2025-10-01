@@ -1,11 +1,8 @@
 #pragma once
-#include <vector>
-#include "../Components/MeshRendererComponent.h"
-#include "../Components/CameraComponent.h"
+#include "Components/MeshRendererComponent.h"
 
 class Component;
 class MeshRendererComponent;
-class CameraComponent;
 
 class RendererManager 
 {

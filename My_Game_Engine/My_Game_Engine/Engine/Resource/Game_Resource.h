@@ -1,10 +1,10 @@
 #pragma once
-#include "DX_Graphics/Renderer.h"
 
-
+struct RendererContext;
 class ResourceRegistry;
 
-enum class ResourceType {
+enum class ResourceType 
+{
     Mesh,
     Material,
     Texture,

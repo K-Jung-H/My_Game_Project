@@ -704,58 +704,53 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     fr.ObjectCB.HeadOffset = 0;
+    mDrawItems.clear();
 
-    int i = 0;
+    ResourceManager* rm = GameEngine::Get().GetResourceManager();
+
     for (auto& rd : renderables)
     {
         auto transform = rd.transform.lock();
         auto renderer = rd.meshRenderer.lock();
-
-        if (!transform || !renderer)
-            continue;
-
-        if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects)
-            break;
+        if (!transform || !renderer) continue;
 
         auto mesh = renderer->GetMesh();
-        if (!mesh)
-            continue;
+        if (!mesh) continue;
 
-        UINT material_id = mesh->GetMaterialID();
-        ResourceManager* rm = GameEngine::Get().GetResourceManager();
-        auto material = rm->GetById<Material>(material_id);
+        XMFLOAT4X4 worldT = Matrix4x4::Transpose(transform->GetWorldMatrix());
 
-        if (!material)
-            continue;
+        for (const auto& sub : mesh->submeshes)
+        {
+            if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects) break;
+
+            auto material = rm->GetById<Material>(sub.materialId);
+            if (!material) continue;
+
+            ObjectCBData cb{};
+            cb.World = worldT;
+            cb.Albedo = XMFLOAT4(material->albedoColor.x, material->albedoColor.y, material->albedoColor.z, 1.0f);
+            cb.Roughness = material->roughness;
+            cb.Metallic = material->metallic;
+            cb.Emissive = 0.0f;
+
+            auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : (int)slot; };
+            cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
+            cb.NormalTexIdx = toIdx(material->normalTexSlot);
+            cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
+            cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
+
+            const UINT cbIndex = fr.ObjectCB.HeadOffset;
+            fr.ObjectCB.MappedObjectCB[cbIndex] = cb;
+            fr.ObjectCB.HeadOffset++;
 
 
-
-        ObjectCBData cb{};
-        cb.World = Matrix4x4::Transpose(transform->GetWorldMatrix());
-
-        cb.Albedo = XMFLOAT4(material->albedoColor.x, material->albedoColor.y, material->albedoColor.z, 1.0f);
-        cb.Roughness = material->roughness;
-        cb.Metallic = material->metallic;
-        cb.Emissive = 0.0f; 
-
-        auto toIdx = [](UINT slot) -> int {
-            return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); 
-            };
-
-       
-
-        cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
-        cb.NormalTexIdx = toIdx(material->normalTexSlot);
-        cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
-        cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
-
-        OutputDebugStringA(mesh->GetAlias().data());
-        OutputDebugStringA("\n");
-
-        fr.ObjectCB.MappedObjectCB[fr.ObjectCB.HeadOffset] = cb;
-        transform->SetCbOffset(mFrameIndex, fr.ObjectCB.HeadOffset);
-        i++;
-        fr.ObjectCB.HeadOffset++;
+            DrawItem di;
+            di.mesh = mesh.get();
+            di.sub = sub;
+            di.cbIndex = cbIndex;
+            di.materialId = sub.materialId;
+            mDrawItems.emplace_back(std::move(di));
+        }
     }
 }
 
@@ -764,29 +759,20 @@ void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
 
 }
 
-void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, const std::vector<RenderData>& renderData_list)
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
-    for (auto& rd : renderData_list)
+
+    for (const auto& di : mDrawItems)
     {
-        auto renderer = rd.meshRenderer.lock();
-        auto transform = rd.transform.lock();
+        if (!di.mesh) continue;
 
-        if (!renderer || !transform)
-            continue;
-
-        auto mesh = renderer->GetMesh();
-        if (!mesh)
-            continue;
-
-        UINT offset = transform->GetCbOffset(mFrameIndex);
-        D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + offset * sizeof(ObjectCBData);
-
+        D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + di.cbIndex * sizeof(ObjectCBData);
         cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
 
+        di.mesh->Bind(cmdList);
 
-        mesh->Bind(cmdList);
-        cmdList->DrawIndexedInstanced(mesh->GetIndexCount(), 1, 0, 0, 0);
+        cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
     }
 }
 
@@ -949,7 +935,7 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
 
-    Render_Objects(mCommandList, renderData_list);
+    Render_Objects(mCommandList);
 }
 
 void DX12_Renderer::CompositePass()
