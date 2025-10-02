@@ -101,11 +101,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 
    RECT rc = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
-   DWORD dwStyle = WS_OVERLAPPED | WS_CAPTION | WS_MINIMIZEBOX | WS_SYSMENU | WS_BORDER;
+   DWORD dwStyle = WS_OVERLAPPEDWINDOW;
+
    AdjustWindowRect(&rc, dwStyle, FALSE);
    HWND hWnd = CreateWindow(szWindowClass, szTitle, dwStyle, CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top, NULL, NULL, hInstance, NULL);
 
-   if (!hWnd) {
+   if (!hWnd) 
+   {
        DWORD err = GetLastError();
        wchar_t buf[256];
        FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
@@ -133,21 +135,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
     switch (message)
     {
-    case WM_SIZE:
     case WM_LBUTTONDOWN:
-    case WM_LBUTTONUP:
     case WM_RBUTTONDOWN:
+    case WM_LBUTTONUP:
     case WM_RBUTTONUP:
     case WM_MOUSEMOVE:
     case WM_MOUSEWHEEL:
-        GameEngine::Get().OnProcessingWindowMessage(hWnd, message, wParam, lParam);
-        break;
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_CHAR:
+        GameEngine::Get().OnProcessingInputMessage(hWnd, message, wParam, lParam);
+        break;
 
+
+    case WM_SIZE:
         GameEngine::Get().OnProcessingWindowMessage(hWnd, message, wParam, lParam);
         break;
+
+    case WM_ENTERSIZEMOVE:
+        break;
+
+    case WM_EXITSIZEMOVE:
+    {
+        UINT width = LOWORD(lParam);
+        UINT height = HIWORD(lParam);
+        GameEngine::Get().OnProcessingWindowMessage(hWnd, WM_EXITSIZEMOVE, width, height);
+    }
+    break;
+
     case WM_COMMAND:
         wmId = LOWORD(wParam);
         wmEvent = HIWORD(wParam);

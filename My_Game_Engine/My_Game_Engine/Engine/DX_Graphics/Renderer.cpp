@@ -34,7 +34,7 @@ void ResourceStateTracker::Transition(ID3D12GraphicsCommandList* cmdList, ID3D12
 
 float DX12_Renderer::clear_color[4] = { 0.95f, 0.55f, 0.60f, 1.00f };
 
-bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
+bool DX12_Renderer::Initialize(HWND m_hWnd, UINT width, UINT height)
 {
 
 #if defined(_DEBUG)
@@ -60,7 +60,7 @@ bool DX12_Renderer::Initialize(HWND hWnd, UINT width, UINT height)
     success &= CreateDeviceAndFactory();
     success &= CheckMsaaSupport();
     success &= CreateCommandQueue();
-    success &= CreateSwapChain(hWnd, width, height);
+    success &= CreateSwapChain(m_hWnd, width, height);
     success &= CreateDescriptorHeaps();
     success &= CreateFrameResources();
     success &= CreateCommandList();
@@ -153,7 +153,7 @@ bool DX12_Renderer::CreateCommandQueue()
     return SUCCEEDED(mDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
 }
 
-bool DX12_Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
+bool DX12_Renderer::CreateSwapChain(HWND m_hWnd, UINT width, UINT height)
 {
     DXGI_SWAP_CHAIN_DESC1 desc = {};
     desc.BufferCount = FrameCount;
@@ -166,10 +166,10 @@ bool DX12_Renderer::CreateSwapChain(HWND hWnd, UINT width, UINT height)
 
     ComPtr<IDXGISwapChain1> swapChain;
     if (FAILED(mFactory->CreateSwapChainForHwnd(
-        mCommandQueue.Get(), hWnd, &desc, nullptr, nullptr, &swapChain)))
+        mCommandQueue.Get(), m_hWnd, &desc, nullptr, nullptr, &swapChain)))
         return false;
 
-    mFactory->MakeWindowAssociation(hWnd, DXGI_MWA_NO_ALT_ENTER);
+    mFactory->MakeWindowAssociation(m_hWnd, DXGI_MWA_NO_ALT_ENTER);
 
     swapChain.As(&mSwapChain);
     mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
@@ -796,10 +796,12 @@ void DX12_Renderer::ClearGBuffer()
     for (UINT slot : fr.GBufferRtvSlot_IDs)
         rtvs.push_back(mRtvManager->GetCpuHandle(slot));
 
-    auto dsv = mDsvManager->GetCpuHandle(fr.DsvSlot_ID);
-
     for (auto& target : fr.gbuffer.targets)
         fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    auto dsv = mDsvManager->GetCpuHandle(fr.DsvSlot_ID);
+
+    fr.StateTracker.Transition(mCommandList.Get(), fr.DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
     mCommandList->OMSetRenderTargets((UINT)rtvs.size(), rtvs.data(), FALSE, &dsv);
 
@@ -872,7 +874,7 @@ void DX12_Renderer::PresentFrame()
     ID3D12CommandList* cmdLists[] = { mCommandList.Get() };
     mCommandQueue->ExecuteCommandLists(1, cmdLists);
 
-    mSwapChain->Present(1, 0);
+    mSwapChain->Present(0, 0); // (1, 0)  -> VSync : 모니터 주사율에 맞춤
 
     const UINT64 currentFence = ++mFenceValue;
     mCommandQueue->Signal(mFence.Get(), currentFence);
@@ -900,7 +902,7 @@ void DX12_Renderer::Render(std::vector<RenderData> renderData_list, std::shared_
 
     Blit_BackBufferPass();
 
-//    ImguiPass();
+    ImguiPass();
     TransitionBackBufferToPresent();
     mCommandList->Close();
     PresentFrame();
@@ -926,10 +928,6 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
 
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Default::TextureTable, mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Texture));
     mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
-
-
-    //mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    //mCommandList->DrawInstanced(6, 1, 0, 0);
 
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
@@ -1061,6 +1059,10 @@ void DX12_Renderer::Blit_BackBufferPass()
 
 void DX12_Renderer::ImguiPass()
 {
+    GameTimer* gt = GameEngine::Get().GetTimer();
+
+    unsigned long fps = gt->GetFrameRate();
+
     bool use_imgui = true;
     if (use_imgui)
     {
@@ -1069,6 +1071,9 @@ void DX12_Renderer::ImguiPass()
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
+        ImGui::Begin("Performance");
+        ImGui::Text("FPS: %lu", fps);
+        ImGui::End();
 
         ImGui::Begin("Color Controller");
         ImGui::ColorEdit4("MyColor RGBA", clear_color);
@@ -1123,13 +1128,41 @@ bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
     mWidth = newWidth;
     mHeight = newHeight;
 
-    for (auto& fr : mFrameResources) {
+    for (auto& fr : mFrameResources)
+    {
+        if (fr.BackBufferRtvSlot_ID != UINT_MAX)
+            mRtvManager->FreeDeferred(HeapRegion::RTV, fr.BackBufferRtvSlot_ID);
+
+        if (fr.DsvSlot_ID != UINT_MAX)
+            mDsvManager->FreeDeferred(HeapRegion::DSV, fr.DsvSlot_ID);
+
+        for (UINT slot : fr.GBufferRtvSlot_IDs)
+            mRtvManager->FreeDeferred(HeapRegion::RTV, slot);
+        for (UINT slot : fr.GBufferSrvSlot_IDs)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, slot);
+
+        for (UINT slot : fr.MergeRtvSlot_IDs)
+            mRtvManager->FreeDeferred(HeapRegion::RTV,slot);
+        for (UINT slot : fr.MergeSrvSlot_IDs)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, slot);
+
+        if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.DepthBufferSrvSlot_ID);
+    }
+
+    for (auto& fr : mFrameResources)
+    {
         fr.RenderTarget.Reset();
         fr.DepthStencilBuffer.Reset();
         for (auto& target : fr.gbuffer.targets)
             target.Reset();
         fr.gbuffer.Depth.Reset();
     }
+
+    mRtvManager->Update();
+    mDsvManager->Update();
+    mResource_Heap_Manager->Update();
+
 
     DXGI_SWAP_CHAIN_DESC desc;
     mSwapChain->GetDesc(&desc);
@@ -1138,6 +1171,7 @@ bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
 
     return CreateFrameResources();
 }
+
 
 void DX12_Renderer::Cleanup()
 {

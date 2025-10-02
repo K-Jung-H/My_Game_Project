@@ -101,7 +101,7 @@ class DX12_Renderer
     static float clear_color[4];
 
 public:
-    bool Initialize(HWND hWnd, UINT width, UINT height);
+    bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
 
     void Render(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
@@ -169,7 +169,7 @@ private:
     bool CreateDeviceAndFactory();
     bool CheckMsaaSupport();
     bool CreateCommandQueue();
-    bool CreateSwapChain(HWND hWnd, UINT width, UINT height);
+    bool CreateSwapChain(HWND m_hWnd, UINT width, UINT height);
     bool CreateDescriptorHeaps();
     bool CreateCommandList_Upload();
 

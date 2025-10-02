@@ -1,8 +1,10 @@
 #pragma once
 #include "DX_Graphics/Renderer.h"
-#include "Managers/PhysicsManager.h"
 #include "Managers/RendererManager.h"
+#include "Managers/PhysicsManager.h"
 #include "Resource/ResourceManager.h"
+#include "GameTimer.h"
+#include "InputManager.h"
 #include "Scene_Manager.h"
 
 class GameEngine
@@ -24,11 +26,14 @@ public:
     void OnDestroy();
 
     void FrameAdvance();
+    void Tick(float rate) { mTimer->Tick(rate); }
 
-    void OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
-    void OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
-    LRESULT CALLBACK OnProcessingWindowMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
+    bool IsInitialized() { return Is_Initialized; }
 
+    void OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
+    LRESULT CALLBACK OnProcessingWindowMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
+
+    GameTimer* GetTimer() { return mTimer.get(); }
     RendererManager* GetRendererManager() { return renderer_manager.get(); }
     PhysicsManager* GetPhysicsManager() { return physics_manager.get(); }
     ResourceManager* GetResourceManager() { return resource_manager.get(); }
@@ -41,8 +46,20 @@ private:
     ~GameEngine() = default; // optional, private destructor
 
 private:
+    HWND m_hWnd;
+
+    bool Is_Initialized = false;
+
+    std::unique_ptr<InputManager> m_Input_manager;
+    std::unique_ptr<GameTimer> mTimer;
     std::unique_ptr<DX12_Renderer>   mRenderer;
     std::unique_ptr<PhysicsManager>  physics_manager;
     std::unique_ptr<RendererManager> renderer_manager;
     std::unique_ptr<ResourceManager> resource_manager;
+
+
+private: // Sync to Win api
+    UINT mPendingWidth = 0;
+    UINT mPendingHeight = 0;
+    bool mResizeRequested = false;
 };

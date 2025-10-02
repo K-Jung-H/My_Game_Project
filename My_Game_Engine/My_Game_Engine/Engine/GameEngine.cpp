@@ -2,6 +2,8 @@
 
 void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 {
+	m_hWnd = hMainWnd;
+	Is_Initialized = true;
 	CoInitialize(NULL);
 
 	mRenderer = std::make_unique<DX12_Renderer>();
@@ -29,6 +31,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	ImGui_ImplDX12_InitInfo init_info = mRenderer->GetImGuiInitInfo();
 	ImGui_ImplDX12_Init(&init_info);
 
+	mTimer = std::make_unique<GameTimer>();
 	physics_manager = std::make_unique<PhysicsManager>();
 	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
@@ -51,11 +54,14 @@ void GameEngine::OnDestroy()
 
 void GameEngine::FrameAdvance()
 {
-	// Need Timer
+	mTimer->Tick();
+
+	float deltaTime = mTimer->GetDeltaTime();
+
 	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
 	active_scene->Check_Inputs();
-	active_scene->Fixed_Update(0.0f);
-	active_scene->Update(0.0f);
+	active_scene->Fixed_Update(deltaTime);
+	active_scene->Update(deltaTime);
 
 
 	std::vector<RenderData> renderData_list = active_scene->GetRenderable();
@@ -70,60 +76,27 @@ void GameEngine::FrameAdvance()
 
 }
 
-void GameEngine::OnProcessingMouseMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
-{
-	switch (nMessageID)
-	{
-	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-		break;
-	case WM_LBUTTONUP:
-	case WM_RBUTTONUP:
-		break;
-	case WM_MOUSEMOVE:
-		break;
-	default:
-		break;
-	}
-}
 
-void GameEngine::OnProcessingKeyboardMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
+void GameEngine::OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
+	if (ImGui_ImplWin32_WndProcHandler(m_hWnd, nMessageID, wParam, lParam))
+		return;
+
 	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
-
+	InputManager::Get().ProcessMessage(nMessageID, wParam, lParam);
 	switch (nMessageID)
 	{
-	case WM_KEYUP:
-		switch (wParam)
-		{
-		case 'Q':
-		{
-			XMFLOAT3 cur_pos = active_scene->GetActiveCamera()->GetPosition();
-			cur_pos.z += 1;
-			active_scene->GetActiveCamera()->SetPosition(cur_pos);
-		}
-		break;
 
-		case 'E':
-		{
-			XMFLOAT3 cur_pos = active_scene->GetActiveCamera()->GetPosition();
-			cur_pos.z -= 1;
-			active_scene->GetActiveCamera()->SetPosition(cur_pos);
-		}
-		break;
 
-		default:
-			break;
-		}
-		break;
+
 	default:
 		break;
 	}
 }
 
-LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam)
 {
-	if (ImGui_ImplWin32_WndProcHandler(hWnd, nMessageID, wParam, lParam))
+	if (ImGui_ImplWin32_WndProcHandler(m_hWnd, nMessageID, wParam, lParam))
 		return true;
 
 	switch (nMessageID)
@@ -136,23 +109,57 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND hWnd, UINT nMessageI
 		//	m_GameTimer.Start();
 		//break;
 	}
+	break;
+
 	case WM_SIZE:
-		break;
-	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-	case WM_LBUTTONUP:
-	case WM_RBUTTONUP:
-	case WM_MOUSEMOVE:
-		OnProcessingMouseMessage(hWnd, nMessageID, wParam, lParam);
-		break;
-	case WM_MOUSEWHEEL:
-		OnProcessingMouseMessage(hWnd, nMessageID, wParam, lParam);
-		break;
-	case WM_KEYDOWN:
-	case WM_KEYUP:
-	case WM_CHAR:
-		OnProcessingKeyboardMessage(hWnd, nMessageID, wParam, lParam);
-		break;
+	{
+		UINT newWidth = LOWORD(lParam);
+		UINT newHeight = HIWORD(lParam);
+
+		if (wParam == SIZE_MINIMIZED) break;
+		else if (wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED)
+		{
+			if (mRenderer)
+				mRenderer->OnResize(newWidth, newHeight);
+
+			auto active_scene = SceneManager::Get().GetActiveScene();
+			auto mainCam = active_scene->GetActiveCamera();
+			if (mainCam)
+			{
+				mainCam->SetViewport({ 0, 0 }, { newWidth, newHeight });
+				mainCam->SetScissorRect({ 0, 0 }, { newWidth, newHeight });
+			}
+		}
+		else
+		{
+			mPendingWidth = newWidth;
+			mPendingHeight = newHeight;
+			mResizeRequested = true;
+		}
+	}
+	break;
+
+
+	case WM_EXITSIZEMOVE:
+	{
+		if (mResizeRequested)
+		{
+			if (mRenderer)
+				mRenderer->OnResize(mPendingWidth, mPendingHeight);
+			mResizeRequested = false;
+
+			std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
+			std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
+
+			if (mainCam)
+			{
+				mainCam->SetViewport({ 0, 0 }, { mPendingWidth, mPendingHeight });
+				mainCam->SetScissorRect({ 0, 0 }, { mPendingWidth, mPendingHeight });
+			}
+		}
+	}
+	break;
+
 	}
 	return(0);
 }
