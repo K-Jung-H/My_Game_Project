@@ -68,6 +68,14 @@ namespace Matrix4x4
 		return q;
 	}
 
+	inline XMFLOAT4 QuaternionFromEulerRad(float pitchRad, float yawRad, float rollRad)
+	{
+		XMFLOAT4 q;
+		XMStoreFloat4(&q, XMQuaternionRotationRollPitchYaw(pitchRad, yawRad, rollRad));
+		return q;
+	}
+
+
 	inline XMFLOAT4X4 MatrixFromQuaternion(const XMFLOAT4& quat)
 	{
 		XMFLOAT4X4 m;

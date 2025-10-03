@@ -8,6 +8,7 @@ enum Component_Type
     Mesh_Renderer,
     Camera,
     Collider,
+    Rigidbody,
     etc
 };
 

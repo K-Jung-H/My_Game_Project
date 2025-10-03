@@ -1,9 +1,10 @@
 #include "Object.h"
-#include "../Components/TransformComponent.h"
-#include "../Components/CameraComponent.h"
-#include "../Components/MeshRendererComponent.h"
-#include "../Components/ColliderComponent.h"
-#include "../Resource/Model.h"
+#include "Components/TransformComponent.h"
+#include "Components/CameraComponent.h"
+#include "Components/MeshRendererComponent.h"
+#include "Components/RigidbodyComponent.h"
+#include "Components/ColliderComponent.h"
+#include "Resource/Model.h"
 
 UINT Object::CountNodes(const std::shared_ptr<Object>& root)
 {
@@ -183,9 +184,9 @@ void Object::Update_Animate(float dt)
 
 void Object::UpdateMotion_All(float dt)
 {
-    auto transform = GetComponent<TransformComponent>(Transform);
+    auto transform = GetComponent<RigidbodyComponent>(Transform);
     if (transform)
-        transform->UpdateMotion(dt); 
+        transform->Update(dt); 
 
     for (auto& child : children)
     {

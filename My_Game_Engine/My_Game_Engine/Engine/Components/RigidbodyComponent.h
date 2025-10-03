@@ -1,0 +1,55 @@
+#pragma once
+#include "../Core/Component.h"
+
+
+class RigidbodyComponent : public Component
+{
+public:
+    static constexpr Component_Type Type = Component_Type::Rigidbody;
+    Component_Type GetType() const override { return Type; }
+
+public:
+    RigidbodyComponent() = default;
+
+    void Update(float dt);
+
+    const XMFLOAT3& GetVelocity() const { return mVelocity; }
+    const XMFLOAT3& GetAcceleration() const { return mAcceleration; }
+    const XMFLOAT3& GetAngularVelocity() const { return mAngularVelocity; }
+
+    void SetVelocity(const XMFLOAT3& v) { mVelocity = v; }
+    void SetAcceleration(const XMFLOAT3& a) { mAcceleration = a; }
+    void SetAngularVelocity(const XMFLOAT3& av) { mAngularVelocity = av; }
+
+    void AddVelocity(const XMFLOAT3& v);
+    void AddAcceleration(const XMFLOAT3& a);
+    void AddAngularVelocity(const XMFLOAT3& av);
+    void AddForce(const XMFLOAT3& f);
+    void AddTorque(const XMFLOAT3& t);
+
+    void SetKinematic(bool v) { mIsKinematic = v; }
+    void SetUseGravity(bool v) { mUseGravity = v; }
+
+    bool IsKinematic() const { return mIsKinematic; }
+    bool UseGravity() const { return mUseGravity; }
+
+    void SetMass(float m) { mMass = m; }
+    float GetMass() const { return mMass; }
+    void SetLinearDamping(float d) { mLinearDamping = d; }
+    void SetAngularDamping(float d) { mAngularDamping = d; }
+
+private:
+    XMFLOAT3 mVelocity{ 0,0,0 };
+    XMFLOAT3 mAcceleration{ 0,0,0 };
+    XMFLOAT3 mAngularVelocity{ 0,0,0 };
+
+    XMFLOAT3 mForceAccum{ 0,0,0 };
+    XMFLOAT3 mTorqueAccum{ 0,0,0 };
+
+    float mMass = 1.0f;
+    float mLinearDamping = 0.98f;
+    float mAngularDamping = 0.98f;
+
+    bool mIsKinematic = false;
+    bool mUseGravity = true;
+}; };
