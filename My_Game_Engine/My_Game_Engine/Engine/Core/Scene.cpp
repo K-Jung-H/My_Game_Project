@@ -45,29 +45,34 @@ void Scene::Build()
 }
 
 
-void Scene::Check_Inputs()
+void Scene::Update_Inputs()
 {
-
 }
 
-void Scene::Fixed_Update(float ElapsedTime)
-{
-
-}
-
-void Scene::Update(float ElapsedTime)
+void Scene::Update_Fixed(float dt) 
 {
 	for (auto obj_ptr : obj_list)
 	{
-		obj_ptr->Update_Animate(ElapsedTime);
-		obj_ptr->Update_Transform_All();
+		obj_ptr->UpdateMotion_All(dt);
 	}
 }
 
-void Scene::Render()
+void Scene::Update_Scene(float dt)
 {
-
+	for (auto obj_ptr : obj_list)
+	{
+		obj_ptr->Update_Animate(dt);
+	}
 }
+
+void Scene::Update_Late(float dt)
+{
+	for (auto obj_ptr : obj_list)
+	{
+		obj_ptr->UpdateTransform_All();
+	}
+}
+
 
 void Scene::RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp)
 {

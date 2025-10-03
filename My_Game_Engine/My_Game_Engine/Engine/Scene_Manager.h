@@ -26,8 +26,7 @@ private:
 public:
     ~SceneManager() = default;
 
-    void Check_Inputs();
-    void Fixed_Update(float ElapsedTime);
+    void Update_Inputs();
     void Update(float ElapsedTime);
     void Render();
 

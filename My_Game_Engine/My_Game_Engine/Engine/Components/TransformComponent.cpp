@@ -53,7 +53,7 @@ void TransformComponent::SetFromMatrix(const XMFLOAT4X4& mat)
     }
 }
 
-bool TransformComponent::Update(const XMFLOAT4X4* parentWorld, bool parentWorldDirty)
+bool TransformComponent::UpdateTransform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty)
 {
     bool localDirty = mUpdateFlag;
 
@@ -80,3 +80,65 @@ bool TransformComponent::Update(const XMFLOAT4X4* parentWorld, bool parentWorldD
 
     return worldDirty;
 }
+
+
+void TransformComponent::AddVelocity(const XMFLOAT3& v) 
+{
+    mVelocity.x += v.x;
+    mVelocity.y += v.y;
+    mVelocity.z += v.z;
+    mUpdateFlag = true;
+}
+
+void TransformComponent::AddAcceleration(const XMFLOAT3& a) 
+{
+    mAcceleration.x += a.x;
+    mAcceleration.y += a.y;
+    mAcceleration.z += a.z;
+    mUpdateFlag = true;
+}
+
+void TransformComponent::AddAngularVelocity(const XMFLOAT3& av) 
+{
+    mAngularVelocity.x += av.x;
+    mAngularVelocity.y += av.y;
+    mAngularVelocity.z += av.z;
+    mUpdateFlag = true;
+}
+
+void TransformComponent::UpdateMotion(float dt)
+{
+    mVelocity.x += mAcceleration.x * dt;
+    mVelocity.y += mAcceleration.y * dt;
+    mVelocity.z += mAcceleration.z * dt;
+
+    mPosition.x += mVelocity.x * dt;
+    mPosition.y += mVelocity.y * dt;
+    mPosition.z += mVelocity.z * dt;
+
+    if (mAngularVelocity.x != 0.0f || mAngularVelocity.y != 0.0f || mAngularVelocity.z != 0.0f)
+    {
+        XMVECTOR dq = XMQuaternionRotationRollPitchYaw(
+            mAngularVelocity.x * dt,
+            mAngularVelocity.y * dt,
+            mAngularVelocity.z * dt
+        );
+
+        XMVECTOR q = XMLoadFloat4(&mRotation);
+        q = XMQuaternionMultiply(dq, q);
+        q = XMQuaternionNormalize(q);
+
+        XMStoreFloat4(&mRotation, q);
+    }
+
+    mVelocity.x *= mLinearDamping;
+    mVelocity.y *= mLinearDamping;
+    mVelocity.z *= mLinearDamping;
+
+    mAngularVelocity.x *= mAngularDamping;
+    mAngularVelocity.y *= mAngularDamping;
+    mAngularVelocity.z *= mAngularDamping;
+
+    mUpdateFlag = true;
+}
+

@@ -181,7 +181,20 @@ void Object::Update_Animate(float dt)
 {
 }
 
-void Object::Update_Transform_All()
+void Object::UpdateMotion_All(float dt)
+{
+    auto transform = GetComponent<TransformComponent>(Transform);
+    if (transform)
+        transform->UpdateMotion(dt); 
+
+    for (auto& child : children)
+    {
+        if (child) child->UpdateMotion_All(dt);
+    }
+}
+
+
+void Object::UpdateTransform_All()
 {
     XMFLOAT4X4 identity;
     XMStoreFloat4x4(&identity, XMMatrixIdentity());
@@ -198,7 +211,7 @@ void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDir
 
     if (transform) 
     {
-        myWorldDirty = transform->Update(parentWorld, parentWorldDirty);
+        myWorldDirty = transform->UpdateTransform(parentWorld, parentWorldDirty);
         worldForChildren = &transform->GetWorldMatrix();
     }
 

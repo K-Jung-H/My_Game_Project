@@ -52,17 +52,30 @@ void GameEngine::OnDestroy()
 	mRenderer->Cleanup();
 }
 
+void GameEngine::FixedUpdate(float dt)
+{
+	active_scene->Update_Fixed(dt);
+}
+
+void GameEngine::Update_Scene(float dt)
+{
+	active_scene->Update_Scene(dt);
+}
+
+void GameEngine::Update_Late(float dt)
+{
+	active_scene->Update_Late(dt);
+}
+
+
 void GameEngine::FrameAdvance()
 {
 	mTimer->Tick();
 
 	float deltaTime = mTimer->GetDeltaTime();
+	active_scene = SceneManager::Get().GetActiveScene();
 
-	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
-	active_scene->Check_Inputs();
-	active_scene->Fixed_Update(deltaTime);
-	active_scene->Update(deltaTime);
-
+	
 
 	std::vector<RenderData> renderData_list = active_scene->GetRenderable();
 	std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();

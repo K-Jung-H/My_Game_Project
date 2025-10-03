@@ -26,10 +26,12 @@ public:
     const std::vector<std::weak_ptr<CameraComponent>>& GetCamera_list() const { return camera_list; }
     void SetActiveCamera(std::weak_ptr<CameraComponent> cam) { activeCamera = cam; }
 
-    void Check_Inputs();
-    void Fixed_Update(float ElapsedTime); // For Physics
-    virtual void Update(float ElapsedTime); // Game Logic
-    virtual void Render();
+    virtual void Update_Inputs();
+    virtual void Update_Fixed(float dt); // For Physics
+    virtual void Update_Scene(float dt);
+    virtual void Update_Late(float dt); // Game Logic
+
+    virtual void Render() {}
 
 
 protected:

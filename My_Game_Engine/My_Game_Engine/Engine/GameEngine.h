@@ -26,6 +26,10 @@ public:
     void OnDestroy();
 
     void FrameAdvance();
+    void FixedUpdate(float dt);
+    void Update_Scene(float dt);
+    void Update_Late(float dt);
+
     void Tick(float rate) { mTimer->Tick(rate); }
 
     bool IsInitialized() { return Is_Initialized; }
@@ -57,6 +61,7 @@ private:
     std::unique_ptr<RendererManager> renderer_manager;
     std::unique_ptr<ResourceManager> resource_manager;
 
+    std::shared_ptr<Scene> active_scene;
 
 private: // Sync to Win api
     UINT mPendingWidth = 0;

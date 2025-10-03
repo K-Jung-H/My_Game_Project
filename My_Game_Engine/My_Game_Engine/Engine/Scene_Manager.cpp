@@ -1,9 +1,9 @@
 #include "Scene_Manager.h"
 
-void SceneManager::Check_Inputs()
+void SceneManager::Update_Inputs()
 {
     if (auto scene = mActiveScene.lock()) 
-        scene->Check_Inputs();  
+        scene->Update_Inputs();  
     else
     {
         std::string errMsg = "[SceneManager] Failed to Check_Inputs - No exist ActiveScene \n";
@@ -11,21 +11,10 @@ void SceneManager::Check_Inputs()
     }
 }
 
-void SceneManager::Fixed_Update(float ElapsedTime)
-{
-    if (auto scene = mActiveScene.lock())
-        scene->Fixed_Update(ElapsedTime);
-    else
-    {
-        std::string errMsg = "[SceneManager] Failed to Fixed_Update - No exist ActiveScene \n";
-        OutputDebugStringA(errMsg.c_str());
-    }
-}
-
 void SceneManager::Update(float ElapsedTime)
 {
     if (auto scene = mActiveScene.lock())
-        scene->Update(ElapsedTime);
+        scene->Update_Scene(ElapsedTime);
     else
     {
         std::string errMsg = "[SceneManager] Failed to Update - No exist ActiveScene \n";

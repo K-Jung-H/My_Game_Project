@@ -37,9 +37,11 @@ public:
     const std::vector<std::shared_ptr<Object>>& GetChildren();
     std::vector<std::shared_ptr<Object>> GetSiblings();
 
-
     void Update_Animate(float dt);
-    void Update_Transform_All();
+
+    void UpdateMotion_All(float dt);
+
+    void UpdateTransform_All();
     void Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty);
 
 private:
