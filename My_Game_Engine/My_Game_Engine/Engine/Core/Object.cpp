@@ -52,7 +52,7 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 
                 ofs << " [SubMeshes:";
                 bool first = true;
-                for (auto* mr : renderers)
+                for (auto mr : renderers)
                 {
                     if (auto mesh = mr->GetMesh())
                     {
@@ -86,14 +86,14 @@ static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Model>& model, 
     if (parent)
         obj->SetParent(parent);
 
-    if (auto transform = obj->GetComponent<TransformComponent>(Transform))
+    if (auto transform = obj->GetComponentRaw<TransformComponent>(Transform))
         transform->SetFromMatrix(node->localTransform);
 
     for (auto& mesh : node->meshes) 
     {
         if (!mesh) continue;
-        auto& mr = obj->AddComponent<MeshRendererComponent>();
-        mr.SetMesh(mesh->GetId());
+        auto mr = obj->AddComponent<MeshRendererComponent>();
+        mr->SetMesh(mesh->GetId());
     }
 
     for (auto& child : node->children) 
@@ -182,19 +182,6 @@ void Object::Update_Animate(float dt)
 {
 }
 
-void Object::UpdateMotion_All(float dt)
-{
-    auto transform = GetComponent<RigidbodyComponent>(Transform);
-    if (transform)
-        transform->Update(dt); 
-
-    for (auto& child : children)
-    {
-        if (child) child->UpdateMotion_All(dt);
-    }
-}
-
-
 void Object::UpdateTransform_All()
 {
     XMFLOAT4X4 identity;
@@ -208,7 +195,7 @@ void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDir
     const XMFLOAT4X4* worldForChildren = parentWorld;
     bool myWorldDirty = parentWorldDirty;
 
-    auto transform = GetComponent<TransformComponent>(Transform);
+    auto transform = GetComponentRaw<TransformComponent>(Transform);
 
     if (transform) 
     {
@@ -222,4 +209,3 @@ void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDir
         child->Update_Transform(worldForChildren, myWorldDirty);
     }
 }
-

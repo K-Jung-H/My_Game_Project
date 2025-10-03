@@ -1,11 +1,11 @@
 #pragma once
 #include "DX_Graphics/Renderer.h"
 #include "Managers/RendererManager.h"
-#include "Managers/PhysicsManager.h"
 #include "Resource/ResourceManager.h"
 #include "GameTimer.h"
 #include "InputManager.h"
 #include "Scene_Manager.h"
+#include "PhysicsSystem.h"
 
 class GameEngine
 {
@@ -26,7 +26,8 @@ public:
     void OnDestroy();
 
     void FrameAdvance();
-    void FixedUpdate(float dt);
+    void Update_Inputs(float dt);
+    void Update_Fixed(float dt);
     void Update_Scene(float dt);
     void Update_Late(float dt);
 
@@ -38,9 +39,10 @@ public:
     LRESULT CALLBACK OnProcessingWindowMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
 
     GameTimer* GetTimer() { return mTimer.get(); }
+    PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
     RendererManager* GetRendererManager() { return renderer_manager.get(); }
-    PhysicsManager* GetPhysicsManager() { return physics_manager.get(); }
     ResourceManager* GetResourceManager() { return resource_manager.get(); }
+
 
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
     RendererContext Get_UploadContext() const { return mRenderer->Get_UploadContext(); };
@@ -53,11 +55,11 @@ private:
     HWND m_hWnd;
 
     bool Is_Initialized = false;
-
-    std::unique_ptr<InputManager> m_Input_manager;
+    
+    std::unique_ptr<PhysicsSystem> m_PhysicsSystem;
+//    std::unique_ptr<InputManager> m_Input_manager;
     std::unique_ptr<GameTimer> mTimer;
     std::unique_ptr<DX12_Renderer>   mRenderer;
-    std::unique_ptr<PhysicsManager>  physics_manager;
     std::unique_ptr<RendererManager> renderer_manager;
     std::unique_ptr<ResourceManager> resource_manager;
 

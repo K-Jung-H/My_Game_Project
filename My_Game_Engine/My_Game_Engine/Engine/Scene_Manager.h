@@ -26,9 +26,6 @@ private:
 public:
     ~SceneManager() = default;
 
-    void Update_Inputs();
-    void Update(float ElapsedTime);
-    void Render();
 
 public:
     void SetActiveScene(const std::shared_ptr<Scene>& scene);

@@ -1,38 +1,5 @@
 #include "Scene_Manager.h"
 
-void SceneManager::Update_Inputs()
-{
-    if (auto scene = mActiveScene.lock()) 
-        scene->Update_Inputs();  
-    else
-    {
-        std::string errMsg = "[SceneManager] Failed to Check_Inputs - No exist ActiveScene \n";
-        OutputDebugStringA(errMsg.c_str());
-    }
-}
-
-void SceneManager::Update(float ElapsedTime)
-{
-    if (auto scene = mActiveScene.lock())
-        scene->Update_Scene(ElapsedTime);
-    else
-    {
-        std::string errMsg = "[SceneManager] Failed to Update - No exist ActiveScene \n";
-        OutputDebugStringA(errMsg.c_str());
-    }
-}
-
-void SceneManager::Render()
-{
-    if (auto scene = mActiveScene.lock())
-        scene->Render();
-    else
-    {
-        std::string errMsg = "[SceneManager] Failed to Render - No exist ActiveScene \n";
-        OutputDebugStringA(errMsg.c_str());
-    }
-}
-
 void SceneManager::SetActiveScene(const std::shared_ptr<Scene>& scene) 
 {
     mActiveScene = scene;

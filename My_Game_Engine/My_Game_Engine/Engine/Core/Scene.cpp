@@ -1,6 +1,7 @@
 #include "Scene.h"
 #include "GameEngine.h"
 #include "Resource/ResourceRegistry.h"
+#include "Components/RigidbodyComponent.h"
 
 Scene::Scene() 
 { 
@@ -15,9 +16,10 @@ Scene::~Scene()
 void Scene::Build()
 {
 	std::shared_ptr<Object> camera_obj = Object::Create("Main_Camera");
-	camera_obj->AddComponent<CameraComponent>();
-	camera_obj->GetComponent<CameraComponent>(Camera)->SetPosition({ 0.0f, 0.0f, 50.0f });
-	camera_obj->GetComponent<CameraComponent>(Camera)->SetTarget({ 0.0f, 0.0f, 0.0f });
+	auto camera_component = camera_obj->AddComponent<CameraComponent>();
+	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
+	camera_component->SetTarget({ 0.0f, 0.0f, 0.0f });
+	SetActiveCamera(camera_component);
 
 	auto* resourceManager = GameEngine::Get().GetResourceManager();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
@@ -34,6 +36,9 @@ void Scene::Build()
 	std::shared_ptr<Object> test_model_obj = Object::Create(model_ptr);
 	test_model_obj->GetComponent<TransformComponent>(Transform)->SetScale({ 5, 5, 5 });
 	test_model_obj->GetComponent<TransformComponent>(Transform)->SetPosition({0, 0, 0});
+	auto rb = test_model_obj->AddComponent<RigidbodyComponent>();
+	rb->SetUseGravity(false);
+
 
 	obj_list.push_back(camera_obj);
 	obj_list.push_back(test_model_obj);
@@ -45,16 +50,27 @@ void Scene::Build()
 }
 
 
-void Scene::Update_Inputs()
+void Scene::Update_Inputs(float dt)
 {
+	if (auto cam = activeCamera.lock())
+	{
+		XMFLOAT3 pos = cam->GetPosition();
+		float speed = 50.0f * dt;
+
+		if (InputManager::Get().IsKeyDown('W')) pos.z += speed;
+		if (InputManager::Get().IsKeyDown('S')) pos.z -= speed;
+		if (InputManager::Get().IsKeyDown('A')) pos.x -= speed;
+		if (InputManager::Get().IsKeyDown('D')) pos.x += speed;
+		if (InputManager::Get().IsKeyDown('Q')) pos.y -= speed;
+		if (InputManager::Get().IsKeyDown('E')) pos.y += speed;
+
+		cam->SetPosition(pos);
+	}
 }
 
 void Scene::Update_Fixed(float dt) 
 {
-	for (auto obj_ptr : obj_list)
-	{
-		obj_ptr->UpdateMotion_All(dt);
-	}
+	GameEngine::Get().GetPhysicsSystem()->Update(scene_id, dt);
 }
 
 void Scene::Update_Scene(float dt)
@@ -92,7 +108,7 @@ void Scene::RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp)
 
 			if (auto owner = c->GetOwner())
 			{
-				if (auto tf = owner->GetComponent<TransformComponent>(Transform))
+				if (auto tf = owner->GetComponentRaw<TransformComponent>(Transform))
 					rd.transform = std::static_pointer_cast<TransformComponent>(tf->shared_from_this());
 			}
 

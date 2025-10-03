@@ -21,13 +21,20 @@ public:
     std::string GetName() { return mName; }
 
     template<typename T, typename... Args>
-    T& AddComponent(Args&&... args);
+    std::shared_ptr<T> AddComponent(Args&&... args);
+
 
     template<typename T>
-    T* GetComponent(Component_Type type);
+    std::shared_ptr<T>  GetComponent(Component_Type type);
 
     template<typename T>
-    std::vector<T*> GetComponents(Component_Type type);
+    T* GetComponentRaw(Component_Type type);
+
+    template<typename T>
+    std::weak_ptr<T> GetComponentWeak(Component_Type type);
+
+    template<typename T>
+    std::vector<std::shared_ptr<T>> GetComponents(Component_Type type);
 
     void SetParent(std::shared_ptr<Object> parent);
     void SetChild(std::shared_ptr<Object> child);
@@ -38,8 +45,6 @@ public:
     std::vector<std::shared_ptr<Object>> GetSiblings();
 
     void Update_Animate(float dt);
-
-    void UpdateMotion_All(float dt);
 
     void UpdateTransform_All();
     void Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty);
@@ -59,8 +64,18 @@ private:
 
 };
 
+
 template<typename T>
-T* Object::GetComponent(Component_Type type)
+std::shared_ptr<T> Object::GetComponent(Component_Type type)
+{
+    auto it = map_Components.find(type);
+    if (it != map_Components.end())
+        return std::dynamic_pointer_cast<T>(it->second.front());
+    return nullptr;
+}
+
+template<typename T>
+T* Object::GetComponentRaw(Component_Type type)
 {
     auto it = map_Components.find(type);
     if (it != map_Components.end())
@@ -70,29 +85,40 @@ T* Object::GetComponent(Component_Type type)
 }
 
 template<typename T>
-std::vector<T*> Object::GetComponents(Component_Type type)
+std::weak_ptr<T> Object::GetComponentWeak(Component_Type type)
 {
-    std::vector<T*> result;
     auto it = map_Components.find(type);
-    if (it != map_Components.end()) {
-        for (auto& c : it->second)
-            result.push_back(dynamic_cast<T*>(c.get()));
+    if (it != map_Components.end())
+        return std::dynamic_pointer_cast<T>(it->second.front());
+    return {};
+}
+
+template<typename T>
+std::vector<std::shared_ptr<T>> Object::GetComponents(Component_Type type)
+{
+    std::vector<std::shared_ptr<T>> result;
+    auto it = map_Components.find(type);
+    if (it != map_Components.end()) 
+    {
+        for (auto& c : it->second) 
+        {
+            if (auto casted = std::dynamic_pointer_cast<T>(c))
+                result.push_back(casted);
+        }
     }
     return result;
 }
 
-
 template<typename T, typename... Args>
-T& Object::AddComponent(Args&&... args)
+std::shared_ptr<T> Object::AddComponent(Args&&... args)
 {
     Component_Type type = T::Type;
 
     auto comp = std::make_shared<T>(std::forward<Args>(args)...);
-    T& ref = *comp;
     comp->SetOwner(shared_from_this());
 
     map_Components[type].push_back(comp);
     ComponentRegistry::Notify(comp);
 
-    return ref;
+    return comp; 
 }

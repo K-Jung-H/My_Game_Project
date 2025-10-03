@@ -8,32 +8,28 @@ public:
         static InputManager instance;
         return instance;
     }
-    
-    ~InputManager() = default;
 
-    InputManager(const InputManager&) = delete;
-    InputManager& operator=(const InputManager&) = delete;
+    bool IsKeyDown(UINT key) const;
+    bool IsKeyUp(UINT key) const;
+    bool IsKeyPressedOnce(UINT key) const;
+    bool IsKeyReleasedOnce(UINT key) const;
 
     void ProcessMessage(UINT msg, WPARAM wParam, LPARAM lParam);
+    void EndFrame();
 
-
-    bool IsKeyDown(unsigned char key) const { return mKeyStates[key]; }
-    bool IsKeyUp(unsigned char key) const { return !mKeyStates[key]; }
-
-    POINT GetMousePosition() const { return mMousePos; }
+    POINT GetMousePos() const { return mMousePos; }
     POINT GetMouseDelta() const { return mMouseDelta; }
-    short GetMouseWheelDelta() const { return mWheelDelta; }
-
-    void EndFrame(); 
+    int   GetWheelDelta() const { return mWheelDelta; }
 
 private:
     InputManager() = default;
+    ~InputManager() = default;
 
+    std::bitset<256> mKeyStates{};
+    std::bitset<256> mPrevKeyStates{};
 
-private:
-    std::array<bool, 256> mKeyStates{}; 
-    POINT mMousePos{ 0,0 };
-    POINT mPrevMousePos{ 0,0 };
-    POINT mMouseDelta{ 0,0 };
-    short mWheelDelta = 0;
+    POINT mMousePos{};
+    POINT mPrevMousePos{};
+    POINT mMouseDelta{};
+    int   mWheelDelta = 0;
 };

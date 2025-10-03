@@ -22,8 +22,13 @@ void ComponentRegistry::Notify(std::weak_ptr<Component> comp)
         break;
 
         case Component_Type::Collider:
-            GameEngine::Get().GetPhysicsManager()->Register(comp);
-            break;
+        case Component_Type::Rigidbody:
+        {
+            if (auto owner = c->GetOwner()) 
+                if (auto active_scene = SceneManager::Get().GetActiveScene()) 
+                    GameEngine::Get().GetPhysicsSystem()->Register(active_scene->GetId(), owner);
+        }
+        break;
 
         case Component_Type::Camera:
         {

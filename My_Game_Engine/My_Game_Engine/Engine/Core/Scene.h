@@ -24,12 +24,12 @@ public:
 
     const std::shared_ptr<CameraComponent> GetActiveCamera() { return activeCamera.lock(); }
     const std::vector<std::weak_ptr<CameraComponent>>& GetCamera_list() const { return camera_list; }
-    void SetActiveCamera(std::weak_ptr<CameraComponent> cam) { activeCamera = cam; }
+    void SetActiveCamera(const std::shared_ptr<CameraComponent>& cam) { activeCamera = cam; }
 
-    virtual void Update_Inputs();
-    virtual void Update_Fixed(float dt); // For Physics
+    virtual void Update_Inputs(float dt);
+    virtual void Update_Fixed(float dt);
     virtual void Update_Scene(float dt);
-    virtual void Update_Late(float dt); // Game Logic
+    virtual void Update_Late(float dt);
 
     virtual void Render() {}
 

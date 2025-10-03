@@ -1,9 +1,5 @@
 #include "RigidbodyComponent.h"
 
-RigidbodyComponent::RigidbodyComponent()
-{
-}
-
 void RigidbodyComponent::AddVelocity(const XMFLOAT3& v)
 {
     mVelocity.x += v.x;
@@ -40,7 +36,7 @@ void RigidbodyComponent::AddTorque(const XMFLOAT3& t)
 }
 
 
-void RigidbodyComponent::UpdateMotion(float dt)
+void RigidbodyComponent::Update(float dt)
 {
     if (mIsKinematic) return; 
 
@@ -49,8 +45,12 @@ void RigidbodyComponent::UpdateMotion(float dt)
     accel.y += mForceAccum.y / mMass;
     accel.z += mForceAccum.z / mMass;
 
-    if (mUseGravity)
-        accel.y += -9.8f; 
+    if (mUseGravity) 
+    {
+        accel.x += mGravity.x;
+        accel.y += mGravity.y;
+        accel.z += mGravity.z;
+    }
 
 
     mVelocity.x += accel.x * dt;
@@ -68,4 +68,5 @@ void RigidbodyComponent::UpdateMotion(float dt)
     mForceAccum = { 0,0,0 };
     mTorqueAccum = { 0,0,0 };
 
+    OutputDebugStringA("?\n");
 }

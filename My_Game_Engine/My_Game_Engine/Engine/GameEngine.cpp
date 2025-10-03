@@ -32,7 +32,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	ImGui_ImplDX12_Init(&init_info);
 
 	mTimer = std::make_unique<GameTimer>();
-	physics_manager = std::make_unique<PhysicsManager>();
+	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
 	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
 
@@ -41,6 +41,9 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	auto ctx = mRenderer->Get_UploadContext();
 
 	SceneManager::Get().CreateScene("wow");
+
+
+
 
 	mRenderer->EndUpload();
 
@@ -52,7 +55,12 @@ void GameEngine::OnDestroy()
 	mRenderer->Cleanup();
 }
 
-void GameEngine::FixedUpdate(float dt)
+void GameEngine::Update_Inputs(float dt)
+{
+	active_scene->Update_Inputs(dt);
+}
+
+void GameEngine::Update_Fixed(float dt)
 {
 	active_scene->Update_Fixed(dt);
 }
@@ -71,11 +79,16 @@ void GameEngine::Update_Late(float dt)
 void GameEngine::FrameAdvance()
 {
 	mTimer->Tick();
-
-	float deltaTime = mTimer->GetDeltaTime();
 	active_scene = SceneManager::Get().GetActiveScene();
 
-	
+
+	float deltaTime = mTimer->GetDeltaTime();
+
+	Update_Inputs(deltaTime);
+	Update_Fixed(deltaTime);
+	Update_Scene(deltaTime);
+	Update_Late(deltaTime);
+
 
 	std::vector<RenderData> renderData_list = active_scene->GetRenderable();
 	std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
@@ -87,6 +100,7 @@ void GameEngine::FrameAdvance()
 	//if (minimap_Camera)
 	//	mRenderer->Render(renderable_list, minimap_Camera);
 
+	InputManager::Get().EndFrame();
 }
 
 
@@ -97,10 +111,10 @@ void GameEngine::OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM w
 
 	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
 	InputManager::Get().ProcessMessage(nMessageID, wParam, lParam);
+
+
 	switch (nMessageID)
 	{
-
-
 
 	default:
 		break;
