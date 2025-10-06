@@ -8,7 +8,7 @@ void PhysicsSystem::Register(SceneID id, std::shared_ptr<Object> obj)
 {
     auto rb = obj->GetComponent<RigidbodyComponent>(Component_Type::Rigidbody);
     auto col = obj->GetComponent<ColliderComponent>(Component_Type::Collider);
-    auto tf = obj->GetComponent<TransformComponent>(Component_Type::Transform);
+    auto tf = obj->GetTransform();
 
     if (rb) 
     {

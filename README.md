@@ -22,6 +22,16 @@ WindowMessage를 처리하는 플로우 완성
 
 입력에 따른 dt 기반 카메라 움직임 추가
 
+Scene에 GameObject를 저장하는 컨테이너 역할 추가
+
+
+
+무조건 ObjectManager를 통해 Object를 생성하도록 권한 설정 // ID 기반 관리 및 동시 생성 및 접근 대응
+
+
+
+
+
 
 
 
@@ -29,5 +39,6 @@ WindowMessage를 처리하는 플로우 완성
 할 일:
 
 * 계층 구조 Update 로직에, TransformComponent에 상태를 추가하기 // \[상속, 독립, 비활성화]로 업데이트 관리
-* Scene에 GameObject를 저장하는 컨테이너 역할 추가하기
-* Scene에 GameObject를 관리하는 기능 추가하기
+* Renderer에 전달하던 RenderData, Camera 대신, ActiveScene 자체를 전달하도록 수정하기
+* imgui를 통해, 현재 씬에 포함되는 객체 정보들을 시각화하기
+* 카메라 변화에 따른 Lookat 값이 변경되도록 수정하기

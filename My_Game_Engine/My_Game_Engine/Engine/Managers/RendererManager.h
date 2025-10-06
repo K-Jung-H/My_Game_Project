@@ -1,5 +1,4 @@
 #pragma once
-#include "Components/MeshRendererComponent.h"
 
 class Component;
 class MeshRendererComponent;

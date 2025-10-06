@@ -2,9 +2,10 @@
 #include "DX_Graphics/Renderer.h"
 #include "Managers/RendererManager.h"
 #include "Resource/ResourceManager.h"
-#include "GameTimer.h"
 #include "InputManager.h"
+#include "GameTimer.h"
 #include "Scene_Manager.h"
+#include "Managers/ObjectManager.h"
 #include "PhysicsSystem.h"
 
 class GameEngine
@@ -42,7 +43,7 @@ public:
     PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
     RendererManager* GetRendererManager() { return renderer_manager.get(); }
     ResourceManager* GetResourceManager() { return resource_manager.get(); }
-
+    ObjectManager* GetObjectManager() { return mObjectmanager.get(); }
 
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
     RendererContext Get_UploadContext() const { return mRenderer->Get_UploadContext(); };
@@ -57,11 +58,11 @@ private:
     bool Is_Initialized = false;
     
     std::unique_ptr<PhysicsSystem> m_PhysicsSystem;
-//    std::unique_ptr<InputManager> m_Input_manager;
     std::unique_ptr<GameTimer> mTimer;
     std::unique_ptr<DX12_Renderer>   mRenderer;
     std::unique_ptr<RendererManager> renderer_manager;
     std::unique_ptr<ResourceManager> resource_manager;
+    std::unique_ptr<ObjectManager> mObjectmanager;
 
     std::shared_ptr<Scene> active_scene;
 

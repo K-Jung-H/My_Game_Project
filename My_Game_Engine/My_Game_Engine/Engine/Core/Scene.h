@@ -48,5 +48,7 @@ private:
     std::vector<RenderData> renderData_list;
     std::vector<std::weak_ptr<CameraComponent>> camera_list;
     std::weak_ptr<CameraComponent> activeCamera;
-    std::vector<std::shared_ptr<Object>> obj_list;
+
+    std::unordered_map<uint64_t, std::shared_ptr<Object>> obj_map;
+    std::vector<std::shared_ptr<Object>> obj_root_list;
 };

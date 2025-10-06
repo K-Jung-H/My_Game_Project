@@ -1,10 +1,37 @@
 #include "Object.h"
+#include "GameEngine.h"
 #include "Components/TransformComponent.h"
 #include "Components/CameraComponent.h"
 #include "Components/MeshRendererComponent.h"
 #include "Components/RigidbodyComponent.h"
 #include "Components/ColliderComponent.h"
 #include "Resource/Model.h"
+
+static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Model>& model, const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
+{
+    auto om = GameEngine::Get().GetObjectManager();
+    const Skeleton& skeleton = model->GetSkeleton();
+
+    auto obj = om->CreateObject(node->name);
+    if (parent)
+        obj->SetParent(parent);
+
+    if (auto transform = obj->GetTransform())
+        transform->SetFromMatrix(node->localTransform);
+
+    for (auto& mesh : node->meshes)
+    {
+        if (!mesh) continue;
+        auto mr = obj->AddComponent<MeshRendererComponent>();
+        mr->SetMesh(mesh->GetId());
+    }
+
+    for (auto& child : node->children)
+        ConvertNode(model, child, obj);
+
+
+    return obj;
+}
 
 UINT Object::CountNodes(const std::shared_ptr<Object>& root)
 {
@@ -52,7 +79,7 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 
                 ofs << " [SubMeshes:";
                 bool first = true;
-                for (auto mr : renderers)
+                for (auto& mr : renderers)
                 {
                     if (auto mesh = mr->GetMesh())
                     {
@@ -77,32 +104,6 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 }
 
 
-
-static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Model>& model, const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
-{
-    const Skeleton& skeleton = model->GetSkeleton();
-
-    auto obj = Object::Create(node->name);
-    if (parent)
-        obj->SetParent(parent);
-
-    if (auto transform = obj->GetComponentRaw<TransformComponent>(Transform))
-        transform->SetFromMatrix(node->localTransform);
-
-    for (auto& mesh : node->meshes) 
-    {
-        if (!mesh) continue;
-        auto mr = obj->AddComponent<MeshRendererComponent>();
-        mr->SetMesh(mesh->GetId());
-    }
-
-    for (auto& child : node->children) 
-        ConvertNode(model, child, obj);
-
-
-    return obj;
-}
-
 static std::shared_ptr<Object> ConvertModelToObjects(const std::shared_ptr<Model>& model)
 {
     if (!model || !model->GetRoot())
@@ -119,7 +120,8 @@ std::shared_ptr<Object> Object::Create(const std::shared_ptr<Model> model)
 std::shared_ptr<Object> Object::Create(const std::string& name)
 {
     auto obj = std::shared_ptr<Object>(new Object(name));
-    obj->AddComponent<TransformComponent>();
+    auto obj_transform = obj->AddComponent<TransformComponent>();
+    obj->transform = obj_transform;
     return obj;
 }
 
@@ -195,7 +197,7 @@ void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDir
     const XMFLOAT4X4* worldForChildren = parentWorld;
     bool myWorldDirty = parentWorldDirty;
 
-    auto transform = GetComponentRaw<TransformComponent>(Transform);
+    auto transform = GetTransform();
 
     if (transform) 
     {

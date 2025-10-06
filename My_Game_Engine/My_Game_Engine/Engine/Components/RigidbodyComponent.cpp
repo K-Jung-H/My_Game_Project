@@ -67,6 +67,4 @@ void RigidbodyComponent::Update(float dt)
 
     mForceAccum = { 0,0,0 };
     mTorqueAccum = { 0,0,0 };
-
-    OutputDebugStringA("?\n");
 }

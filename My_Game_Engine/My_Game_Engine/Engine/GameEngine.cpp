@@ -35,7 +35,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
 	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
-
+	mObjectmanager = std::make_unique<ObjectManager>();
 
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();
@@ -81,7 +81,6 @@ void GameEngine::FrameAdvance()
 	mTimer->Tick();
 	active_scene = SceneManager::Get().GetActiveScene();
 
-
 	float deltaTime = mTimer->GetDeltaTime();
 
 	Update_Inputs(deltaTime);
@@ -94,7 +93,7 @@ void GameEngine::FrameAdvance()
 	std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
 
 	if (mainCam)
-		mRenderer->Render(renderData_list, mainCam);
+		mRenderer->Render(active_scene);
 
 
 	//if (minimap_Camera)

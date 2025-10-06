@@ -15,38 +15,41 @@ Scene::~Scene()
 
 void Scene::Build()
 {
-	std::shared_ptr<Object> camera_obj = Object::Create("Main_Camera");
+	auto om = GameEngine::Get().GetObjectManager();
+	auto* rcm = GameEngine::Get().GetResourceManager();
+	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
+
+	//--------------------------------------------------------------------------------
+	std::shared_ptr<Object> camera_obj = om->CreateObject("Main_Camera");
 	auto camera_component = camera_obj->AddComponent<CameraComponent>();
 	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
 	camera_component->SetTarget({ 0.0f, 0.0f, 0.0f });
 	SetActiveCamera(camera_component);
+	obj_root_list.push_back(camera_obj);
 
-	auto* resourceManager = GameEngine::Get().GetResourceManager();
-	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
+	//--------------------------------------------------------------------------------
 
 	const std::string path = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 //	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 	Model::loadAndExport(path, "test_assimp_export.txt");
 	
-	LoadResult result = ResourceRegistry::Instance().Load(*resourceManager, path, "test", ctx);
-
-
-	auto rcm = GameEngine::Get().GetResourceManager();
+	LoadResult result = ResourceRegistry::Instance().Load(*rcm, path, "test", ctx);
 	auto model_ptr = rcm->GetById<Model>(result.modelId);
-	std::shared_ptr<Object> test_model_obj = Object::Create(model_ptr);
-	test_model_obj->GetComponent<TransformComponent>(Transform)->SetScale({ 5, 5, 5 });
-	test_model_obj->GetComponent<TransformComponent>(Transform)->SetPosition({0, 0, 0});
-	auto rb = test_model_obj->AddComponent<RigidbodyComponent>();
+
+
+	std::shared_ptr<Object> test_obj = om->CreateFromModel(model_ptr);
+	test_obj->GetTransform()->SetScale({5, 5, 5});
+	test_obj->GetTransform()->SetPosition({0, 0, 0});
+	auto rb = test_obj->AddComponent<RigidbodyComponent>();
 	rb->SetUseGravity(false);
 
 
-	obj_list.push_back(camera_obj);
-	obj_list.push_back(test_model_obj);
+	obj_root_list.push_back(test_obj);
 
 	// For Debug
 	UINT model_node_num = Model::CountNodes(model_ptr);
-	UINT node_num = Object::CountNodes(test_model_obj);
-	Object::DumpHierarchy(test_model_obj, "test_model_tree.txt");
+	UINT node_num = Object::CountNodes(test_obj);
+	Object::DumpHierarchy(test_obj, "test_model_tree.txt");
 }
 
 
@@ -75,7 +78,7 @@ void Scene::Update_Fixed(float dt)
 
 void Scene::Update_Scene(float dt)
 {
-	for (auto obj_ptr : obj_list)
+	for (auto obj_ptr : obj_root_list)
 	{
 		obj_ptr->Update_Animate(dt);
 	}
@@ -83,7 +86,7 @@ void Scene::Update_Scene(float dt)
 
 void Scene::Update_Late(float dt)
 {
-	for (auto obj_ptr : obj_list)
+	for (auto obj_ptr : obj_root_list)
 	{
 		obj_ptr->UpdateTransform_All();
 	}
@@ -108,8 +111,8 @@ void Scene::RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp)
 
 			if (auto owner = c->GetOwner())
 			{
-				if (auto tf = owner->GetComponentRaw<TransformComponent>(Transform))
-					rd.transform = std::static_pointer_cast<TransformComponent>(tf->shared_from_this());
+				if (auto tf = owner->GetTransform())
+					rd.transform = tf;
 			}
 
 			renderData_list.push_back(rd);
