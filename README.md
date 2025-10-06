@@ -42,3 +42,5 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 * Renderer에 전달하던 RenderData, Camera 대신, ActiveScene 자체를 전달하도록 수정하기
 * imgui를 통해, 현재 씬에 포함되는 객체 정보들을 시각화하기
 * 카메라 변화에 따른 Lookat 값이 변경되도록 수정하기
+
+* ObjectManager에서 ID를 인자로 할당하여 생성하는 흐름을 추가 할 것 // 네트워크 기반 객체 생성시 필요한 기능이 될거임
