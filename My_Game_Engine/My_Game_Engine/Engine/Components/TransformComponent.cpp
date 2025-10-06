@@ -16,12 +16,43 @@ TransformComponent::TransformComponent()
     
 }
 
-void TransformComponent::SetRotation(float pitch, float yaw, float roll)
+void TransformComponent::SetRotation_PYR(float pitch, float yaw, float roll)
 {
     XMFLOAT4 quat = Matrix4x4::QuaternionFromEuler(pitch, yaw, roll);
-    SetRotation(quat); 
+    SetRotationQuaternion(quat); 
 }
 
+XMFLOAT3 TransformComponent::GetRotationEuler() const
+{
+    XMVECTOR q = XMLoadFloat4(&mRotation);
+    XMMATRIX rotMat = XMMatrixRotationQuaternion(q);
+
+    XMFLOAT4X4 m;
+    XMStoreFloat4x4(&m, rotMat);
+
+    float pitch, yaw, roll;
+
+    float sy = -m._32;
+    sy = std::clamp(sy, -1.0f, 1.0f);
+    pitch = asinf(sy);
+    yaw = atan2f(m._31, m._33);
+    roll = atan2f(m._12, m._22);
+
+    return XMFLOAT3(
+        XMConvertToDegrees(pitch),
+        XMConvertToDegrees(yaw),
+        XMConvertToDegrees(roll)
+    );
+}
+
+void TransformComponent::SetRotationEuler(const XMFLOAT3& eulerDeg)
+{
+    float pitch = XMConvertToRadians(eulerDeg.x);
+    float yaw = XMConvertToRadians(eulerDeg.y);
+    float roll = XMConvertToRadians(eulerDeg.z);
+    mRotation = Matrix4x4::QuaternionFromEuler(pitch, yaw, roll);
+    mUpdateFlag = true;
+}
 
 void TransformComponent::AddPosition(const XMFLOAT3& dp)
 {

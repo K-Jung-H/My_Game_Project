@@ -16,6 +16,7 @@ public:
     const XMFLOAT3& GetVelocity() const { return mVelocity; }
     const XMFLOAT3& GetAcceleration() const { return mAcceleration; }
     const XMFLOAT3& GetAngularVelocity() const { return mAngularVelocity; }
+    const bool GetUseGravity() { return mUseGravity; }
     const XMFLOAT3& GetGravity() const { return mGravity; }
 
     void SetVelocity(const XMFLOAT3& v) { mVelocity = v; }

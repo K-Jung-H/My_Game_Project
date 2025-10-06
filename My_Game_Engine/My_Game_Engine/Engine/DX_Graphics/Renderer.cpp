@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include "GameEngine.h"
 #include "DXMathUtils.h"
+#include "Components/RigidbodyComponent.h"
 #include "Resource/Mesh.h"
 #include "Resource/Material.h"
 #include <stdexcept>
@@ -882,19 +883,27 @@ void DX12_Renderer::PresentFrame()
     mFrameFenceValues[mFrameIndex] = currentFence;
 }
 
-void DX12_Renderer::Render(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera)
+void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 {
+    std::shared_ptr<CameraComponent> mainCam = render_scene->GetActiveCamera();
+    std::vector<RenderData> renderData_list = render_scene->GetRenderable();
+    
+    if (!mainCam)
+        return;
+
+    //--------------------------------------------------------------------------------------
+
     PrepareCommandList();
     
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
     mCommandList->SetDescriptorHeaps(1, heaps);
 
-    render_camera->Update();
-    render_camera->SetViewportsAndScissorRects(mCommandList);
+    mainCam->Update();
+    mainCam->SetViewportsAndScissorRects(mCommandList);
 
     UpdateObjectCBs(renderData_list);
 
-    GeometryPass(renderData_list, render_camera);
+    GeometryPass(renderData_list, mainCam);
 
     CompositePass();
 
@@ -1066,7 +1075,6 @@ void DX12_Renderer::ImguiPass()
     bool use_imgui = true;
     if (use_imgui)
     {
-        // ImGui Ω√¿€
         ImGui_ImplDX12_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
@@ -1075,8 +1083,22 @@ void DX12_Renderer::ImguiPass()
         ImGui::Text("FPS: %lu", fps);
         ImGui::End();
 
-        ImGui::Begin("Color Controller");
-        ImGui::ColorEdit4("MyColor RGBA", clear_color);
+        // ------------------ Scene Hierarchy ------------------
+        auto scene = GameEngine::Get().GetActiveScene();
+        if (scene)
+        {
+            ImGui::Begin("Scene Hierarchy");
+            std::vector<std::shared_ptr<Object>> root_obj_list = scene->GetRootObjectList();
+
+            for (auto& root : root_obj_list)
+                DrawObjectNode(root);
+            ImGui::End();
+        }
+
+        // ------------------ Inspector ------------------
+        ImGui::Begin("Inspector");
+        auto selected = GameEngine::Get().GetSelectedObject();
+        DrawInspector(selected);
         ImGui::End();
 
 
@@ -1217,4 +1239,142 @@ ImGui_ImplDX12_InitInfo DX12_Renderer::GetImGuiInitInfo() const
     init_info.LegacySingleSrvGpuDescriptor = mImguiSrvHeap->GetGPUDescriptorHandleForHeapStart();
 
     return init_info;
+}
+
+
+void DrawObjectNode(const std::shared_ptr<Object>& obj)
+{
+    if (!obj) return;
+
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth;
+    if (obj->GetChildren().empty())
+        flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+
+    std::string label = obj->GetName();
+    bool opened = ImGui::TreeNodeEx((void*)(intptr_t)obj->GetId(), flags, "%s", label.c_str());
+
+    if (ImGui::IsItemClicked())
+        GameEngine::Get().SelectObject(obj);
+
+    if (opened && !(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen))
+    {
+        for (auto& child : obj->GetChildren())
+            DrawObjectNode(child);
+        ImGui::TreePop();
+    }
+}
+
+void DrawInspector(std::shared_ptr<Object> obj)
+{
+    if (!obj)
+    {
+        ImGui::Text("No Object Selected");
+        return;
+    }
+
+    ImGui::Text("Name: %s", obj->GetName().c_str());
+    ImGui::Text("ID: %u", obj->GetId());
+
+    if (auto tf = obj->GetTransform())
+    {
+        ImGui::Text("\n");
+        ImGui::Text("Transform:");
+        XMFLOAT3 pos = tf->GetPosition();
+        XMFLOAT3 rot = tf->GetRotationEuler();
+        XMFLOAT3 scale = tf->GetScale();
+
+        if (ImGui::DragFloat3("Position", reinterpret_cast<float*>(&pos), 0.01f))
+            tf->SetPosition(pos);
+        if (ImGui::DragFloat3("Rotation", reinterpret_cast<float*>(&rot), 0.1f))
+            tf->SetRotationEuler(rot);
+        if (ImGui::DragFloat3("Scale", reinterpret_cast<float*>(&scale), 0.01f))
+            tf->SetScale(scale);
+    }
+
+    ImGui::Separator();
+    ImGui::Text("Components:");
+
+    std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>> component_list = obj->GetComponents();
+
+    for (auto& [type, comps] : component_list)
+    {
+        if (comps.empty()) continue;
+
+        std::string component_name = "";
+        switch (type)
+        {
+        case    Mesh_Renderer: component_name = "Mesh_Renderer"; break;
+        case    Camera: component_name = "Camera"; break;
+        case    Collider:   component_name = "Collider"; break;
+        case    Rigidbody:  component_name = "Rigidbody"; break;
+
+        case    Transform:
+        case    etc:
+        default:
+            continue;
+        }
+
+        if (ImGui::CollapsingHeader(component_name.data(), ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            for (auto& comp : comps)
+            {
+                DrawComponentInspector(comp);
+            }
+        }
+    }
+}
+
+void DrawComponentInspector(const std::shared_ptr<Component>& comp)
+{
+    Component_Type component_type = comp->GetType();
+
+    switch (component_type)
+    {
+
+    case Mesh_Renderer:
+    {
+        std::shared_ptr<MeshRendererComponent> mr = dynamic_pointer_cast<MeshRendererComponent>(comp);
+        if (mr)
+        {
+            ImGui::Text("MeshRenderer");
+            ImGui::Indent();
+            ImGui::Text("Mesh ID: %u", mr->GetMesh());
+            ImGui::Unindent();
+        }
+    }
+    break;
+
+    case Camera:
+        break;
+    case Collider:
+        break;
+    case Rigidbody:
+    {
+        std::shared_ptr<RigidbodyComponent> rb = dynamic_pointer_cast<RigidbodyComponent>(comp);
+        if (rb)
+        {
+            ImGui::Text("Rigidbody");
+            ImGui::Indent();
+            float mass = rb->GetMass();
+            bool useGravity = rb->GetUseGravity();
+            XMFLOAT3 GravityValue = rb->GetGravity();
+
+            if (ImGui::DragFloat("Mass", &mass, 0.1f, 0.1f, 100.0f))
+                rb->SetMass(mass);
+            if (ImGui::Checkbox("Use Gravity", &useGravity))
+                rb->SetUseGravity(useGravity);
+            if (ImGui::DragFloat3("Gravity Value", reinterpret_cast<float*>(&GravityValue), 0.01f))
+                rb->SetGravity(GravityValue);
+
+            ImGui::Unindent();
+        } 
+    }
+    break;
+
+    case Transform:
+    case etc:
+    default:
+        ImGui::Text("Unknown Component");
+        break;
+    }
 }

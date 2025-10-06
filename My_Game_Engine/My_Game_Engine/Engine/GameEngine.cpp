@@ -89,11 +89,7 @@ void GameEngine::FrameAdvance()
 	Update_Late(deltaTime);
 
 
-	std::vector<RenderData> renderData_list = active_scene->GetRenderable();
-	std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
-
-	if (mainCam)
-		mRenderer->Render(active_scene);
+	mRenderer->Render(active_scene);
 
 
 	//if (minimap_Camera)

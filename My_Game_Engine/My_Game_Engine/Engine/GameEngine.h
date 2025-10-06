@@ -22,6 +22,10 @@ public:
     GameEngine(GameEngine&&) = delete;
     GameEngine& operator=(GameEngine&&) = delete;
 
+private:
+    GameEngine() = default;  // private constructor
+    ~GameEngine() = default; // optional, private destructor
+
 public:
     void OnCreate(HINSTANCE hInstance, HWND hMainWnd);
     void OnDestroy();
@@ -48,9 +52,11 @@ public:
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
     RendererContext Get_UploadContext() const { return mRenderer->Get_UploadContext(); };
 
-private:
-    GameEngine() = default;  // private constructor
-    ~GameEngine() = default; // optional, private destructor
+    std::shared_ptr<Object> GetSelectedObject() { return mSelectedObject; }
+    std::shared_ptr<Scene> GetActiveScene() { return active_scene; }
+
+    void SelectObject(std::shared_ptr<Object> obj) { mSelectedObject = obj; }
+
 
 private:
     HWND m_hWnd;
@@ -65,7 +71,7 @@ private:
     std::unique_ptr<ObjectManager> mObjectmanager;
 
     std::shared_ptr<Scene> active_scene;
-
+    std::shared_ptr<Object> mSelectedObject;
 private: // Sync to Win api
     UINT mPendingWidth = 0;
     UINT mPendingHeight = 0;

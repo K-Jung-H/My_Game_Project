@@ -39,6 +39,13 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 할 일:
 
 * 계층 구조 Update 로직에, TransformComponent에 상태를 추가하기 // \[상속, 독립, 비활성화]로 업데이트 관리
-* Renderer에 전달하던 RenderData, Camera 대신, ActiveScene 자체를 전달하도록 수정하기
-* imgui를 통해, 현재 씬에 포함되는 객체 정보들을 시각화하기
+* imgui를 통해, 현재 씬에 포함되는 객체 정보들을 시각화하기 <- 진행 중
 * 카메라 변화에 따른 Lookat 값이 변경되도록 수정하기
+* Scene의 MainCamera의 Position 값과, Input으로 처리되는 Camera의 Position 값이 서로 다르게 나오는 문제 해결하기
+
+
+
+
+
+
+

@@ -22,10 +22,12 @@ public:
     ~Object();
 
     void SetId(UINT new_id) { object_ID = new_id; }
+    void SetName(std::string new_name) { mName = new_name; }
+
     UINT GetId() { return object_ID; }
     std::string GetName() { return mName; }
     std::shared_ptr<TransformComponent> GetTransform() { return transform; }
-
+    std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>> GetComponents() { return map_Components; }
 
     template<typename T, typename... Args>
     std::shared_ptr<T> AddComponent(Args&&... args);

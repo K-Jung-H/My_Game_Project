@@ -38,6 +38,7 @@ void Scene::Build()
 
 
 	std::shared_ptr<Object> test_obj = om->CreateFromModel(model_ptr);
+	test_obj->SetName("Test_Object");
 	test_obj->GetTransform()->SetScale({5, 5, 5});
 	test_obj->GetTransform()->SetPosition({0, 0, 0});
 	auto rb = test_obj->AddComponent<RigidbodyComponent>();

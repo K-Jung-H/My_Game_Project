@@ -16,16 +16,20 @@ public:
     void SetUpdateFlag() { mUpdateFlag = true; }
 
     const XMFLOAT3& GetPosition() const { return mPosition; }
-    const XMFLOAT4& GetRotation() const { return mRotation; }
+    const XMFLOAT4& GetRotationQuaternion() const { return mRotation; }
     const XMFLOAT3& GetScale() const { return mScale; }
+
+    XMFLOAT3 GetRotationEuler() const;
 
     void AddPosition(const XMFLOAT3& dp);
     void AddRotate(const XMFLOAT4& deltaQuat);
     void AddScale(const XMFLOAT3& ds);
 
     void SetPosition(const XMFLOAT3& pos) { mPosition = pos; mUpdateFlag = true; }
-    void SetRotation(const XMFLOAT4& rot) { mRotation = rot; mUpdateFlag = true; }
-    void SetRotation(float pitch, float yaw, float roll);
+    void SetRotationQuaternion(const XMFLOAT4& rot) { mRotation = rot; mUpdateFlag = true; }
+    void SetRotation_PYR(float pitch, float yaw, float roll);
+    void SetRotationEuler(const XMFLOAT3& eulerDeg);
+
     void SetScale(const XMFLOAT3& scl) { mScale = scl;  mUpdateFlag = true; }
 
     void SetPose(const XMFLOAT3& pos, const XMFLOAT4& rot) { mPosition = pos; mRotation = rot; mUpdateFlag = true; }

@@ -21,17 +21,20 @@ public:
     std::vector<RenderData> GetRenderable() const;
 
     void RegisterCamera(std::weak_ptr<CameraComponent> cam);
+    void SetActiveCamera(const std::shared_ptr<CameraComponent>& cam) { activeCamera = cam; }
 
     const std::shared_ptr<CameraComponent> GetActiveCamera() { return activeCamera.lock(); }
     const std::vector<std::weak_ptr<CameraComponent>>& GetCamera_list() const { return camera_list; }
-    void SetActiveCamera(const std::shared_ptr<CameraComponent>& cam) { activeCamera = cam; }
+    
+    std::unordered_map<uint64_t, std::shared_ptr<Object>> GetObjectMap() { return obj_map; }
+    std::vector<std::shared_ptr<Object>> GetRootObjectList() { return obj_root_list; }
 
     virtual void Update_Inputs(float dt);
     virtual void Update_Fixed(float dt);
     virtual void Update_Scene(float dt);
     virtual void Update_Late(float dt);
 
-    virtual void Render() {}
+   
 
 
 protected:

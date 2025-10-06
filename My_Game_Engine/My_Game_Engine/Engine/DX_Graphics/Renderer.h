@@ -104,7 +104,7 @@ public:
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
 
-    void Render(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
+    void Render(std::shared_ptr<Scene> render_scene);
     void Cleanup();
 
     RendererContext Get_RenderContext() const;
@@ -234,3 +234,6 @@ private:
 };
 
 
+void DrawObjectNode(const std::shared_ptr<Object>& obj);
+void DrawInspector(std::shared_ptr<Object> obj);
+void DrawComponentInspector(const std::shared_ptr<Component>& comp);
