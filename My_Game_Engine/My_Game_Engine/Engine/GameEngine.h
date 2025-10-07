@@ -59,7 +59,8 @@ public:
 
 
 private:
-    HWND m_hWnd;
+    HINSTANCE m_hInstance = nullptr;
+    HWND m_hWnd = nullptr;
 
     bool Is_Initialized = false;
     
@@ -72,6 +73,9 @@ private:
 
     std::shared_ptr<Scene> active_scene;
     std::shared_ptr<Object> mSelectedObject;
+
+    float mFrame = 0.0f; 
+
 private: // Sync to Win api
     UINT mPendingWidth = 0;
     UINT mPendingHeight = 0;

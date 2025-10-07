@@ -22,8 +22,9 @@ void Scene::Build()
 	//--------------------------------------------------------------------------------
 	std::shared_ptr<Object> camera_obj = om->CreateObject("Main_Camera");
 	auto camera_component = camera_obj->AddComponent<CameraComponent>();
+	camera_component->SetTransform(camera_obj->GetTransform());
 	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
-	camera_component->SetTarget({ 0.0f, 0.0f, 0.0f });
+
 	SetActiveCamera(camera_component);
 	obj_root_list.push_back(camera_obj);
 
@@ -58,17 +59,51 @@ void Scene::Update_Inputs(float dt)
 {
 	if (auto cam = activeCamera.lock())
 	{
+		float moveSpeed = 50.0f * dt;
+		float rotateSpeed = 0.001f; 
+
+		if (InputManager::Get().IsKeyDown(VK_RBUTTON)) 
+		{
+			POINT delta = InputManager::Get().GetMouseDelta();
+
+			float yaw = delta.x * rotateSpeed;
+			float pitch = delta.y * rotateSpeed;
+
+			cam->AddRotation(-pitch, -yaw, 0.0f);
+		}
+
 		XMFLOAT3 pos = cam->GetPosition();
 		float speed = 50.0f * dt;
 
-		if (InputManager::Get().IsKeyDown('W')) pos.z += speed;
-		if (InputManager::Get().IsKeyDown('S')) pos.z -= speed;
-		if (InputManager::Get().IsKeyDown('A')) pos.x -= speed;
-		if (InputManager::Get().IsKeyDown('D')) pos.x += speed;
-		if (InputManager::Get().IsKeyDown('Q')) pos.y -= speed;
-		if (InputManager::Get().IsKeyDown('E')) pos.y += speed;
+		bool moved = false;
 
-		cam->SetPosition(pos);
+		if (auto tf = cam->GetTransform())
+		{
+			XMVECTOR q = XMLoadFloat4(&tf->GetRotationQuaternion());
+
+			XMVECTOR right = XMVector3TransformNormal(XMVectorSet(1, 0, 0, 0), XMMatrixRotationQuaternion(q));
+			XMVECTOR up = XMVector3TransformNormal(XMVectorSet(0, 1, 0, 0), XMMatrixRotationQuaternion(q));
+			XMVECTOR look = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), XMMatrixRotationQuaternion(q));
+
+			XMVECTOR move = XMVectorZero();
+
+			if (InputManager::Get().IsKeyDown('W')) { move = XMVectorAdd(move, look); moved = true; }
+			if (InputManager::Get().IsKeyDown('S')) { move = XMVectorSubtract(move, look); moved = true; }
+			if (InputManager::Get().IsKeyDown('A')) { move = XMVectorSubtract(move, right); moved = true; }
+			if (InputManager::Get().IsKeyDown('D')) { move = XMVectorAdd(move, right); moved = true; }
+			if (InputManager::Get().IsKeyDown('Q')) { move = XMVectorSubtract(move, up); moved = true; }
+			if (InputManager::Get().IsKeyDown('E')) { move = XMVectorAdd(move, up); moved = true; }
+
+			if (moved)
+			{
+				move = XMVector3Normalize(move);
+				XMVECTOR posV = XMLoadFloat3(&pos);
+				posV = XMVectorAdd(posV, XMVectorScale(move, speed));
+				XMStoreFloat3(&pos, posV);
+
+				cam->SetPosition(pos);
+			}
+		}
 	}
 }
 
@@ -87,6 +122,13 @@ void Scene::Update_Scene(float dt)
 
 void Scene::Update_Late(float dt)
 {
+	for (auto camera_ptr : camera_list)
+	{
+		if (auto cp = camera_ptr.lock())
+			cp->Update();
+	}
+
+	
 	for (auto obj_ptr : obj_root_list)
 	{
 		obj_ptr->UpdateTransform_All();

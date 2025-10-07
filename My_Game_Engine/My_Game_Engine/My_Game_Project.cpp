@@ -76,7 +76,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
     wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_MYGAMEPROJECT));
     wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_WINDOW+1);
-    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_MYGAMEPROJECT);
+    wcex.lpszMenuName = MAKEINTRESOURCEW(IDR_MENU1);
     wcex.lpszClassName  = szWindowClass;
     wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
@@ -129,7 +129,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    int wmId, wmEvent;
     PAINTSTRUCT ps;
     HDC hdc;
 
@@ -147,49 +146,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         GameEngine::Get().OnProcessingInputMessage(hWnd, message, wParam, lParam);
         break;
 
-
     case WM_SIZE:
+    case WM_EXITSIZEMOVE:
+    case WM_ENTERSIZEMOVE:
+    case WM_MOVE:
+    case WM_SETFOCUS:
+    case WM_KILLFOCUS:
         GameEngine::Get().OnProcessingWindowMessage(hWnd, message, wParam, lParam);
         break;
 
-    case WM_ENTERSIZEMOVE:
-        break;
-
-    case WM_EXITSIZEMOVE:
-    {
-        UINT width = LOWORD(lParam);
-        UINT height = HIWORD(lParam);
-        GameEngine::Get().OnProcessingWindowMessage(hWnd, WM_EXITSIZEMOVE, width, height);
-    }
-    break;
 
     case WM_COMMAND:
-        wmId = LOWORD(wParam);
-        wmEvent = HIWORD(wParam);
-        switch (wmId)
-        {
-        case IDM_ABOUT:
-            ::DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
-            break;
-        case IDM_EXIT:
-            ::DestroyWindow(hWnd);
-            break;
-        default:
-            return(::DefWindowProc(hWnd, message, wParam, lParam));
-        }
+        GameEngine::Get().OnProcessingWindowMessage(hWnd, message, wParam, lParam);
         break;
+
+
     case WM_PAINT:
-        hdc = ::BeginPaint(hWnd, &ps);
+        hdc = BeginPaint(hWnd, &ps);
         EndPaint(hWnd, &ps);
         break;
+
+
+
     case WM_DESTROY:
-        ::PostQuitMessage(0);
+        PostQuitMessage(0);
         break;
+
+
     default:
-        return(::DefWindowProc(hWnd, message, wParam, lParam));
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
+
     return 0;
 }
+
 
 // 정보 대화 상자의 메시지 처리기입니다.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)

@@ -3,6 +3,7 @@
 #include <DirectXMath.h>
 
 struct RendererContext;
+class TransformComponent;
 
 struct CameraCB
 {
@@ -21,47 +22,68 @@ public:
 public:
     CameraComponent();
 
+    void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
+    std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
+
     void CreateCBV(const RendererContext& ctx);
     void UpdateCBV();
     void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex);
+
+    virtual void Update();
+
+    void SetPosition(const XMFLOAT3& pos);
+    const XMFLOAT3& GetPosition();
+
+    void SetRotation(float yaw, float pitch, float roll);
+    void AddRotation(float yaw, float pitch, float roll);
+    void SetDirection(const XMFLOAT3& dir);
+    void SetTargetPosition(const XMFLOAT3& target);
+    void SetTargetUse(bool useTarget) { mUseFocusTarget = useTarget; }
+
+    const XMFLOAT3& GetTargetPosition() { return mTarget; }
+    bool GetTargetUse() { return mUseFocusTarget; }
 
     void SetViewport(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetScissorRect(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
-    void SetPosition(const XMFLOAT3& pos);
-    void SetTarget(const XMFLOAT3& tgt);
-    void SetUp(const XMFLOAT3& up);
 
-    XMFLOAT3 GetPosition() { return mPosition; }
-    XMFLOAT3 GetTarget() { return mTarget; }
-    XMFLOAT3 GetUp() { return mUp; }
+    void SetFovY(float fovY) { mFovY = fovY; mProjDirty = true; }
+    void SetNearZ(float nearZ) { mNearZ = nearZ; mProjDirty = true; }
+    void SetFarZ(float farZ) { mFarZ = farZ; mProjDirty = true; }
+
+    float GetFovY() { return mFovY; }
+    float GetNearZ() { return mNearZ; }
+    float GetFarZ() { return mFarZ; }
+
 
     XMMATRIX GetViewMatrix() const { return XMLoadFloat4x4(&mf4x4View); }
     XMMATRIX GetProjectionMatrix() const { return XMLoadFloat4x4(&mf4x4Projection); }
 
-    virtual void Update();
-
+private:
+    float mPitch = 0.0f; 
+    float mYaw = 0.0f;
 
 private:
-    ComPtr<ID3D12Resource> mCameraCB;
-    CameraCB* mMappedCB = nullptr;
+    std::weak_ptr<TransformComponent> mTransform;
+
+    bool mUseFocusTarget = false;
+    XMFLOAT3 mTarget{ 0.0f, 0.0f, 0.0f };
+
+    D3D12_VIEWPORT mViewport{};
+    D3D12_RECT     mScissorRect{};
+
+    XMFLOAT4X4 mf4x4View{};
+    XMFLOAT4X4 mf4x4Projection{};
+
+    float mFovY;
+    float mNearZ;
+    float mFarZ;
 
     bool mViewDirty = true;
     bool mProjDirty = true;
 
 
-    D3D12_VIEWPORT					mViewport;
-    D3D12_RECT						mScissorRect;
-
-    XMFLOAT4X4						mf4x4View;
-    XMFLOAT4X4						mf4x4Projection;
-
-    XMFLOAT3 mPosition;
-    XMFLOAT3 mTarget;
-    XMFLOAT3 mUp;
-
-    float mFovY;    
-    float mNearZ;
-    float mFarZ;
+    ComPtr<ID3D12Resource> mCameraCB;
+    CameraCB* mMappedCB = nullptr;
 };

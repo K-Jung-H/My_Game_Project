@@ -898,7 +898,6 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
     mCommandList->SetDescriptorHeaps(1, heaps);
 
-    mainCam->Update();
     mainCam->SetViewportsAndScissorRects(mCommandList);
 
     UpdateObjectCBs(renderData_list);
@@ -1345,7 +1344,35 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
     break;
 
     case Camera:
-        break;
+    {
+        std::shared_ptr<CameraComponent> cam = dynamic_pointer_cast<CameraComponent>(comp);
+        if (cam)
+        {
+            bool useTarget = cam->GetTargetUse();
+            XMFLOAT3 target_pos = cam->GetTargetPosition();
+
+            float FovY = cam->GetFovY();
+            float mNearZ = cam->GetNearZ();
+            float mFarZ = cam->GetFarZ();
+
+
+            if (ImGui::Checkbox("Use Target Focus", &useTarget))
+                cam->SetTargetUse(useTarget);
+
+            if (ImGui::DragFloat3("Focus Target", reinterpret_cast<float*>(&target_pos), 0.01f))
+                cam->SetTargetPosition(target_pos);
+
+            if (ImGui::DragFloat("FovY", &FovY, 0.1f, 0.1f, 100.0f))
+                cam->SetFovY(FovY);
+
+            if (ImGui::DragFloat("NearZ", &mNearZ, 0.1f, 0.1f, 100.0f))
+                cam->SetNearZ(mNearZ);
+
+            if (ImGui::DragFloat("FarZ", &mFarZ, 0.1f, 0.1f, 100.0f))
+                cam->SetFarZ(mFarZ);
+        }
+    }
+    break;
     case Collider:
         break;
     case Rigidbody:

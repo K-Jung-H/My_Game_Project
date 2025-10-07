@@ -1,8 +1,10 @@
 #include "GameEngine.h"
-
+#include "../Resource.h"
 void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 {
+	m_hInstance = hInstance;
 	m_hWnd = hMainWnd;
+
 	Is_Initialized = true;
 	CoInitialize(NULL);
 
@@ -78,7 +80,7 @@ void GameEngine::Update_Late(float dt)
 
 void GameEngine::FrameAdvance()
 {
-	mTimer->Tick();
+	mTimer->Tick(mFrame);
 	active_scene = SceneManager::Get().GetActiveScene();
 
 	float deltaTime = mTimer->GetDeltaTime();
@@ -124,14 +126,8 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 	switch (nMessageID)
 	{
 	case WM_ACTIVATE:
-	{
-		//if (LOWORD(wParam) == WA_INACTIVE)
-		//	m_GameTimer.Stop();
-		//else
-		//	m_GameTimer.Start();
-		//break;
-	}
-	break;
+		break;
+
 
 	case WM_SIZE:
 	{
@@ -144,12 +140,13 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 			if (mRenderer)
 				mRenderer->OnResize(newWidth, newHeight);
 
-			auto active_scene = SceneManager::Get().GetActiveScene();
-			auto mainCam = active_scene->GetActiveCamera();
-			if (mainCam)
+			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				mainCam->SetViewport({ 0, 0 }, { newWidth, newHeight });
-				mainCam->SetScissorRect({ 0, 0 }, { newWidth, newHeight });
+				if (auto cam = scene->GetActiveCamera())
+				{
+					cam->SetViewport({ 0, 0 }, { newWidth, newHeight });
+					cam->SetScissorRect({ 0, 0 }, { newWidth, newHeight });
+				}
 			}
 		}
 		else
@@ -170,18 +167,73 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 				mRenderer->OnResize(mPendingWidth, mPendingHeight);
 			mResizeRequested = false;
 
-			std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
-			std::shared_ptr<CameraComponent> mainCam = active_scene->GetActiveCamera();
-
-			if (mainCam)
+			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				mainCam->SetViewport({ 0, 0 }, { mPendingWidth, mPendingHeight });
-				mainCam->SetScissorRect({ 0, 0 }, { mPendingWidth, mPendingHeight });
+				if (auto cam = scene->GetActiveCamera())
+				{
+					cam->SetViewport({ 0, 0 }, { mPendingWidth, mPendingHeight });
+					cam->SetScissorRect({ 0, 0 }, { mPendingWidth, mPendingHeight });
+				}
 			}
 		}
 	}
 	break;
 
+
+	case WM_COMMAND:
+	{
+		int wmId = LOWORD(wParam);
+		switch (wmId)
+		{
+		case IDM_EXIT:
+			DestroyWindow(m_hWnd);
+			break;
+
+		case ID_CAMERA_DEFAULT:
+			//mRenderer->SetDebugView(DebugView::Default);
+			break;
+
+		case ID_CAMERA_ALBEDO:
+			//mRenderer->SetDebugView(DebugView::Albedo);
+			break;
+
+		case ID_CAMERA_NORMAL:
+			//mRenderer->SetDebugView(DebugView::Normal);
+			break;
+
+		case ID_CAMERA_DEPTH:
+			//mRenderer->SetDebugView(DebugView::Depth);
+			break;
+
+		case ID_TIMER_START_STOP:
+			if (mTimer->GetStopped())
+				mTimer->Start();
+			else
+				mTimer->Stop();
+			break;
+
+		case ID_TIMER_SETFRAME:
+		{
+			mFrame;
+		}
+		break;
+
+		case ID_ADD_OBJECT:
+			//SceneManager::Get().GetActiveScene()->SpawnEmptyObject();
+			break;
+
+		case ID_DEBUG_RESET:
+			break;
+
+		default:
+			break;
+		}
 	}
-	return(0);
+	break;
+
+	default:
+		break;
+	}
+
+	return 0;
 }

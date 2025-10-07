@@ -9,6 +9,7 @@ public:
     ~ObjectManager();
 
     std::shared_ptr<Object> CreateObject(const std::string& name);
+    std::shared_ptr<Object> CreateObjectWithId(const std::string& name, UINT id);
     std::shared_ptr<Object> CreateFromModel(const std::shared_ptr<Model>& model);
 
 

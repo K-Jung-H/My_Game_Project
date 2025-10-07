@@ -17,16 +17,16 @@ public:
 
     const XMFLOAT3& GetPosition() const { return mPosition; }
     const XMFLOAT4& GetRotationQuaternion() const { return mRotation; }
+    const XMFLOAT3 GetRotationEuler() const { return mEulerCache; }
     const XMFLOAT3& GetScale() const { return mScale; }
 
-    XMFLOAT3 GetRotationEuler() const;
 
     void AddPosition(const XMFLOAT3& dp);
     void AddRotate(const XMFLOAT4& deltaQuat);
     void AddScale(const XMFLOAT3& ds);
 
     void SetPosition(const XMFLOAT3& pos) { mPosition = pos; mUpdateFlag = true; }
-    void SetRotationQuaternion(const XMFLOAT4& rot) { mRotation = rot; mUpdateFlag = true; }
+    void SetRotationQuaternion(const XMFLOAT4& rot);
     void SetRotation_PYR(float pitch, float yaw, float roll);
     void SetRotationEuler(const XMFLOAT3& eulerDeg);
 
@@ -55,4 +55,7 @@ private:
     XMFLOAT4X4 mWorld{};
 
     std::array<UINT, Engine::Frame_Render_Buffer_Count> mCbOffsets;
+
+    // For Inspector
+    XMFLOAT3 mEulerCache{ 0,0,0 };
 };

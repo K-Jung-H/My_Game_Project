@@ -15,6 +15,8 @@ public:
     float GetRunTime() const;
     void  SetRunTime(float seconds);
 
+    bool GetStopped() { return mStopped; }
+
 private:
     double      mSecondsPerCount = 0.0;
     double      mDeltaTime = 0.0;

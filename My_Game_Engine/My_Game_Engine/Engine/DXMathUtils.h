@@ -165,3 +165,24 @@ namespace Matrix4x4
 		return(xmf4x4Result);
 	}
 }
+
+inline void XMQuaternionToRollPitchYaw(FXMVECTOR q, float* pRoll, float* pPitch, float* pYaw)
+{
+	float ysqr = XMVectorGetY(q) * XMVectorGetY(q);
+
+	float t0 = 2.0f * (XMVectorGetW(q) * XMVectorGetZ(q) + XMVectorGetX(q) * XMVectorGetY(q));
+	float t1 = 1.0f - 2.0f * (ysqr + XMVectorGetZ(q) * XMVectorGetZ(q));
+	float roll = atan2f(t0, t1);
+
+	float t2 = 2.0f * (XMVectorGetW(q) * XMVectorGetX(q) - XMVectorGetY(q) * XMVectorGetZ(q));
+	t2 = std::clamp(t2, -1.0f, 1.0f);
+	float pitch = asinf(t2);
+
+	float t3 = 2.0f * (XMVectorGetW(q) * XMVectorGetY(q) + XMVectorGetZ(q) * XMVectorGetX(q));
+	float t4 = 1.0f - 2.0f * (XMVectorGetX(q) * XMVectorGetX(q) + ysqr);
+	float yaw = atan2f(t3, t4);
+
+	if (pRoll)  *pRoll = roll;
+	if (pPitch) *pPitch = pitch;
+	if (pYaw)   *pYaw = yaw;
+}

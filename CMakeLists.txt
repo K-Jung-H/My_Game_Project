@@ -25,6 +25,7 @@ add_executable(MyGame WIN32
     # --- 윈도우 파일 추가 ---
     My_Game_Engine/My_Game_Engine/My_Game_Engine.rc
     My_Game_Engine/My_Game_Engine/Resource.h
+    My_Game_Engine/My_Game_Engine/targetver.h
     My_Game_Engine/My_Game_Engine/My_Game_Engine.ico
     My_Game_Engine/My_Game_Engine/small.ico
 )

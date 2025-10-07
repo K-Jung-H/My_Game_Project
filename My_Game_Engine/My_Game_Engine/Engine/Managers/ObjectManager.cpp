@@ -19,6 +19,26 @@ std::shared_ptr<Object> ObjectManager::CreateObject(const std::string& name)
     return obj;
 }
 
+std::shared_ptr<Object> ObjectManager::CreateObjectWithId(const std::string& name, UINT id)
+{
+    if (activeObjects.find(id) != activeObjects.end())
+    {
+        OutputDebugStringA(("[ObjectManager] ID already in use: " + std::to_string(id) + "\n").c_str());
+        return nullptr;
+    }
+
+    auto obj = Object::Create(name);
+    obj->SetId(id);
+
+    activeObjects[id] = obj;
+    nameMap[name] = obj;
+
+    if (id >= nextID)
+        nextID = id + 1;
+
+    return obj;
+}
+
 std::shared_ptr<Object> ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 {
     if (!model) return nullptr;
