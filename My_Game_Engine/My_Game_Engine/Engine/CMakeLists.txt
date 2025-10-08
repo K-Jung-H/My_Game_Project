@@ -26,9 +26,12 @@ target_precompile_headers(Engine PRIVATE
 
 # HLSL 파일 
 file(GLOB_RECURSE SHADER_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/Shader/*.hlsl"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Shader/*.hlsli"
+    "${CMAKE_SOURCE_DIR}/My_Game_Engine/My_Game_Engine/Shaders/*.hlsl"
+    "${CMAKE_SOURCE_DIR}/My_Game_Engine/My_Game_Engine/Shaders/*.hlsli"
 )
+
+
+message(STATUS "Found shader files: ${SHADER_FILES}")
 
 source_group("Shaders" FILES ${SHADER_FILES})
 
