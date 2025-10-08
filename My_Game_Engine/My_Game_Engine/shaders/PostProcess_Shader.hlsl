@@ -11,6 +11,6 @@ VS_SCREEN_OUT Default_VS(uint nVertexID : SV_VertexID)
 
 float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 {
-    float3 colorTexture = gGBuffer_Albedo.Sample(gLinearSampler, input.uv);
+    float3 colorTexture = gMergeTex.Sample(gLinearSampler, input.uv);
     return float4(colorTexture, 1.0f);
 }

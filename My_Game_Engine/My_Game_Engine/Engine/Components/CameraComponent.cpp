@@ -42,15 +42,19 @@ void CameraComponent::UpdateCBV()
     XMMATRIX proj = GetProjectionMatrix();
     XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
+    XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
+
     XMStoreFloat4x4(&cb.View, XMMatrixTranspose(view));
     XMStoreFloat4x4(&cb.Proj, XMMatrixTranspose(proj));
+    XMStoreFloat4x4(&cb.InvViewProj, XMMatrixTranspose(invViewProj));
 
     if (auto tf = mTransform.lock())
         cb.CameraPos = tf->GetPosition();
     else
         cb.CameraPos = XMFLOAT3(0.0f, 0.0f, 0.0f); 
 
-
+    cb.NearZ = mNearZ;
+    cb.FarZ = mFarZ;
     cb.Padding = 0.0f;
 
     memcpy(mMappedCB, &cb, sizeof(CameraCB));

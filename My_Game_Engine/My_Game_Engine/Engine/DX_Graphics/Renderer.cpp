@@ -694,11 +694,14 @@ FrameResource& DX12_Renderer::GetCurrentFrameResource()
     return fr;
 }
 
-void DX12_Renderer::Update_SceneCBV()
+void DX12_Renderer::Update_SceneCBV(const SceneData& data)
 {
-    SceneData cb{};
+    memcpy(mappedSceneDataCB, &data, sizeof(SceneData));
+}
 
-    memcpy(mappedSceneDataCB, &cb, sizeof(SceneData));
+void DX12_Renderer::Bind_SceneCBV()
+{
+    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
 }
 
 void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
@@ -904,9 +907,9 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     GeometryPass(renderData_list, mainCam);
 
-    CompositePass();
+    CompositePass(mainCam);
 
-    PostProcessPass();
+    PostProcessPass(mainCam);
 
     Blit_BackBufferPass();
 
@@ -932,10 +935,9 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
 
     //============================================
 
-
-
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Default::TextureTable, mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Texture));
-    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+
+    Bind_SceneCBV();
 
     render_camera->UpdateCBV();
     render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
@@ -943,7 +945,7 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
     Render_Objects(mCommandList);
 }
 
-void DX12_Renderer::CompositePass()
+void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
@@ -954,8 +956,6 @@ void DX12_Renderer::CompositePass()
 
     //============================================
 
-
-
     PrepareGBuffer_SRV();
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -963,8 +963,9 @@ void DX12_Renderer::CompositePass()
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
     
+    Bind_SceneCBV();
+    render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
 
-    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
 
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {
@@ -984,7 +985,7 @@ void DX12_Renderer::CompositePass()
     std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
 }
 
-void DX12_Renderer::PostProcessPass()
+void DX12_Renderer::PostProcessPass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
@@ -1002,7 +1003,9 @@ void DX12_Renderer::PostProcessPass()
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
-    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+    Bind_SceneCBV();
+    render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
+
 
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {
@@ -1043,8 +1046,7 @@ void DX12_Renderer::Blit_BackBufferPass()
     auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
-
-    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+    Bind_SceneCBV();
 
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {

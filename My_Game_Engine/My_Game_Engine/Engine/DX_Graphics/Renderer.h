@@ -46,13 +46,30 @@ struct ObjectCBResource
 
 //=================================================================
 
+enum RenderFlags : UINT
+{
+    RENDER_DEBUG_DEFAULT = 1 << 0,
+    RENDER_DEBUG_ALBEDO = 1 << 1,
+    RENDER_DEBUG_NORMAL = 1 << 2,
+    RENDER_DEBUG_MATERIAL_ROUGHNESS = 1 << 3,
+    RENDER_DEBUG_MATERIAL_METALLIC = 1 << 4,
+    RENDER_DEBUG_DEPTH_SCREEN = 1 << 5,
+    RENDER_DEBUG_DEPTH_VIEW = 1 << 6,
+    RENDER_DEBUG_DEPTH_WORLD = 1 << 7,
+};
+
 struct SceneData
 {
     float deltaTime;
     float totalTime;
     UINT frameCount;
     UINT padding0;
+
+    UINT RenderFlags;
+    XMFLOAT3 padding1;
 };
+
+
 
 //=================================================================
 
@@ -103,6 +120,8 @@ class DX12_Renderer
 public:
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
+
+    void Update_SceneCBV(const SceneData& data);
 
     void Render(std::shared_ptr<Scene> render_scene);
     void Cleanup();
@@ -215,16 +234,17 @@ private:
     FrameResource& GetCurrentFrameResource();
 
     void GeometryPass(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
-    void CompositePass();
-    void PostProcessPass();
+    void CompositePass(std::shared_ptr<CameraComponent> render_camera);
+    void PostProcessPass(std::shared_ptr<CameraComponent> render_camera);
     void Blit_BackBufferPass();
     void ImguiPass();
 
     void SortByRenderType(std::vector<RenderData> renderData_list);
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
-    void Update_SceneCBV();
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
+
+    void Bind_SceneCBV();
 
 public:
     ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;

@@ -9,8 +9,12 @@ struct CameraCB
 {
     XMFLOAT4X4 View;
     XMFLOAT4X4 Proj;
+    XMFLOAT4X4 InvViewProj;
     XMFLOAT3   CameraPos;
-    float               Padding;
+    float      Padding;
+    float      NearZ;
+    float      FarZ;
+    XMFLOAT2   Padding2;
 };
 
 class CameraComponent : public Component 

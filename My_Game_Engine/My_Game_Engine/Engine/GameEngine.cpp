@@ -84,12 +84,17 @@ void GameEngine::FrameAdvance()
 	active_scene = SceneManager::Get().GetActiveScene();
 
 	float deltaTime = mTimer->GetDeltaTime();
+	float runTime = mTimer->GetRunTime();
 
 	Update_Inputs(deltaTime);
 	Update_Fixed(deltaTime);
 	Update_Scene(deltaTime);
 	Update_Late(deltaTime);
 
+	scene_data.deltaTime = deltaTime;
+	scene_data.totalTime = runTime;
+
+	mRenderer->Update_SceneCBV(scene_data);
 
 	mRenderer->Render(active_scene);
 
@@ -190,19 +195,35 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 			break;
 
 		case ID_CAMERA_DEFAULT:
-			//mRenderer->SetDebugView(DebugView::Default);
+			scene_data.RenderFlags = RENDER_DEBUG_DEFAULT;
 			break;
 
 		case ID_CAMERA_ALBEDO:
-			//mRenderer->SetDebugView(DebugView::Albedo);
+			scene_data.RenderFlags = RENDER_DEBUG_ALBEDO;
 			break;
 
 		case ID_CAMERA_NORMAL:
-			//mRenderer->SetDebugView(DebugView::Normal);
+			scene_data.RenderFlags = RENDER_DEBUG_NORMAL;
 			break;
 
-		case ID_CAMERA_DEPTH:
-			//mRenderer->SetDebugView(DebugView::Depth);
+		case ID_MATERIAL_ROUGHNESS:
+			scene_data.RenderFlags = RENDER_DEBUG_MATERIAL_ROUGHNESS;
+			break;
+
+		case ID_MATERIAL_METALLIC:
+			scene_data.RenderFlags = RENDER_DEBUG_MATERIAL_METALLIC;
+			break;
+
+		case ID_DEPTH_SCREEN:
+			scene_data.RenderFlags = RENDER_DEBUG_DEPTH_SCREEN;
+			break;
+
+		case ID_DEPTH_VIEW:
+			scene_data.RenderFlags = RENDER_DEBUG_DEPTH_VIEW;
+			break;
+
+		case ID_DEPTH_WORLD:
+			scene_data.RenderFlags = RENDER_DEBUG_DEPTH_WORLD;
 			break;
 
 		case ID_TIMER_START_STOP:
@@ -214,9 +235,13 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 
 		case ID_TIMER_SETFRAME:
 		{
-			mFrame;
+			DialogBoxParam(hInst, MAKEINTRESOURCE(IDD_DIALOG_FRAME_SET), m_hWnd, FrameInputProc, (LPARAM)&mFrame);
+
+			wchar_t buf[64];
+			swprintf_s(buf, L"Frame value set to: %f", mFrame);
+			MessageBox(m_hWnd, buf, L"Frame Updated", MB_OK);
+			break;
 		}
-		break;
 
 		case ID_ADD_OBJECT:
 			//SceneManager::Get().GetActiveScene()->SpawnEmptyObject();
@@ -236,4 +261,37 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 	}
 
 	return 0;
+}
+
+
+INT_PTR CALLBACK FrameInputProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	static float* pFrameValue = nullptr;
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		pFrameValue = reinterpret_cast<float*>(lParam);
+		return (INT_PTR)TRUE;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case IDOK:
+		{
+			BOOL success = FALSE;
+			int val = GetDlgItemInt(hDlg, IDC_EDIT_FRAME_SET, &success, FALSE);
+			if (success && pFrameValue)
+				*pFrameValue = val;
+
+			EndDialog(hDlg, IDOK);
+			return (INT_PTR)TRUE;
+		}
+		case IDCANCEL:
+			EndDialog(hDlg, IDCANCEL);
+			return (INT_PTR)TRUE;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
 }

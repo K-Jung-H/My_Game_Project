@@ -76,8 +76,12 @@ private:
 
     float mFrame = 0.0f; 
 
+    SceneData scene_data {};
+
 private: // Sync to Win api
     UINT mPendingWidth = 0;
     UINT mPendingHeight = 0;
     bool mResizeRequested = false;
 };
+
+INT_PTR CALLBACK FrameInputProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
