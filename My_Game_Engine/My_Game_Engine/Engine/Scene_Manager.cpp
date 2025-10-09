@@ -1,4 +1,5 @@
 #include "Scene_Manager.h"
+#include "SceneArchive.h"
 
 void SceneManager::SetActiveScene(const std::shared_ptr<Scene>& scene) 
 {
@@ -56,4 +57,47 @@ std::shared_ptr<Scene> SceneManager::GetById(UINT id) const
     if (auto it = map_Scenes.find(id); it != map_Scenes.end())
         return it->second.scene;
     return nullptr;
+}
+
+void SceneManager::SaveScene(std::shared_ptr<Scene> target_scene, std::string file_name)
+{
+    std::string scene_file_name = file_name.empty() ? target_scene->alias : file_name;
+
+    std::string json_path = scene_file_name;
+    std::string bin_path = scene_file_name;
+
+    if (!HasExtension(json_path, ".json"))
+        json_path += ".json";
+    if (!HasExtension(bin_path, ".bin"))
+        bin_path += ".bin";
+
+    SceneArchive archive;
+    archive.Save(target_scene, json_path, SceneFileFormat::JSON);
+    archive.Save(target_scene, bin_path, SceneFileFormat::Binary);
+}
+
+std::shared_ptr<Scene> SceneManager::LoadScene(std::string file_name)
+{
+    if (file_name.empty())
+        return nullptr;
+
+    SceneArchive archive;
+
+    bool is_json = HasExtension(file_name, ".json");
+    bool is_bin = HasExtension(file_name, ".bin");
+
+    std::shared_ptr<Scene> scene;
+
+    if (is_json)
+        scene = archive.Load(file_name, SceneFileFormat::JSON);
+    else if (is_bin)
+        scene = archive.Load(file_name, SceneFileFormat::Binary);
+    else
+    {
+        scene = archive.Load(file_name + ".json", SceneFileFormat::JSON);
+        if (!scene)
+            scene = archive.Load(file_name + ".bin", SceneFileFormat::Binary);
+    }
+
+    return scene;
 }

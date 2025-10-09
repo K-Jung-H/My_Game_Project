@@ -8,7 +8,7 @@ class SceneManager;
 class Scene
 {
     friend class SceneManager;
-
+    friend class SceneArchive;
 public:
     Scene();
     virtual ~Scene();

@@ -18,6 +18,9 @@ public:
     void Add(const std::shared_ptr<Game_Resource>& res);
 
     template<typename T>
+    std::shared_ptr<T> GetByGUID(const std::string& guid) const;
+
+    template<typename T>
     std::shared_ptr<T> GetByPath(const std::string& path) const;
 
     template<typename T>
@@ -28,6 +31,8 @@ public:
 
 private:
     std::unordered_map<UINT, ResourceEntry> map_Resources;
+    std::unordered_map<std::string, std::weak_ptr<Game_Resource>> mGuidMap;
+
     std::unordered_map<std::string, UINT>   mPathToId;
     std::unordered_map<std::string, UINT>   mAliasToId;
 
@@ -35,6 +40,17 @@ private:
     std::vector<std::shared_ptr<Material>> mMaterials;
     std::vector<std::shared_ptr<Texture>>  mTextures;
 };
+
+template<typename T>
+std::shared_ptr<T> ResourceManager::GetByGUID(const std::string& guid) const
+{
+    if (auto it = mGuidMap.find(guid); it != mGuidMap.end())
+    {
+        if (auto res = it->second.lock())
+            return std::dynamic_pointer_cast<T>(res);
+    }
+    return nullptr;
+}
 
 template<typename T>
 std::shared_ptr<T> ResourceManager::GetByPath(const std::string& path) const

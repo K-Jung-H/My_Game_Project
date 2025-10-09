@@ -39,6 +39,9 @@ public:
     std::shared_ptr<Scene> GetByAlias(const std::string& alias) const;
     std::shared_ptr<Scene> GetById(UINT id) const;
 
+    void SaveScene(std::shared_ptr<Scene> target_scene, std::string file_name = "");
+    std::shared_ptr<Scene> LoadScene(std::string file_name);
+
 private:
     std::unordered_map<UINT, SceneEntry> map_Scenes;
     std::weak_ptr<Scene> mActiveScene;
@@ -46,3 +49,10 @@ private:
     std::unordered_map<std::string, UINT>   mAliasToId;
     UINT mNextSceneID = 1;
 };
+
+static bool HasExtension(const std::string& filename, const std::string& ext)
+{
+    if (filename.length() < ext.length())
+        return false;
+    return filename.compare(filename.length() - ext.length(), ext.length(), ext) == 0;
+}

@@ -10,6 +10,29 @@ void ResourceManager::Add(const std::shared_ptr<Game_Resource>& res)
     entry.alias = std::string(res->GetAlias());
     entry.resource = res;
 
+    if (res->GetGUID().empty())
+    {
+        std::string metaPath = entry.path + ".meta";
+
+        if (std::filesystem::exists(metaPath))
+        {
+            std::ifstream file(metaPath);
+            std::string guid;
+            file >> guid;
+            res->SetGUID(guid);
+        }
+        else
+        {
+            std::string guid = GenerateGUID();
+            res->SetGUID(guid);
+
+            std::ofstream file(metaPath, std::ios::trunc);
+            file << guid;
+        }
+    }
+
+    mGuidMap[res->GetGUID()] = res;
+
     mPathToId[entry.path] = entry.id;
     mAliasToId[entry.alias] = entry.id;
     map_Resources[entry.id] = std::move(entry);

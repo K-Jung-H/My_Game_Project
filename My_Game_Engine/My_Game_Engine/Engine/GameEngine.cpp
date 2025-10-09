@@ -1,5 +1,6 @@
 #include "GameEngine.h"
 #include "../Resource.h"
+
 void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 {
 	m_hInstance = hInstance;
@@ -80,6 +81,7 @@ void GameEngine::Update_Late(float dt)
 
 void GameEngine::FrameAdvance()
 {
+	auto scene_manager = SceneManager::Get();
 	mTimer->Tick(mFrame);
 	active_scene = SceneManager::Get().GetActiveScene();
 
