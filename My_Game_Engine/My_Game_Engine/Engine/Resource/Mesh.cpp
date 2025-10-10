@@ -3,7 +3,7 @@
 #include "Mesh.h"
 #include "Model.h"
 
-Mesh::Mesh() : Game_Resource()
+Mesh::Mesh() : Game_Resource(ResourceType::Mesh)
 {
 
 }

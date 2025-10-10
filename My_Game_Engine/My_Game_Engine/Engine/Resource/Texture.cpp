@@ -14,6 +14,10 @@ static std::wstring ToWString(std::string_view str)
     return wstr;
 }
 
+Texture::Texture() : Game_Resource(ResourceType::Texture)
+{
+}
+
 bool Texture::LoadFromFile(std::string_view path, const RendererContext& ctx)
 {
     std::wstring wpath = ToWString(path);

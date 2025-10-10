@@ -4,7 +4,7 @@
 class Texture : public Game_Resource
 {
 public:
-	Texture() {};
+	Texture();
 	virtual ~Texture() = default;
 	virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
 

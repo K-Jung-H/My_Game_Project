@@ -1,6 +1,8 @@
 #include "Material.h"
+#include "MetaIO.h"
+#include "GameEngine.h"
 
-Material::Material() : Game_Resource()
+Material::Material() : Game_Resource(ResourceType::Material)
 {
     diffuseTexId = Engine::INVALID_ID;
     normalTexId = Engine::INVALID_ID;
@@ -15,12 +17,87 @@ Material::Material() : Game_Resource()
     albedoColor = XMFLOAT3(1.0f, 1.0f, 1.0f);
     roughness = 0.5f;
     metallic = 0.0f;
+
+    shaderName = "None";
 }
 
 bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
 {
     return false;
 }
+
+bool Material::SaveToFile(const std::string& outputPath) const
+{
+    Document doc;
+    doc.SetObject();
+    auto& alloc = doc.GetAllocator();
+
+    // --- 기본 정보 ---
+    doc.AddMember("guid", Value(GetGUID().c_str(), alloc), alloc);
+    doc.AddMember("name", Value(GetAlias().data(), alloc), alloc);
+    std::string shader = shaderName.empty() ? "StandardPBR" : shaderName;
+    doc.AddMember("shader", Value(shader.c_str(), alloc), alloc);
+
+    // --- PBR 속성 ---
+    Value colorArr(kArrayType);
+    colorArr.PushBack(albedoColor.x, alloc);
+    colorArr.PushBack(albedoColor.y, alloc);
+    colorArr.PushBack(albedoColor.z, alloc);
+    doc.AddMember("albedoColor", colorArr, alloc);
+    doc.AddMember("metallic", metallic, alloc);
+    doc.AddMember("roughness", roughness, alloc);
+
+    // --- 텍스처 정보 (경로 + GUID) ---
+    Value texObj(kObjectType);
+    auto resMgr = GameEngine::Get().GetResourceManager();
+    auto WriteTex = [&](const char* key, UINT texId)
+        {
+            if (texId == Engine::INVALID_ID)    return;
+
+            auto tex = resMgr->GetById<Texture>(texId);
+            if (!tex)   return;
+
+            Value texEntry(kObjectType);
+
+            std::string texPath = std::string(tex->GetPath());
+            std::string texGuid = tex->GetGUID();
+
+            texEntry.AddMember("path", Value(texPath.c_str(), static_cast<SizeType>(texPath.size()), alloc), alloc);
+            texEntry.AddMember("guid", Value(texGuid.c_str(), static_cast<SizeType>(texGuid.size()), alloc), alloc);
+
+            texObj.AddMember(Value(key, alloc), texEntry, alloc);
+        };
+
+    WriteTex("albedo", diffuseTexId);
+    WriteTex("normal", normalTexId);
+    WriteTex("roughness", roughnessTexId);
+    WriteTex("metallic", metallicTexId);
+
+    doc.AddMember("textures", texObj, alloc);
+
+
+    std::filesystem::create_directories(std::filesystem::path(outputPath).parent_path());
+
+    std::ofstream ofs(outputPath, std::ios::trunc);
+    if (!ofs.is_open()) return false;
+
+    StringBuffer buffer;
+    PrettyWriter<StringBuffer> writer(buffer);
+    doc.Accept(writer);
+    ofs << buffer.GetString();
+    ofs.close();
+
+
+    auto self = const_cast<Material*>(this);
+    self->SetPath(outputPath);
+    MetaIO::EnsureResourceGUID(std::shared_ptr<Game_Resource>(
+        std::const_pointer_cast<Material>(std::static_pointer_cast<const Material>(
+            std::shared_ptr<const Material>(this, [](const Material*) {})))));
+
+    MetaIO::SaveSimpleMeta(std::make_shared<Material>(*this));
+    return true;
+}
+
 
 void Material::FromAssimp(const aiMaterial* material)
 {

@@ -8,6 +8,7 @@ public:
     Material();
     virtual ~Material() = default;
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
+    bool SaveToFile(const std::string& outputPath) const;
 
     void FromAssimp(const aiMaterial* material);
     void FromFbxSDK(const FbxSurfaceMaterial* material);
@@ -27,4 +28,6 @@ public:
     UINT normalTexSlot = UINT_MAX;
     UINT roughnessTexSlot = UINT_MAX;
     UINT metallicTexSlot = UINT_MAX;
+
+    std::string shaderName; // 임시 구조
 };

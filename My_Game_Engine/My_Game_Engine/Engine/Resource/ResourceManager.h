@@ -4,6 +4,14 @@
 #include "Material.h"
 #include "Model.h"
 
+enum class FileCategory
+{
+    ComplexModel, 
+    Texture,
+    Material,
+    Unknown
+};
+
 struct ResourceEntry
 {
     UINT id;

@@ -1,5 +1,6 @@
 #include "ResourceRegistry.h"
 #include "DXMathUtils.h"
+#include "MetaIO.h"
 
 LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx)
 {
@@ -46,6 +47,9 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
     manager.Add(model);
     load_result.modelId = model->GetId();
 
+    //---------------------- Meta List ------------------------
+    std::vector<SubResourceMeta> subMetaList;
+
     // ---------- Name maps for duplicate handling ----------
     std::unordered_map<std::string, int> matNameCount;
     std::unordered_map<std::string, int> meshNameCount;
@@ -80,8 +84,17 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
         mat->SetAlias(uniqueName);
         mat->SetId(mNextResourceID++);
         mat->SetPath(path);
-
         manager.Add(mat);
+
+        std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+        std::filesystem::create_directories(matDir);
+        std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+        mat->SaveToFile(matFilePath);
+
+        subMetaList.push_back({ uniqueName, "Material", mat->GetGUID() });
+
+
+
         load_result.materialIds.push_back(mat->GetId());
         matIdTable[i] = mat->GetId();
 
@@ -124,9 +137,11 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
         mesh->submeshes.push_back(sub);
 
         manager.Add(mesh);
-        load_result.meshIds.push_back(mesh->GetId());
+        subMetaList.push_back({ std::string(mesh->GetAlias()), "Mesh", mesh->GetGUID() });
         loadedMeshes.push_back(mesh);
 
+
+        load_result.meshIds.push_back(mesh->GetId());
         model->AddMesh(mesh);
     }
 
@@ -137,7 +152,15 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
     Skeleton skeleton = BuildSkeleton_Assimp(scene);
     model->SetSkeleton(skeleton);
 
+    FbxMeta meta;
+    meta.guid = model->GetGUID();
+    meta.path = path;
+    meta.sub_resources = std::move(subMetaList);
+    MetaIO::SaveFbxMeta(meta);
+
     result = load_result;
+
+    return true;
 }
 
 std::vector<UINT> ResourceRegistry::LoadMaterialTextures_Assimp(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx)
@@ -337,6 +360,9 @@ bool ResourceRegistry::LoadWithFbxSdk(
     manager.Add(model);
     load_result.modelId = model->GetId();
 
+    //---------------------- Meta List ------------------------
+    std::vector<SubResourceMeta> subMetaList;
+
     //--------------------- Material -----------------------
     std::unordered_map<std::string, int> matNameCount;
     std::unordered_map<FbxSurfaceMaterial*, UINT> matMap; 
@@ -364,11 +390,16 @@ bool ResourceRegistry::LoadWithFbxSdk(
         mat->SetAlias(uniqueName);
         mat->SetId(mNextResourceID++);
         mat->SetPath(path);
-
         manager.Add(mat);
-        load_result.materialIds.push_back(mat->GetId());
 
+        std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+        std::filesystem::create_directories(matDir);
+        std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+        mat->SaveToFile(matFilePath);
+
+        subMetaList.push_back({ uniqueName, "Material", mat->GetGUID() });
         matMap[fbxMat] = mat->GetId();
+        load_result.materialIds.push_back(mat->GetId());
 
         // --- Texture ---
         auto texIds = LoadMaterialTexturesFbx(manager, fbxMat, path, mat, ctx);
@@ -383,6 +414,15 @@ bool ResourceRegistry::LoadWithFbxSdk(
     //--------------------- Skeleton -----------------------
     Skeleton skeleton = BuildSkeletonFbx(fbxScene);
     model->SetSkeleton(skeleton);
+
+
+    // --- Save FBX Meta (single file) ---
+    FbxMeta meta;
+    meta.guid = model->GetGUID();
+    meta.path = path;
+    meta.sub_resources = std::move(subMetaList);
+
+    MetaIO::SaveFbxMeta(meta);
 
     result = load_result;
 

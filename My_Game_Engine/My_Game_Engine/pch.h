@@ -44,6 +44,13 @@
 #include <ws2tcpip.h>
 #pragma comment(lib, "ws2_32.lib")
 
+//==============================================================
+// JSON Read/Write
+//==============================================================
+#include <rapidjson/document.h>
+#include <rapidjson/writer.h>
+#include <rapidjson/prettywriter.h>
+#include <rapidjson/stringbuffer.h>
 
 //==============================================================
 // FBX Reading
@@ -102,6 +109,8 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 using namespace DirectX;
 using namespace DirectX::PackedVector;
 using Microsoft::WRL::ComPtr;
+
+using namespace rapidjson;
 
 //==============================================================
 // Global Variables

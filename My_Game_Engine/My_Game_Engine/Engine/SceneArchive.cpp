@@ -1,9 +1,6 @@
 #include "SceneArchive.h"
 #include "Core/Scene.h"
 
-#include <rapidjson/document.h>
-#include <rapidjson/writer.h>
-#include <rapidjson/stringbuffer.h>
 
 using namespace rapidjson;
 
