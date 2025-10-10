@@ -23,8 +23,72 @@ Material::Material() : Game_Resource(ResourceType::Material)
 
 bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
 {
-    return false;
+    std::ifstream ifs(path.data());
+    if (!ifs.is_open())
+    {
+        OutputDebugStringA(("[Material] Failed to open: " + std::string(path) + "\n").c_str());
+        return false;
+    }
+
+    std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    Document doc;
+    if (doc.Parse(json.c_str()).HasParseError())
+        return false;
+
+    if (doc.HasMember("guid")) MetaIO::Access::SetGUID(*this, doc["guid"].GetString());
+    if (doc.HasMember("name")) MetaIO::Access::SetAlias(*this, doc["name"].GetString());
+    if (doc.HasMember("shader")) shaderName = doc["shader"].GetString();
+
+    if (doc.HasMember("albedoColor") && doc["albedoColor"].IsArray())
+    {
+        const auto& arr = doc["albedoColor"].GetArray();
+        if (arr.Size() > 2)
+            albedoColor = XMFLOAT3(arr[0].GetFloat(), arr[1].GetFloat(), arr[2].GetFloat());
+    }
+
+    if (doc.HasMember("metallic")) metallic = doc["metallic"].GetFloat();
+    if (doc.HasMember("roughness")) roughness = doc["roughness"].GetFloat();
+
+    if (doc.HasMember("textures"))
+    {
+        auto& rm = *GameEngine::Get().GetResourceManager();
+        const auto& texObj = doc["textures"];
+        auto LoadTex = [&](const char* key, UINT& texId, UINT& texSlot)
+            {
+                if (!texObj.HasMember(key)) return;
+                const auto& texEntry = texObj[key];
+
+                std::shared_ptr<Texture> tex = nullptr;
+
+                if (texEntry.HasMember("guid"))
+                    tex = rm.GetByGUID<Texture>(texEntry["guid"].GetString());
+
+                if (!tex && texEntry.HasMember("path"))
+                {
+                    std::string texPath = texEntry["path"].GetString();
+                    tex = std::make_shared<Texture>();
+                    tex->LoadFromFile(texPath, ctx);
+                    tex->SetPath(texPath);
+                    rm.Add(tex);
+                }
+
+                if (tex)
+                {
+                    texId = tex->GetId();
+                    texSlot = tex->GetSlot();
+                }
+            };
+
+        LoadTex("albedo", diffuseTexId, diffuseTexSlot);
+        LoadTex("normal", normalTexId, normalTexSlot);
+        LoadTex("roughness", roughnessTexId, roughnessTexSlot);
+        LoadTex("metallic", metallicTexId, metallicTexSlot);
+    }
+
+    SetPath(path);
+    return true;
 }
+
 
 bool Material::SaveToFile(const std::string& outputPath) const
 {
@@ -59,7 +123,7 @@ bool Material::SaveToFile(const std::string& outputPath) const
 
             Value texEntry(kObjectType);
 
-            std::string texPath = std::string(tex->GetPath());
+            std::string texPath = tex->GetPath().data();
             std::string texGuid = tex->GetGUID();
 
             texEntry.AddMember("path", Value(texPath.c_str(), static_cast<SizeType>(texPath.size()), alloc), alloc);

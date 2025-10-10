@@ -29,6 +29,12 @@ private:
     ResourceRegistry() = default;
     ~ResourceRegistry() = default;
 
+
+    //--------------------------------Utils-------------------------------------
+    std::shared_ptr<Material> LoadOrReuseMaterial(ResourceManager& manager, const RendererContext& ctx, 
+        const std::string& matFilePath, const std::string& uniqueName, const std::string& srcModelPath, UINT& nextResourceID);
+
+
     //-------------------------------Assimp-----------------------------------
 
     std::vector<UINT> LoadMaterialTextures_Assimp(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);

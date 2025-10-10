@@ -30,8 +30,6 @@ protected:
 
 protected:
     void SetId(UINT id) { resource_id = id; }
-    void SetAlias(std::string_view a) { alias = a; }
-    void SetPath(std::string_view p) { file_path = p; }
     void SetGUID(const std::string& guid) { GUID = guid; }
 
 public:
@@ -39,6 +37,8 @@ public:
     virtual ~Game_Resource() = default;
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx) = 0;
 
+    void SetAlias(std::string_view a) { alias = a; }
+    void SetPath(std::string_view p) { file_path = p; }
 
     UINT GetId() const { return resource_id; }
     const std::string& GetGUID() const { return GUID; }

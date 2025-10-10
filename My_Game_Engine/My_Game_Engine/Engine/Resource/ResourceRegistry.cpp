@@ -2,6 +2,33 @@
 #include "DXMathUtils.h"
 #include "MetaIO.h"
 
+inline std::shared_ptr<Material> ResourceRegistry::LoadOrReuseMaterial(ResourceManager& manager, const RendererContext& ctx,
+    const std::string& matFilePath, const std::string& uniqueName, const std::string& srcModelPath, UINT& nextResourceID)
+{
+    std::shared_ptr<Material> mat = std::make_shared<Material>();
+
+    if (std::filesystem::exists(matFilePath))
+    {
+        if (!mat->LoadFromFile(matFilePath, ctx))
+        {
+            OutputDebugStringA(("[Material] Load failed: " + matFilePath + "\n").c_str());
+            return nullptr;
+        }
+        OutputDebugStringA(("[Material] Reused existing material: " + matFilePath + "\n").c_str());
+    }
+    else
+    {
+        OutputDebugStringA(("[Material] New material will be created: " + matFilePath + "\n").c_str());
+    }
+
+    mat->SetAlias(uniqueName);
+    mat->SetId(nextResourceID++);
+    mat->SetPath(srcModelPath);
+    manager.Add(mat);
+    return mat;
+}
+
+
 LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx)
 {
     LoadResult result;
@@ -15,7 +42,7 @@ LoadResult ResourceRegistry::Load(ResourceManager& manager, const std::string& p
 }
 
 
-bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::string& path, std::string_view aalias, const RendererContext& ctx, LoadResult& result)
+bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx, LoadResult& result)
 {
     LoadResult load_result;
 
@@ -35,7 +62,6 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
     }
 
     auto model = std::make_shared<Model>();
-
     if (scene->mName.length > 0)
         model->SetAlias(scene->mName.C_Str());
     else
@@ -43,66 +69,67 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
 
     model->SetId(mNextResourceID++);
     model->SetPath(path);
-
     manager.Add(model);
     load_result.modelId = model->GetId();
 
-    //---------------------- Meta List ------------------------
     std::vector<SubResourceMeta> subMetaList;
-
-    // ---------- Name maps for duplicate handling ----------
     std::unordered_map<std::string, int> matNameCount;
     std::unordered_map<std::string, int> meshNameCount;
-
     std::vector<UINT> matIdTable(scene->mNumMaterials);
 
-    // ---------- Materials ----------
+    // Materials
+    std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+    std::filesystem::create_directories(matDir);
+
     for (unsigned int i = 0; i < scene->mNumMaterials; i++)
     {
-        auto mat = std::make_shared<Material>();
-        mat->FromAssimp(scene->mMaterials[i]);
+        aiMaterial* aiMat = scene->mMaterials[i];
+        aiString aiMatName;
+        aiMat->Get(AI_MATKEY_NAME, aiMatName);
 
-        aiString matName = scene->mMaterials[i]->GetName();
+        std::string baseName = aiMatName.length > 0 ? aiMatName.C_Str() : "Material_" + std::to_string(i);
 
-        std::string baseName;
-        if (matName.length > 0)
-            baseName = matName.C_Str();
-        else
-            baseName = "Material_" + std::to_string(i);
 
-        // --- Duplicate name handling for Material ---
         std::string uniqueName = baseName;
-        if (matNameCount.find(baseName) != matNameCount.end()) 
+        if (matNameCount.find(baseName) != matNameCount.end())
         {
             int count = ++matNameCount[baseName];
             uniqueName = baseName + "_" + std::to_string(count);
         }
-        else 
+        else
+        {
             matNameCount[baseName] = 0;
-        
+        }
 
-        mat->SetAlias(uniqueName);
-        mat->SetId(mNextResourceID++);
-        mat->SetPath(path);
-        manager.Add(mat);
 
-        std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
-        std::filesystem::create_directories(matDir);
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
-        mat->SaveToFile(matFilePath);
+        auto mat = LoadOrReuseMaterial(manager, ctx, matFilePath, uniqueName, path, mNextResourceID);
+        if (!mat) continue;
+
+        if (!std::filesystem::exists(matFilePath))
+        {
+            mat = std::make_shared<Material>();
+            mat->FromAssimp(aiMat);
+            mat->SetAlias(uniqueName);
+            mat->SetId(mNextResourceID++);
+            mat->SetPath(path);
+            manager.Add(mat);
+
+            auto texIds = LoadMaterialTextures_Assimp(manager, aiMat, path, mat, ctx);
+            load_result.textureIds.insert(load_result.textureIds.end(), texIds.begin(), texIds.end());
+
+
+            mat->SaveToFile(matFilePath);
+
+            OutputDebugStringA(("[Material] Created new material: " + matFilePath + "\n").c_str());
+        }
 
         subMetaList.push_back({ uniqueName, "Material", mat->GetGUID() });
-
-
-
-        load_result.materialIds.push_back(mat->GetId());
         matIdTable[i] = mat->GetId();
-
-        auto texIds = LoadMaterialTextures_Assimp(manager, scene->mMaterials[i], path, mat, ctx);
-        load_result.textureIds.insert(load_result.textureIds.end(), texIds.begin(), texIds.end());
+        load_result.materialIds.push_back(mat->GetId());
     }
 
-    // ---------- Meshes ----------
+    // Meshes
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
     for (unsigned int i = 0; i < scene->mNumMeshes; i++)
     {
@@ -113,15 +140,13 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
         if (baseName.empty())
             baseName = "Mesh_" + std::to_string(i);
 
-        // --- Duplicate name handling for Mesh ---
         std::string uniqueName = baseName;
-        if (meshNameCount.find(baseName) != meshNameCount.end()) 
+        if (meshNameCount.find(baseName) != meshNameCount.end())
         {
             int count = ++meshNameCount[baseName];
             uniqueName = baseName + "_" + std::to_string(count);
         }
-        else 
-            meshNameCount[baseName] = 0;
+        else meshNameCount[baseName] = 0;
 
         mesh->SetAlias(uniqueName);
         mesh->SetId(mNextResourceID++);
@@ -139,19 +164,18 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
         manager.Add(mesh);
         subMetaList.push_back({ std::string(mesh->GetAlias()), "Mesh", mesh->GetGUID() });
         loadedMeshes.push_back(mesh);
-
-
         load_result.meshIds.push_back(mesh->GetId());
         model->AddMesh(mesh);
     }
 
+    // Hierarchy / Skeleton
     if (scene->mRootNode)
         model->SetRoot(ProcessNode(scene->mRootNode, scene, loadedMeshes));
 
-    // ---------- Skeleton ----------
     Skeleton skeleton = BuildSkeleton_Assimp(scene);
     model->SetSkeleton(skeleton);
 
+    // Meta 
     FbxMeta meta;
     meta.guid = model->GetGUID();
     meta.path = path;
@@ -159,7 +183,6 @@ bool ResourceRegistry::LoadWithAssimp(ResourceManager& manager, const std::strin
     MetaIO::SaveFbxMeta(meta);
 
     result = load_result;
-
     return true;
 }
 
@@ -367,14 +390,14 @@ bool ResourceRegistry::LoadWithFbxSdk(
     std::unordered_map<std::string, int> matNameCount;
     std::unordered_map<FbxSurfaceMaterial*, UINT> matMap; 
 
+    std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+    std::filesystem::create_directories(matDir);
+    
     int matCount = fbxScene->GetMaterialCount();
     for (int i = 0; i < matCount; i++)
     {
         FbxSurfaceMaterial* fbxMat = fbxScene->GetMaterial(i);
         if (!fbxMat) continue;
-
-        auto mat = std::make_shared<Material>();
-        mat->FromFbxSDK(fbxMat);
 
         std::string baseName = fbxMat->GetName();
         if (baseName.empty()) baseName = "Material_" + std::to_string(i);
@@ -387,23 +410,32 @@ bool ResourceRegistry::LoadWithFbxSdk(
         }
         else matNameCount[baseName] = 0;
 
-        mat->SetAlias(uniqueName);
-        mat->SetId(mNextResourceID++);
-        mat->SetPath(path);
-        manager.Add(mat);
 
-        std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
-        std::filesystem::create_directories(matDir);
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
-        mat->SaveToFile(matFilePath);
+        auto mat = LoadOrReuseMaterial(manager, ctx, matFilePath, uniqueName, path, mNextResourceID);
+        if (!mat) continue;
+
+        if (!std::filesystem::exists(matFilePath))
+        {
+            mat = std::make_shared<Material>();
+            mat->FromFbxSDK(fbxMat);
+            mat->SetAlias(uniqueName);
+            mat->SetId(mNextResourceID++);
+            mat->SetPath(path);
+            manager.Add(mat);
+
+            // --- Texture ---
+            auto texIds = LoadMaterialTexturesFbx(manager, fbxMat, path, mat, ctx);
+            load_result.textureIds.insert(load_result.textureIds.end(), texIds.begin(), texIds.end());
+
+            mat->SaveToFile(matFilePath);
+        }
 
         subMetaList.push_back({ uniqueName, "Material", mat->GetGUID() });
         matMap[fbxMat] = mat->GetId();
         load_result.materialIds.push_back(mat->GetId());
 
-        // --- Texture ---
-        auto texIds = LoadMaterialTexturesFbx(manager, fbxMat, path, mat, ctx);
-        load_result.textureIds.insert(load_result.textureIds.end(), texIds.begin(), texIds.end());
+
     }
 
     //--------------------- Mesh + Node Hierarchy -----------------------
