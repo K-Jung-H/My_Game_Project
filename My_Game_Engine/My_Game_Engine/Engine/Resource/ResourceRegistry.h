@@ -1,6 +1,7 @@
 #pragma once
 #include "ResourceManager.h"
 
+
 struct LoadResult 
 {
     std::vector<UINT> meshIds;
@@ -22,39 +23,14 @@ public:
     ResourceRegistry& operator=(const ResourceRegistry&Temp) = delete;
 
     LoadResult Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx);
-    bool LoadWithAssimp(ResourceManager& manager, const std::string& path, std::string_view aalias, const RendererContext& ctx, LoadResult& result);
-    bool LoadWithFbxSdk(ResourceManager& manager, const std::string& path, std::string_view aalias, const RendererContext& ctx, LoadResult& result);
+
+    static UINT GenerateID() { return ++mNextResourceID; }
+    static UINT PeekNextID() { return mNextResourceID; }
 
 private:
     ResourceRegistry() = default;
     ~ResourceRegistry() = default;
 
-
-    //--------------------------------Utils-------------------------------------
-    std::shared_ptr<Material> LoadOrReuseMaterial(ResourceManager& manager, const RendererContext& ctx, 
-        const std::string& matFilePath, const std::string& uniqueName, const std::string& srcModelPath, UINT& nextResourceID);
-
-
-    //-------------------------------Assimp-----------------------------------
-
-    std::vector<UINT> LoadMaterialTextures_Assimp(ResourceManager& manager, aiMaterial* material, const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);
-    std::shared_ptr<Model::Node> ProcessNode(aiNode* ainode, const aiScene* scene, const std::vector<std::shared_ptr<Mesh>>& loadedMeshes);
-    Skeleton BuildSkeleton_Assimp(const aiScene* scene);
-
-    //-------------------------------FBX SDK-----------------------------------
-
-    std::vector<UINT> LoadMaterialTexturesFbx(ResourceManager& manager, FbxSurfaceMaterial* fbxMat, 
-        const std::string& basePath, std::shared_ptr<Material>& mat, const RendererContext& ctx);
-
-    std::shared_ptr<Model::Node> ProcessFbxNode(FbxNode* fbxNode, ResourceManager& manager, std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap,
-        const std::string& path, const RendererContext& ctx, std::vector<std::shared_ptr<Mesh>>& loadedMeshes);
-
-    std::shared_ptr<Mesh> CreateMeshFromFbxNode(FbxNode* fbxNode, ResourceManager& manager,
-        std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap, const std::string& path, const RendererContext& ctx);
-
-    Skeleton BuildSkeletonFbx(FbxScene* fbxScene);
-
-
-    UINT mNextResourceID = 1;
+    static inline UINT mNextResourceID = 1;
 };
 

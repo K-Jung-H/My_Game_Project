@@ -1,3 +1,4 @@
+#pragma once
 #include "Game_Resource.h"
 
 struct SubResourceMeta
@@ -17,17 +18,6 @@ struct FbxMeta
 
 namespace MetaIO
 {
-    struct Access
-    {
-        static ResourceType Type(const Game_Resource& r) { return r.resource_type; }
-        static const std::string& GUID(const Game_Resource& r) { return r.GUID; }
-        static const std::string& Path(const Game_Resource& r) { return r.file_path; }
-        static const std::string& Alias(const Game_Resource& r) { return r.alias; }
-
-        static void SetGUID(Game_Resource& r, const std::string& guid) { r.GUID = guid; }
-        static void SetAlias(Game_Resource& r, const std::string& alias) { r.alias = alias; }
-    };
-
     std::string CreateGUID();
     void EnsureResourceGUID(const std::shared_ptr<Game_Resource>& res);
 

@@ -35,8 +35,8 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
     if (doc.Parse(json.c_str()).HasParseError())
         return false;
 
-    if (doc.HasMember("guid")) MetaIO::Access::SetGUID(*this, doc["guid"].GetString());
-    if (doc.HasMember("name")) MetaIO::Access::SetAlias(*this, doc["name"].GetString());
+    if (doc.HasMember("guid")) SetGUID(doc["guid"].GetString());
+    if (doc.HasMember("name")) SetAlias(doc["name"].GetString());
     if (doc.HasMember("shader")) shaderName = doc["shader"].GetString();
 
     if (doc.HasMember("albedoColor") && doc["albedoColor"].IsArray())

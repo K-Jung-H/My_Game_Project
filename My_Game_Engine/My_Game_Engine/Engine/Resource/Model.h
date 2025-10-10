@@ -57,7 +57,7 @@ public:
 
     virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
 
-    void SetSkeleton(Skeleton& s) { skeleton = s; }
+    void SetSkeleton(const Skeleton& s) { skeleton = s; }
     const Skeleton& GetSkeleton() const { return skeleton; }
 
 private:

@@ -2,9 +2,6 @@
 #include "Game_Resource.h"
 
 
-
-
-
 std::string MetaIO::CreateGUID()
 {
     static std::random_device rd;
@@ -23,9 +20,8 @@ std::string MetaIO::CreateGUID()
 void MetaIO::EnsureResourceGUID(const std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return;
-    if (!Access::GUID(*res).empty()) return;
 
-    std::string metaPath = Access::Path(*res) + ".meta";
+    std::string metaPath = res->GetPathCopy() + ".meta";
 
     if (std::filesystem::exists(metaPath))
     {
@@ -38,13 +34,13 @@ void MetaIO::EnsureResourceGUID(const std::shared_ptr<Game_Resource>& res)
             Document doc;
             if (!doc.Parse(json.c_str()).HasParseError() && doc.HasMember("guid"))
             {
-                Access::SetGUID(*res, doc["guid"].GetString());
+                res->SetGUID(doc["guid"].GetString());
                 return;
             }
         }
     }
 
-    Access::SetGUID(*res, CreateGUID());
+    res->SetGUID(CreateGUID());
 }
 
 
@@ -56,10 +52,10 @@ bool MetaIO::SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res)
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
 
-    doc.AddMember("guid", Value(Access::GUID(*res).c_str(), alloc), alloc);
+    doc.AddMember("guid", Value(res->GetGUID().c_str(), alloc), alloc);
 
     std::string typeStr;
-    switch (Access::Type(*res))
+    switch (res->Get_Type())
     {
     case ResourceType::Mesh: typeStr = "Mesh"; break;
     case ResourceType::Material: typeStr = "Material"; break;
@@ -67,14 +63,14 @@ bool MetaIO::SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res)
     default: typeStr = "etc"; break;
     }
     doc.AddMember("type", Value(typeStr.c_str(), alloc), alloc);
-    doc.AddMember("path", Value(Access::Path(*res).c_str(), alloc), alloc);
-    doc.AddMember("alias", Value(Access::Alias(*res).c_str(), alloc), alloc);
+    doc.AddMember("path", Value(res->GetPathCopy().c_str(), alloc), alloc);
+    doc.AddMember("alias", Value(res->GetAlias().data(), alloc), alloc);
 
     StringBuffer buffer;
     PrettyWriter<StringBuffer> writer(buffer);
     doc.Accept(writer);
 
-    std::string metaPath = Access::Path(*res) + ".meta";
+    std::string metaPath = res->GetPathCopy() + ".meta";
     std::ofstream ofs(metaPath, std::ios::trunc);
     if (!ofs.is_open()) return false;
     ofs << buffer.GetString();
@@ -86,7 +82,7 @@ bool MetaIO::SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res)
 bool MetaIO::LoadSimpleMeta(std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return false;
-    std::string metaPath = Access::Path(*res) + ".meta";
+    std::string metaPath = res->GetPathCopy() + ".meta";
     if (!std::filesystem::exists(metaPath))
         return false;
 
@@ -100,9 +96,9 @@ bool MetaIO::LoadSimpleMeta(std::shared_ptr<Game_Resource>& res)
         return false;
 
     if (doc.HasMember("guid"))
-        Access::SetGUID(*res, doc["guid"].GetString());
+        res->SetGUID(doc["guid"].GetString());
     if (doc.HasMember("alias"))
-        Access::SetAlias(*res, doc["alias"].GetString());
+        res->SetAlias(doc["alias"].GetString());
 
     return true;
 }
