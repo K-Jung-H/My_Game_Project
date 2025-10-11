@@ -55,6 +55,20 @@ JSON은 Object 단위로 관리할 것
 // 구현 및 적용이 완료되면, Window 메뉴 창에 Scene Save/Load 기능을 추가하기
 
 
+
+문제점:
+런타임 시 생성한 Save 파일만 Load 시 객체들이 제대로 그려지고 있음 == 외부에서 세팅한 Save 파일이 제대로 반영 안됨
+
+원인:
+- 생성한 meta 파일을 프로젝트 실행시 사용하지 않고, 새로 GUID를 할당하여 사용하고 있음 
+-> 프로그램 실행 시, Asset 폴더 내부에 있는 모든 meta 파일을 읽어, 파일 경로 기반 GUID map을 만들고, Load 시, 리소스에 대한 중복 ID 생성 시도를 방지해야 함
+
+- fbx의 meta 파일이 제대로 생성 안됨
+-> fbx 파일 내부에 mesh 마다 GUID 할당, 연결된 Mat 파일의 GUID, Texture 파일의 GUID를 fbx 처음 Load 시 저장해야 함
+
+- Scene Load 동작에서 컴포넌트 할당 과정에, ComponentRegistry가 오히려 불편하여 이를 제거하였으나, 리소스 Load, Registry 과정에서도 같은 문제가 있음
+-> ResourceManager, ResourceRegistry의 기능을 통합한 ResourceSystem을 새로 정의하여, 코드를 정리해야 함
+
 -------------------------------------
 
 장기적 목표
