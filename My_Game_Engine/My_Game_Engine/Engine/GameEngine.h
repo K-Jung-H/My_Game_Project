@@ -45,7 +45,6 @@ public:
 
     GameTimer* GetTimer() { return mTimer.get(); }
     PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
-    RendererManager* GetRendererManager() { return renderer_manager.get(); }
     ResourceManager* GetResourceManager() { return resource_manager.get(); }
     ObjectManager* GetObjectManager() { return mObjectmanager.get(); }
 
@@ -67,7 +66,6 @@ private:
     std::unique_ptr<PhysicsSystem> m_PhysicsSystem;
     std::unique_ptr<GameTimer> mTimer;
     std::unique_ptr<DX12_Renderer>   mRenderer;
-    std::unique_ptr<RendererManager> renderer_manager;
     std::unique_ptr<ResourceManager> resource_manager;
     std::unique_ptr<ObjectManager> mObjectmanager;
 

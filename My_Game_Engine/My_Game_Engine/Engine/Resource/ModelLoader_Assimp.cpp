@@ -92,11 +92,48 @@ bool ModelLoader_Assimp::Load(ResourceManager& manager, const std::string& path,
 
     model->SetSkeleton(BuildSkeleton(scene));
 
-    // --- Meta ---
+    // --- Meta 저장 ---
     FbxMeta meta;
     meta.guid = model->GetGUID();
     meta.path = path;
-    MetaIO::SaveFbxMeta(meta);
+
+    // Mesh 등록
+    for (auto& mesh : loadedMeshes)
+    {
+        SubResourceMeta s{};
+        s.name = mesh->GetAlias();
+        s.type = "MESH";
+        s.guid = mesh->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    // Material 등록
+    for (auto& matId : result.materialIds)
+    {
+        auto mat = manager.GetById<Material>(matId);
+        if (!mat) continue;
+
+        SubResourceMeta s{};
+        s.name = mat->GetAlias();
+        s.type = "MATERIAL";
+        s.guid = mat->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    // Texture 등록
+    for (auto& texId : result.textureIds)
+    {
+        auto tex = manager.GetById<Texture>(texId);
+        if (!tex) continue;
+
+        SubResourceMeta s{};
+        s.name = tex->GetAlias();
+        s.type = "TEXTURE";
+        s.guid = tex->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+    if(MetaIO::LoadFbxMeta(meta, path) == false)
+        MetaIO::SaveFbxMeta(meta);
 
     return true;
 }

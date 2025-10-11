@@ -31,24 +31,31 @@ void ResourceManager::Add(const std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return;
 
-    MetaIO::EnsureResourceGUID(res);
-
-    std::string pathCopy = std::string(res->GetPath());
-    FileCategory category = DetectFileCategory(pathCopy);
-
-    switch (category)
+    if (MetaIO::LoadSimpleMeta(res) == false)
     {
-    case FileCategory::ComplexModel:
-        break;
 
-    case FileCategory::Material:
-    case FileCategory::Texture:
-        MetaIO::SaveSimpleMeta(res);
-        break;
+        MetaIO::EnsureResourceGUID(res);
 
-    default:
-        MetaIO::SaveSimpleMeta(res);
-        break;
+        std::string pathCopy = std::string(res->GetPath());
+        FileCategory category = DetectFileCategory(pathCopy);
+
+        switch (category)
+        {
+        case FileCategory::ComplexModel:
+            break;
+
+        case FileCategory::Material:
+            MetaIO::SaveSimpleMeta(res);
+            break;
+
+        case FileCategory::Texture:
+            MetaIO::SaveSimpleMeta(res);
+            break;
+
+        default:
+            MetaIO::SaveSimpleMeta(res);
+            break;
+        }
     }
 
     ResourceEntry entry;

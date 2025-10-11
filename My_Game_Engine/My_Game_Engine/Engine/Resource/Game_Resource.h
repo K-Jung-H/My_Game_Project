@@ -35,7 +35,7 @@ public:
     void SetId(UINT id) { resource_id = id; }
     void SetGUID(const std::string& guid) { GUID = guid; }
     void SetAlias(std::string_view a) { alias = a; }
-    void SetPath(std::string_view p) { file_path = p; }
+    void SetPath(std::string_view p) { file_path = p.data(); }
 
     UINT GetId() const { return resource_id; }
     const std::string& GetGUID() const { return GUID; }

@@ -30,6 +30,9 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
         return false;
     }
 
+    auto& rm = *GameEngine::Get().GetResourceManager();
+
+
     std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     Document doc;
     if (doc.Parse(json.c_str()).HasParseError())
@@ -51,7 +54,6 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
 
     if (doc.HasMember("textures"))
     {
-        auto& rm = *GameEngine::Get().GetResourceManager();
         const auto& texObj = doc["textures"];
         auto LoadTex = [&](const char* key, UINT& texId, UINT& texSlot)
             {
@@ -84,6 +86,7 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
         LoadTex("roughness", roughnessTexId, roughnessTexSlot);
         LoadTex("metallic", metallicTexId, metallicTexSlot);
     }
+
 
     SetPath(path);
     return true;

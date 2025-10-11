@@ -219,7 +219,7 @@ bool DX12_Renderer::CreateFrameResources()
         success &= CreateDSV(i, fr);
         success &= CreateGBuffer(i, fr);
         success &= Create_Merge_RenderTargets(i, fr);
-        success &= CreateObjectCB(fr, 50);
+        success &= CreateObjectCB(fr, 5000);
 
         if (!success) return false;
     }
@@ -723,11 +723,17 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 
         XMFLOAT4X4 worldT = Matrix4x4::Transpose(transform->GetWorldMatrix());
 
-        for (const auto& sub : mesh->submeshes)
+        const size_t submeshCount = mesh->submeshes.size();
+        for (size_t i = 0; i < submeshCount; ++i)
         {
-            if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects) break;
+            if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects)
+                break;
 
-            auto material = rm->GetById<Material>(sub.materialId);
+            UINT matId = renderer->GetMaterial(i);
+            if (matId == Engine::INVALID_ID)
+                matId = mesh->submeshes[i].materialId;
+
+            auto material = rm->GetById<Material>(matId);
             if (!material) continue;
 
             ObjectCBData cb{};
@@ -737,26 +743,25 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             cb.Metallic = material->metallic;
             cb.Emissive = 0.0f;
 
-            auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : (int)slot; };
+            auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); };
             cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
             cb.NormalTexIdx = toIdx(material->normalTexSlot);
             cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
             cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
 
-            const UINT cbIndex = fr.ObjectCB.HeadOffset;
+            const UINT cbIndex = fr.ObjectCB.HeadOffset++;
             fr.ObjectCB.MappedObjectCB[cbIndex] = cb;
-            fr.ObjectCB.HeadOffset++;
 
-            DrawItem di;
+            DrawItem di{};
             di.mesh = mesh.get();
-            di.sub = sub;
+            di.sub = mesh->submeshes[i];
             di.cbIndex = cbIndex;
-            di.materialId = sub.materialId;
+            di.materialId = matId;
+
             mDrawItems.emplace_back(std::move(di));
         }
     }
 }
-
 void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
 {
 

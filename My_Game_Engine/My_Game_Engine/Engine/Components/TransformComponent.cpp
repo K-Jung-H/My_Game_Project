@@ -17,6 +17,32 @@ TransformComponent::TransformComponent()
     
 }
 
+rapidjson::Value TransformComponent::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    Value v(kObjectType);
+    v.AddMember("type", "TransformComponent", alloc);
+
+    Value pos(kArrayType); pos.PushBack(mPosition.x, alloc).PushBack(mPosition.y, alloc).PushBack(mPosition.z, alloc);
+    Value rot(kArrayType); rot.PushBack(mRotation.x, alloc).PushBack(mRotation.y, alloc).PushBack(mRotation.z, alloc).PushBack(mRotation.w, alloc);
+    Value scl(kArrayType); scl.PushBack(mScale.x, alloc).PushBack(mScale.y, alloc).PushBack(mScale.z, alloc);
+
+    v.AddMember("position", pos, alloc);
+    v.AddMember("rotation", rot, alloc);
+    v.AddMember("scale", scl, alloc);
+    return v;
+}
+
+void TransformComponent::FromJSON(const rapidjson::Value& val)
+{
+    const auto& pos = val["position"].GetArray();
+    const auto& rot = val["rotation"].GetArray();
+    const auto& scl = val["scale"].GetArray();
+
+    mPosition = { (float)pos[0].GetDouble(), (float)pos[1].GetDouble(), (float)pos[2].GetDouble() };
+    mRotation = { (float)rot[0].GetDouble(), (float)rot[1].GetDouble(), (float)rot[2].GetDouble(), (float)rot[3].GetDouble() };
+    mScale = { (float)scl[0].GetDouble(), (float)scl[1].GetDouble(), (float)scl[2].GetDouble() };
+}
+
 void TransformComponent::SetRotation_PYR(float pitch, float yaw, float roll)
 {
     SetRotationEuler(XMFLOAT3(pitch, yaw, roll));

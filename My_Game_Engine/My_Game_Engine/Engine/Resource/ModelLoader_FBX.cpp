@@ -88,7 +88,45 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
     FbxMeta meta;
     meta.guid = model->GetGUID();
     meta.path = path;
-    MetaIO::SaveFbxMeta(meta);
+
+    // Mesh 정보 추가
+    for (auto& mesh : loadedMeshes)
+    {
+        SubResourceMeta s{};
+        s.name = mesh->GetAlias();
+        s.type = "MESH";
+        s.guid = mesh->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    // Material 정보 추가
+    for (auto& [fbxMat, matId] : matMap)
+    {
+        auto mat = manager.GetById<Material>(matId);
+        if (!mat) continue;
+
+        SubResourceMeta s{};
+        s.name = mat->GetAlias();
+        s.type = "MATERIAL";
+        s.guid = mat->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    // Texture
+    for (auto& texId : result.textureIds)
+    {
+        auto tex = manager.GetById<Texture>(texId);
+        if (!tex) continue;
+
+        SubResourceMeta s{};
+        s.name = tex->GetAlias();
+        s.type = "TEXTURE";
+        s.guid = tex->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    if (MetaIO::LoadFbxMeta(meta, path) == false)
+        MetaIO::SaveFbxMeta(meta);
 
     fbxManager->Destroy();
     return true;

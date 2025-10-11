@@ -20,38 +20,58 @@ void Scene::Build()
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
 	//--------------------------------------------------------------------------------
-	std::shared_ptr<Object> camera_obj = om->CreateObject("Main_Camera");
+	std::shared_ptr<Object> camera_obj = om->CreateObject(shared_from_this(), "Main_Camera");
 	auto camera_component = camera_obj->AddComponent<CameraComponent>();
 	camera_component->SetTransform(camera_obj->GetTransform());
 	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
 
 	SetActiveCamera(camera_component);
-	obj_root_list.push_back(camera_obj);
+	RegisterObject(camera_obj);
 
 	//--------------------------------------------------------------------------------
 
-	const std::string path = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
-//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
-	Model::loadAndExport(path, "test_assimp_export.txt");
-	
-	LoadResult result = ResourceRegistry::Instance().Load(*rcm, path, "test", ctx);
-	auto model_ptr = rcm->GetById<Model>(result.modelId);
+	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
+	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	Model::loadAndExport(path_0, "test_assimp_export.txt");
+
+	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
+
+	{
+		LoadResult result = ResourceRegistry::Instance().Load(*rcm, path_0, "test_0", ctx);
+		auto model_ptr = rcm->GetById<Model>(result.modelId);
 
 
-	std::shared_ptr<Object> test_obj = om->CreateFromModel(model_ptr);
-	test_obj->SetName("Test_Object");
-	test_obj->GetTransform()->SetScale({5, 5, 5});
-	test_obj->GetTransform()->SetPosition({0, 0, 0});
-	auto rb = test_obj->AddComponent<RigidbodyComponent>();
-	rb->SetUseGravity(false);
+		std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
+		test_obj->SetName("Test_Object_0");
+		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+		test_obj->GetTransform()->SetPosition({ 0, 0, 0 });
+		auto rb = test_obj->AddComponent<RigidbodyComponent>();
+		rb->SetUseGravity(false);
+		RegisterObject(test_obj);
+	}
+
+	//{
+	//	LoadResult result = ResourceRegistry::Instance().Load(*rcm, path_1, "test_1", ctx);
+	//	auto model_ptr = rcm->GetById<Model>(result.modelId);
+	//	for (int i = 0; i < 1; ++i)
+	//	{
+	//		std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
+	//		test_obj->SetName("Test_Object_" + std::to_string(1+i));
+	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+	//		test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
+	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
+	//		rb->SetUseGravity(false);
+
+	//		RegisterObject(test_obj);
+
+	//	}
+	//}
 
 
-	obj_root_list.push_back(test_obj);
-
-	// For Debug
-	UINT model_node_num = Model::CountNodes(model_ptr);
-	UINT node_num = Object::CountNodes(test_obj);
-	Object::DumpHierarchy(test_obj, "test_model_tree.txt");
+//	// For Debug
+//	UINT model_node_num = Model::CountNodes(model_ptr_1);
+//	UINT node_num = Object::CountNodes(test_obj_1);
+//	Object::DumpHierarchy(test_obj_1, "test_model_tree.txt");
 }
 
 
@@ -135,6 +155,69 @@ void Scene::Update_Late(float dt)
 	}
 }
 
+void Scene::RegisterObject(const std::shared_ptr<Object>& obj)
+{
+	if (!obj) return;
+
+	if (obj->GetParent().expired())
+			obj_root_list.push_back(obj);
+
+	obj_map[obj->GetId()] = obj;
+
+	obj->SetScene(weak_from_this());
+
+
+	for (auto& [type, comps] : obj->GetComponents())
+	{
+		for (auto& c : comps)
+			RegisterComponent(c);
+	}
+
+	for (auto& child : obj->GetChildren())
+	{
+		if (child)
+			RegisterObject(child); 
+	}
+}
+
+
+void Scene::RegisterComponent(std::weak_ptr<Component> comp)
+{
+	if (auto c = comp.lock())
+	{
+		switch (c->GetType())
+		{
+		case Component_Type::Mesh_Renderer:
+		{
+			if (auto mr = std::dynamic_pointer_cast<MeshRendererComponent>(c))
+			{
+				RegisterRenderable(mr);
+			}
+		}
+		break;
+
+		case Component_Type::Camera:
+		{
+			if (auto cam = std::dynamic_pointer_cast<CameraComponent>(c))
+			{
+				RegisterCamera(cam);
+			}
+		}
+		break;
+
+		case Component_Type::Rigidbody:
+		case Component_Type::Collider:
+		{
+			if (auto owner = c->GetOwner())
+				GameEngine::Get().GetPhysicsSystem()->Register(scene_id, owner);
+		}
+		break;
+
+		default:
+			break;
+		}
+	}
+}
 
 void Scene::RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp)
 {
@@ -179,6 +262,7 @@ std::vector<RenderData> Scene::GetRenderable() const
 	}
 	return result;
 }
+
 void Scene::RegisterCamera(std::weak_ptr<CameraComponent> cam)
 {
 	camera_list.push_back(cam);

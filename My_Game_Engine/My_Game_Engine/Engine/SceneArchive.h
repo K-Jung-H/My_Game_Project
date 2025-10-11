@@ -1,5 +1,6 @@
 
 class Scene;
+class Object;
 
 enum class SceneFileFormat
 {
@@ -18,5 +19,7 @@ private:
     bool SaveBinary(const std::shared_ptr<Scene>& scene, const std::string& file_name);
 
     std::shared_ptr<Scene> LoadJSON(const std::string& file_name);
+    std::shared_ptr<Object> LoadObjectRecursive(const std::shared_ptr<Scene> scene, const rapidjson::Value& val);
+
     std::shared_ptr<Scene> LoadBinary(const std::string& file_name);
 };

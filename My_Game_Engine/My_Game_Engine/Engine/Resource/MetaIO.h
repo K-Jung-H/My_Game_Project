@@ -22,7 +22,7 @@ namespace MetaIO
     void EnsureResourceGUID(const std::shared_ptr<Game_Resource>& res);
 
     bool SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res);
-    bool LoadSimpleMeta(std::shared_ptr<Game_Resource>& res);
+    bool LoadSimpleMeta(const std::shared_ptr<Game_Resource>& res);
 
 
     bool SaveFbxMeta(const FbxMeta& meta);

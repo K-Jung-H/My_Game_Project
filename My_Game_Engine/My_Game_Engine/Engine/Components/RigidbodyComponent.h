@@ -5,6 +5,10 @@
 class RigidbodyComponent : public Component
 {
 public:
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    virtual void FromJSON(const rapidjson::Value& val);
+
+public:
     static constexpr Component_Type Type = Component_Type::Rigidbody;
     Component_Type GetType() const override { return Type; }
 

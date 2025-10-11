@@ -1,5 +1,5 @@
 #pragma once
-#include "ComponentRegistry.h"
+#include "Scene.h"
 
 class Model;
 class TransformComponent;
@@ -10,16 +10,23 @@ class Object : public std::enable_shared_from_this<Object>
     friend class ObjectManager;
 
 public:
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    virtual void FromJSON(const rapidjson::Value& val);
+
+public:
     static UINT CountNodes(const std::shared_ptr<Object>& root);
     static void DumpHierarchy(const std::shared_ptr<Object>& root, const std::string& filename);
 
 private:
-    static std::shared_ptr<Object> Create(const std::string& name);
-    static std::shared_ptr<Object> Create(const std::shared_ptr<Model> model);
+    static std::shared_ptr<Object> Create(const std::shared_ptr<Scene> scene, const std::string& name);
+    static std::shared_ptr<Object> Create(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model> model);
 
 public:
     Object() = delete;
     ~Object();
+
+    void SetScene(std::weak_ptr<Scene> s);
+    std::weak_ptr<Scene> GetScene() const { return mScene; }
 
     void SetId(UINT new_id) { object_ID = new_id; }
     void SetName(std::string new_name) { mName = new_name; }
@@ -64,7 +71,8 @@ private:
 private:
     std::string mName;
     UINT object_ID = Engine::INVALID_ID;
-    
+    std::weak_ptr<Scene> mScene;
+
     std::shared_ptr<TransformComponent> transform;
     std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>> map_Components;
 
@@ -128,8 +136,11 @@ std::shared_ptr<T> Object::AddComponent(Args&&... args)
     comp->SetOwner(shared_from_this());
 
     map_Components[type].push_back(comp);
-    ComponentRegistry::Notify(comp);
 
-    return comp; 
+    if (auto s = mScene.lock())
+        s->RegisterComponent(comp);
+    else
+        OutputDebugStringA("[Object::AddComponent] Object has no Scene, skipped registration.\n");
+
+    return comp;
 }
-

@@ -36,7 +36,6 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 
 	mTimer = std::make_unique<GameTimer>();
 	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
-	renderer_manager = std::make_unique<RendererManager>();
 	resource_manager = std::make_unique<ResourceManager>();
 	mObjectmanager = std::make_unique<ObjectManager>();
 
@@ -113,12 +112,37 @@ void GameEngine::OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM w
 	if (ImGui_ImplWin32_WndProcHandler(m_hWnd, nMessageID, wParam, lParam))
 		return;
 
-	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
+//	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
 	InputManager::Get().ProcessMessage(nMessageID, wParam, lParam);
 
 
 	switch (nMessageID)
 	{
+
+		case WM_KEYDOWN:
+			switch (wParam)
+			{
+			case 'P':
+			{
+				if (auto scene = SceneManager::Get().LoadScene("test_scene.json"))
+				{
+					SceneManager::Get().SetActiveScene(scene);
+					active_scene = scene;
+				}
+			}
+			break;
+				
+			case 'O':
+			{
+				if (auto scene = SceneManager::Get().GetActiveScene())
+					SceneManager::Get().SaveScene(scene, "test_scene");
+			}
+			break;
+
+			default:
+				break;
+			}
+			break;
 
 	default:
 		break;
@@ -245,9 +269,35 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 			break;
 		}
 
+		//case ID_ADD_OBJECT:
+		//	//SceneManager::Get().GetActiveScene()->SpawnEmptyObject();
+		//	break;
+
+//		case ID_SCENE_SAVE:
+//		case ID_SCENE_SAVE_AS:
 		case ID_ADD_OBJECT:
-			//SceneManager::Get().GetActiveScene()->SpawnEmptyObject();
+		{
+
+			if (auto scene = SceneManager::Get().LoadScene("test_scene.json"))
+			{
+				SceneManager::Get().SetActiveScene(scene);
+				active_scene = scene;
+			}
+
+			//if (auto scene = SceneManager::Get().GetActiveScene())
+			//	SceneManager::Get().SaveScene(scene, "test_scene");
+
 			break;
+		}
+		
+		break;
+
+
+
+	//	case ID_SCENE_LOAD:
+		{
+		}
+		break;
 
 		case ID_DEBUG_RESET:
 			break;

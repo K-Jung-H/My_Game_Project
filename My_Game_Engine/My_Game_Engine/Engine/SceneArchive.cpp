@@ -1,6 +1,6 @@
 #include "SceneArchive.h"
 #include "Core/Scene.h"
-
+#include "GameEngine.h"
 
 using namespace rapidjson;
 
@@ -27,14 +27,104 @@ std::shared_ptr<Scene> SceneArchive::Load(const std::string& file_name, SceneFil
 
 bool SceneArchive::SaveJSON(const std::shared_ptr<Scene>& scene, const std::string& file_name)
 {
-    return false;
+    using namespace rapidjson;
+
+    Document doc;
+    doc.SetObject();
+    auto& alloc = doc.GetAllocator();
+
+    doc.AddMember("scene_id", scene->GetId(), alloc);
+    doc.AddMember("alias", Value(scene->GetAlias().data(), alloc), alloc);
+
+    Value objs(kArrayType);
+    for (auto& root : scene->GetRootObjectList())
+    {
+        if (root)
+            objs.PushBack(root->ToJSON(alloc), alloc);
+    }
+    doc.AddMember("objects", objs, alloc);
+
+    StringBuffer buf;
+    PrettyWriter<StringBuffer> writer(buf);
+    doc.Accept(writer);
+
+    std::ofstream ofs(file_name, std::ios::trunc);
+    if (!ofs.is_open())
+        return false;
+    ofs << buf.GetString();
+    ofs.close();
+
+    OutputDebugStringA(("[SceneArchive] Saved scene: " + file_name + "\n").c_str());
+    return true;
 }
 
+std::shared_ptr<Object> SceneArchive::LoadObjectRecursive(const std::shared_ptr<Scene> scene, const rapidjson::Value& val)
+{
+
+    auto om = GameEngine::Get().GetObjectManager();
+
+    std::string name = val["name"].GetString();
+    auto obj = om->CreateObject(scene, name);
+    obj->SetId(val["id"].GetUint());
+    obj->FromJSON(val);
+
+    if (val.HasMember("children"))
+    {
+        for (auto& childVal : val["children"].GetArray())
+        {
+            auto childObj = LoadObjectRecursive(scene, childVal);
+            obj->SetChild(childObj);
+        }
+    }
+
+    return obj;
+}
 
 std::shared_ptr<Scene> SceneArchive::LoadJSON(const std::string& file_name)
 {
-    return nullptr;
+    using namespace rapidjson;
+
+    std::ifstream ifs(file_name);
+    if (!ifs.is_open())
+    {
+        OutputDebugStringA(("[SceneArchive] Cannot open file: " + file_name + "\n").c_str());
+        return nullptr;
+    }
+
+    std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    Document doc;
+    doc.Parse(json.c_str());
+
+    if (doc.HasParseError())
+    {
+        OutputDebugStringA("[SceneArchive] JSON Parse Error\n");
+        return nullptr;
+    }
+
+    auto scene = std::make_shared<Scene>();
+    scene->SetId(doc["scene_id"].GetUint());
+    scene->SetAlias(doc["alias"].GetString());
+
+    if (doc.HasMember("objects") && doc["objects"].IsArray())
+    {
+        for (auto& rootVal : doc["objects"].GetArray())
+        {
+            auto rootObj = LoadObjectRecursive(scene, rootVal);
+            scene->RegisterObject(rootObj);
+        }
+    }
+
+    if (!doc.HasMember("objects") || !doc["objects"].IsArray())
+    {
+        OutputDebugStringA("[SceneArchive] No objects found in scene file.\n");
+        return scene;
+    }
+
+    OutputDebugStringA("[SceneArchive] Scene Load Completed.\n");
+    return scene;
 }
+
+
 
 
 bool SceneArchive::SaveBinary(const std::shared_ptr<Scene>& scene, const std::string& file_name)

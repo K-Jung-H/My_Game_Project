@@ -7,12 +7,64 @@
 #include "Components/ColliderComponent.h"
 #include "Resource/Model.h"
 
-static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Model>& model, const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
+
+rapidjson::Value Object::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    using namespace rapidjson;
+    Value val(kObjectType);
+
+    val.AddMember("id", object_ID, alloc);
+    val.AddMember("name", Value(mName.c_str(), alloc), alloc);
+
+    if (transform)
+        val.AddMember("transform", transform->ToJSON(alloc), alloc);
+
+    Value comps(kArrayType);
+    for (auto& [type, compVec] : map_Components)
+    {
+        for (auto& c : compVec)
+            comps.PushBack(c->ToJSON(alloc), alloc);
+    }
+    val.AddMember("components", comps, alloc);
+
+    Value childrenArr(kArrayType);
+    for (auto& ch : children)
+    {
+        if (ch)
+            childrenArr.PushBack(ch->ToJSON(alloc), alloc); 
+    }
+
+    val.AddMember("children", childrenArr, alloc);
+
+    return val;
+}
+void Object::FromJSON(const rapidjson::Value& val)
+{
+    mName = val["name"].GetString();
+    object_ID = val["id"].GetUint();
+
+    if (val.HasMember("transform") && val["transform"].IsObject())
+        transform->FromJSON(val["transform"]);
+
+    if (val.HasMember("components"))
+    {
+        for (auto& compVal : val["components"].GetArray())
+        {
+            std::string type = compVal["type"].GetString();
+            if (type == "CameraComponent") AddComponent<CameraComponent>()->FromJSON(compVal);
+            else if (type == "RigidbodyComponent") AddComponent<RigidbodyComponent>()->FromJSON(compVal);
+            else if (type == "MeshRendererComponent") AddComponent<MeshRendererComponent>()->FromJSON(compVal);
+        }
+    }
+}
+
+
+static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model>& model, const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
 {
     auto om = GameEngine::Get().GetObjectManager();
     const Skeleton& skeleton = model->GetSkeleton();
 
-    auto obj = om->CreateObject(node->name);
+    auto obj = om->CreateObject(scene, node->name);
     if (parent)
         obj->SetParent(parent);
 
@@ -27,7 +79,7 @@ static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Model>& model, 
     }
 
     for (auto& child : node->children)
-        ConvertNode(model, child, obj);
+        ConvertNode(scene, model, child, obj);
 
 
     return obj;
@@ -104,22 +156,25 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 }
 
 
-static std::shared_ptr<Object> ConvertModelToObjects(const std::shared_ptr<Model>& model)
+static std::shared_ptr<Object> ConvertModelToObjects(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model>& model)
 {
     if (!model || !model->GetRoot())
         return nullptr;
 
-    return ConvertNode(model, model->GetRoot(), nullptr);
+    return ConvertNode(scene, model, model->GetRoot(), nullptr);
 }
 
-std::shared_ptr<Object> Object::Create(const std::shared_ptr<Model> model)
+std::shared_ptr<Object> Object::Create(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model> model)
 {
-    return ConvertModelToObjects(model);
+    return ConvertModelToObjects(scene, model);
 }
 
-std::shared_ptr<Object> Object::Create(const std::string& name)
+std::shared_ptr<Object> Object::Create(const std::shared_ptr<Scene> scene, const std::string& name)
 {
     auto obj = std::shared_ptr<Object>(new Object(name));
+
+    obj->mScene = scene;
+
     auto obj_transform = obj->AddComponent<TransformComponent>();
     obj->transform = obj_transform;
     return obj;
@@ -130,18 +185,42 @@ Object::~Object()
 
 }
 
+void Object::SetScene(std::weak_ptr<Scene> s)
+{
+    mScene = s;
+    for (auto& child : children)
+    {
+        if (child)
+            child->SetScene(s);
+    }
+}
+
 void Object::SetParent(std::shared_ptr<Object> new_parent)
 {
     parent = new_parent;
+
     if (new_parent)
+    {
         new_parent->children.push_back(shared_from_this());
+
+        if (auto scenePtr = new_parent->GetScene().lock())
+            SetScene(scenePtr);
+
+    }
+    else
+        mScene.reset();
 }
 
 void Object::SetChild(std::shared_ptr<Object> new_child)
 {
     if (!new_child) return;
+
     new_child->parent = shared_from_this();
     children.push_back(new_child);
+
+    if (auto scenePtr = GetScene().lock())
+        new_child->SetScene(scenePtr);
+
 }
 
 void Object::SetSibling(std::shared_ptr<Object> new_sibling)

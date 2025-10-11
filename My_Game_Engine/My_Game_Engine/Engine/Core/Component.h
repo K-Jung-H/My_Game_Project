@@ -15,6 +15,10 @@ enum Component_Type
 class Component : public std::enable_shared_from_this<Component>
 {
 public:
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const { return {}; }
+    virtual void FromJSON(const rapidjson::Value& val) {}
+
+public:
     Component() {}
 
     virtual ~Component() = default;

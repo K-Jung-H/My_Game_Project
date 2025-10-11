@@ -26,7 +26,7 @@ std::shared_ptr<Material> MaterialLoader::LoadOrReuse(
 
     mat->SetAlias(uniqueName);
     mat->SetId(ResourceRegistry::GenerateID());
-    mat->SetPath(srcModelPath);
+    mat->SetPath(matFilePath);
     manager.Add(mat);
 
     return mat;

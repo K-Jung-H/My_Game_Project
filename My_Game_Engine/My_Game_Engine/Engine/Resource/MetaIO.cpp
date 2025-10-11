@@ -79,7 +79,7 @@ bool MetaIO::SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res)
 
 
 
-bool MetaIO::LoadSimpleMeta(std::shared_ptr<Game_Resource>& res)
+bool MetaIO::LoadSimpleMeta(const std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return false;
     std::string metaPath = res->GetPathCopy() + ".meta";

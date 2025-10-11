@@ -1,5 +1,35 @@
 #include "RigidbodyComponent.h"
 
+
+rapidjson::Value RigidbodyComponent::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    Value v(kObjectType);
+    v.AddMember("type", "RigidbodyComponent", alloc);
+    v.AddMember("isKinematic", mIsKinematic, alloc);
+    v.AddMember("useGravity", mUseGravity, alloc);
+    v.AddMember("mass", mMass, alloc);
+    v.AddMember("linearDamping", mLinearDamping, alloc);
+    v.AddMember("angularDamping", mAngularDamping, alloc);
+
+    Value grav(kArrayType);
+    grav.PushBack(mGravity.x, alloc).PushBack(mGravity.y, alloc).PushBack(mGravity.z, alloc);
+    v.AddMember("gravity", grav, alloc);
+    return v;
+}
+
+void RigidbodyComponent::FromJSON(const rapidjson::Value& val)
+{
+    mIsKinematic = val["isKinematic"].GetBool();
+    mUseGravity = val["useGravity"].GetBool();
+    mMass = val["mass"].GetFloat();
+    mLinearDamping = val["linearDamping"].GetFloat();
+    mAngularDamping = val["angularDamping"].GetFloat();
+
+    const auto& g = val["gravity"].GetArray();
+    mGravity = { (float)g[0].GetDouble(), (float)g[1].GetDouble(), (float)g[2].GetDouble() };
+}
+
+
 void RigidbodyComponent::AddVelocity(const XMFLOAT3& v)
 {
     mVelocity.x += v.x;

@@ -7,10 +7,10 @@ ObjectManager::~ObjectManager()
 }
 
 
-std::shared_ptr<Object> ObjectManager::CreateObject(const std::string& name)
+std::shared_ptr<Object> ObjectManager::CreateObject(const std::shared_ptr<Scene>& scene, const std::string& name)
 {
     UINT id = AllocateId();
-    auto obj = Object::Create(name);
+    auto obj = Object::Create(scene, name);
     obj->SetId(id);
 
     activeObjects[id] = obj;
@@ -19,7 +19,7 @@ std::shared_ptr<Object> ObjectManager::CreateObject(const std::string& name)
     return obj;
 }
 
-std::shared_ptr<Object> ObjectManager::CreateObjectWithId(const std::string& name, UINT id)
+std::shared_ptr<Object> ObjectManager::CreateObjectWithId(const std::shared_ptr<Scene>& scene, const std::string& name, UINT id)
 {
     if (activeObjects.find(id) != activeObjects.end())
     {
@@ -27,7 +27,7 @@ std::shared_ptr<Object> ObjectManager::CreateObjectWithId(const std::string& nam
         return nullptr;
     }
 
-    auto obj = Object::Create(name);
+    auto obj = Object::Create(scene, name);
     obj->SetId(id);
 
     activeObjects[id] = obj;
@@ -39,11 +39,11 @@ std::shared_ptr<Object> ObjectManager::CreateObjectWithId(const std::string& nam
     return obj;
 }
 
-std::shared_ptr<Object> ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
+std::shared_ptr<Object> ObjectManager::CreateFromModel(const std::shared_ptr<Scene>& scene, const std::shared_ptr<Model>& model)
 {
     if (!model) return nullptr;
 
-    auto root = Object::Create(model);
+    auto root = Object::Create(scene, model);
     if (!root) return nullptr;
 
 

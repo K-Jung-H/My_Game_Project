@@ -16,6 +16,36 @@ CameraComponent::CameraComponent()
     CreateCBV(rc);
 }
 
+
+rapidjson::Value CameraComponent::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    Value v(kObjectType);
+    v.AddMember("type", "CameraComponent", alloc);
+
+    v.AddMember("fovY", mFovY, alloc);
+    v.AddMember("nearZ", mNearZ, alloc);
+    v.AddMember("farZ", mFarZ, alloc);
+    v.AddMember("use_focus_target", mUseFocusTarget, alloc);
+
+    Value tgt(kArrayType);
+    tgt.PushBack(mTarget.x, alloc).PushBack(mTarget.y, alloc).PushBack(mTarget.z, alloc);
+    v.AddMember("target", tgt, alloc);
+    return v;
+}
+
+void CameraComponent::FromJSON(const rapidjson::Value& val)
+{
+    mFovY = val["fovY"].GetFloat();
+    mNearZ = val["nearZ"].GetFloat();
+    mFarZ = val["farZ"].GetFloat();
+    mUseFocusTarget = val["use_focus_target"].GetBool();
+
+    const auto& t = val["target"].GetArray();
+    mTarget = { (float)t[0].GetDouble(), (float)t[1].GetDouble(), (float)t[2].GetDouble() };
+}
+
+
+
 void CameraComponent::CreateCBV(const RendererContext& ctx)
 {
     UINT bufferSize = (sizeof(CameraCB) + 255) & ~255;
@@ -159,7 +189,15 @@ const XMFLOAT3& CameraComponent::GetPosition()
     if (auto tf = mTransform.lock())
         return tf->GetPosition();
     else
+    {
+        if (auto obj = mOwner.lock())
+            mTransform = obj->GetTransform();
+
+        if (auto tf = mTransform.lock())
+            return tf->GetPosition();
+
         throw std::runtime_error("Failed to Find Camera's Transform");
+    }
 }
 
 void CameraComponent::SetRotation(float yaw, float pitch, float roll)

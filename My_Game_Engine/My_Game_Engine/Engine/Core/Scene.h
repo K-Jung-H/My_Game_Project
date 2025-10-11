@@ -1,11 +1,12 @@
 #pragma once
-#include "Object.h"
 #include "DX_Graphics/RenderData.h"
 
 
 class SceneManager;
+class Object;
 
-class Scene
+
+class Scene : public std::enable_shared_from_this<Scene>
 {
     friend class SceneManager;
     friend class SceneArchive;
@@ -17,6 +18,9 @@ public:
     UINT GetId() const { return scene_id; }
     std::string_view GetAlias() const { return alias; }
 
+
+    void RegisterObject(const std::shared_ptr<Object>& obj);
+    void RegisterComponent(std::weak_ptr<Component> comp);
     void RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp);
     std::vector<RenderData> GetRenderable() const;
 
