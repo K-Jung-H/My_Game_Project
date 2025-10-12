@@ -69,6 +69,18 @@ JSON은 Object 단위로 관리할 것
 - Scene Load 동작에서 컴포넌트 할당 과정에, ComponentRegistry가 오히려 불편하여 이를 제거하였으나, 리소스 Load, Registry 과정에서도 같은 문제가 있음
 -> ResourceManager, ResourceRegistry의 기능을 통합한 ResourceSystem을 새로 정의하여, 코드를 정리해야 함
 
+
+문제 해결 진행중
+- 불편했던 리소스 관리 체계를 ResourceSystem으로 통일
+	- 실행 시, Assets 폴더의 모든 Meta 파일 데이터 저장
+	- Meta 생성, 중복, 저장 관리
+	- 리소스 Load 체계 단순화
+
+-> 외부에서 세팅한 Save 파일이 제대로 반영 안되는 문제 해결을 위한 준비 완료
+--> GUID 기반 SAVE, LOAD 동작 다시 검사 하기
+
+
+
 -------------------------------------
 
 장기적 목표
