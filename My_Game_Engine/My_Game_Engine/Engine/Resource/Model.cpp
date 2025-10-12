@@ -6,7 +6,7 @@ Model::Model() : Game_Resource()
 
 }
 
-bool Model::LoadFromFile(std::string_view path, const RendererContext& ctx)
+bool Model::LoadFromFile(std::string path, const RendererContext& ctx)
 {
 	return false;
 }

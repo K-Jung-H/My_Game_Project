@@ -1,13 +1,14 @@
 #include "TextureLoader.h"
-#include "ResourceRegistry.h"
+#include "GameEngine.h"
+#include "MetaIO.h"
 
 std::vector<UINT> TextureLoader::LoadFromAssimp(
-    ResourceManager& manager,
+    const RendererContext& ctx,
     aiMaterial* material,
     const std::string& basePath,
-    std::shared_ptr<Material>& mat,
-    const RendererContext& ctx)
+    std::shared_ptr<Material>& mat)
 {
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     std::vector<UINT> textureIds;
 
     static const std::vector<std::pair<aiTextureType, std::string>> textureTypes =
@@ -30,17 +31,23 @@ std::vector<UINT> TextureLoader::LoadFromAssimp(
             std::filesystem::path texRel = std::filesystem::path(texPath.C_Str());
             std::filesystem::path fullPath = baseDir / texRel;
 
-            auto tex = manager.GetByPath<Texture>(fullPath.string());
+            auto tex = rs->GetByPath<Texture>(fullPath.string());
             if (!tex)
             {
                 tex = std::make_shared<Texture>();
                 if (!tex->LoadFromFile(fullPath.string(), ctx))
+                {
+                    OutputDebugStringA(("[TextureLoader] Failed to load texture: " + fullPath.string() + "\n").c_str());
                     continue;
+                }
 
-                tex->SetId(ResourceRegistry::GenerateID());
+                tex->SetAlias(fullPath.stem().string());
                 tex->SetPath(fullPath.string());
-                tex->SetAlias(basePath + "_tex_" + suffix);
-                manager.Add(tex);
+                rs->RegisterResource(tex);
+            }
+            else
+            {
+                OutputDebugStringA(("[TextureLoader] Reused cached texture: " + fullPath.string() + "\n").c_str());
             }
 
             textureIds.push_back(tex->GetId());
@@ -66,16 +73,18 @@ std::vector<UINT> TextureLoader::LoadFromAssimp(
             }
         }
     }
+
     return textureIds;
 }
 
+
 std::vector<UINT> TextureLoader::LoadFromFbx(
-    ResourceManager& manager,
+    const RendererContext& ctx,
     FbxSurfaceMaterial* fbxMat,
     const std::string& basePath,
-    std::shared_ptr<Material>& mat,
-    const RendererContext& ctx)
+    std::shared_ptr<Material>& mat)
 {
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     std::vector<UINT> textureIds;
 
     auto LoadTex = [&](const char* propName, UINT& texId, UINT& texSlot)
@@ -89,32 +98,40 @@ std::vector<UINT> TextureLoader::LoadFromFbx(
             FbxFileTexture* tex = prop.GetSrcObject<FbxFileTexture>(0);
             if (!tex) return;
 
+            // 경로 계산
             std::filesystem::path baseDir = std::filesystem::path(basePath).parent_path();
             std::filesystem::path texPath = tex->GetFileName();
-
             std::filesystem::path relPath = texPath.filename();
             std::filesystem::path fullPath = baseDir / relPath;
 
-            if (auto existTex = manager.GetByPath<Texture>(fullPath.string()))
+            // 캐시 확인
+            auto existTex = rs->GetByPath<Texture>(fullPath.string());
+            if (existTex)
             {
                 texId = existTex->GetId();
                 texSlot = existTex->GetSlot();
                 textureIds.push_back(texId);
+                OutputDebugStringA(("[TextureLoader-FBX] Reused cached texture: " + fullPath.string() + "\n").c_str());
                 return;
             }
 
+            // 새 텍스처 생성
             auto newTex = std::make_shared<Texture>();
             if (!newTex->LoadFromFile(fullPath.string(), ctx))
+            {
+                OutputDebugStringA(("[TextureLoader-FBX] Failed to load texture: " + fullPath.string() + "\n").c_str());
                 return;
+            }
 
-            newTex->SetId(ResourceRegistry::GenerateID());
             newTex->SetPath(fullPath.string());
             newTex->SetAlias(fullPath.stem().string());
-            manager.Add(newTex);
+            rs->RegisterResource(newTex);  
 
             texId = newTex->GetId();
             texSlot = newTex->GetSlot();
             textureIds.push_back(texId);
+
+            OutputDebugStringA(("[TextureLoader-FBX] Loaded new texture: " + fullPath.string() + "\n").c_str());
         };
 
     // FBX 기본 속성 이름 (DX12 PBR 기준)

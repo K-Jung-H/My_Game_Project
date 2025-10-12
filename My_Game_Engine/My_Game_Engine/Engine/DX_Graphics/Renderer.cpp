@@ -710,7 +710,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     fr.ObjectCB.HeadOffset = 0;
     mDrawItems.clear();
 
-    ResourceManager* rm = GameEngine::Get().GetResourceManager();
+    ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
 
     for (auto& rd : renderables)
     {
@@ -733,7 +733,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             if (matId == Engine::INVALID_ID)
                 matId = mesh->submeshes[i].materialId;
 
-            auto material = rm->GetById<Material>(matId);
+            auto material = rsm->GetById<Material>(matId);
             if (!material) continue;
 
             ObjectCBData cb{};
@@ -1339,16 +1339,89 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
 
     case Mesh_Renderer:
     {
-        std::shared_ptr<MeshRendererComponent> mr = dynamic_pointer_cast<MeshRendererComponent>(comp);
+        std::shared_ptr<MeshRendererComponent> mr = std::dynamic_pointer_cast<MeshRendererComponent>(comp);
         if (mr)
         {
+            ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+
             ImGui::Text("MeshRenderer");
+            ImGui::Separator();
             ImGui::Indent();
-            ImGui::Text("Mesh ID: %u", mr->GetMesh());
+
+            // Get mesh info
+            auto meshPtr = mr->GetMesh();
+            if (meshPtr)
+            {
+                ImGui::Text("Mesh Info");
+                ImGui::Separator();
+
+                if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Property");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableHeadersRow();
+
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
+                    
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", mr->GetMesh());
+
+
+                    ImGui::EndTable();
+                }
+
+                // Submesh material list
+                ImGui::Spacing();
+                ImGui::Text("Submesh Materials");
+                ImGui::Separator();
+
+                if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Submesh Index");
+                    ImGui::TableSetupColumn("Material Alias");
+                    ImGui::TableSetupColumn("Material ID");
+                    ImGui::TableHeadersRow();
+
+                    const auto& submeshes = meshPtr->submeshes;
+                    for (size_t i = 0; i < submeshes.size(); ++i)
+                    {
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::Text("%zu", i);
+
+                        UINT matId = mr->GetMaterial(i);
+                        std::string matAlias = "<null>";
+
+                        if (matId != Engine::INVALID_ID)
+                        {
+                            auto matPtr = rsm->GetById<Material>(matId);
+                            if (matPtr)
+                                matAlias = matPtr->GetAlias();
+                        }
+
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::Text("%u", matId);
+
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::Text("%s", matAlias.c_str());
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
+            else
+            {
+                ImGui::Text("Mesh: <invalid>");
+            }
+
             ImGui::Unindent();
         }
     }
-    break;
+        break;
+
 
     case Camera:
     {

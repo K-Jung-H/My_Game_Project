@@ -6,7 +6,7 @@ class Texture : public Game_Resource
 public:
 	Texture();
 	virtual ~Texture() = default;
-	virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
+	virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
 
 	ID3D12Resource* GetResource() const { return mTexture.Get(); }
 

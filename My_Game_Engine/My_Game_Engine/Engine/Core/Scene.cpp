@@ -16,7 +16,7 @@ Scene::~Scene()
 void Scene::Build()
 {
 	auto om = GameEngine::Get().GetObjectManager();
-	auto* rcm = GameEngine::Get().GetResourceManager();
+	auto rsm = GameEngine::Get().GetResourceSystem();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
 	//--------------------------------------------------------------------------------
@@ -37,35 +37,45 @@ void Scene::Build()
 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	{
-		LoadResult result = ResourceRegistry::Instance().Load(*rcm, path_0, "test_0", ctx);
-		auto model_ptr = rcm->GetById<Model>(result.modelId);
+		LoadResult result;
+		rsm->Load(path_0, "Test_0", result);
+
+		auto model_ptr = rsm->GetById<Model>(result.modelId);
+		if (!model_ptr)
+		{
+			OutputDebugStringA("[Scene::Build] Model load failed.\n");
+			return;
+		}
 
 
 		std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
 		test_obj->SetName("Test_Object_0");
 		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
 		test_obj->GetTransform()->SetPosition({ 0, 0, 0 });
+
 		auto rb = test_obj->AddComponent<RigidbodyComponent>();
 		rb->SetUseGravity(false);
+
 		RegisterObject(test_obj);
 	}
 
-	//{
-	//	LoadResult result = ResourceRegistry::Instance().Load(*rcm, path_1, "test_1", ctx);
-	//	auto model_ptr = rcm->GetById<Model>(result.modelId);
-	//	for (int i = 0; i < 1; ++i)
-	//	{
-	//		std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
-	//		test_obj->SetName("Test_Object_" + std::to_string(1+i));
-	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-	//		test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
-	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
-	//		rb->SetUseGravity(false);
+	{
+		LoadResult result;
+		rsm->Load(path_1, "Test_1", result);
 
-	//		RegisterObject(test_obj);
+		auto model_ptr = rsm->GetById<Model>(result.modelId);
+		for (int i = 0; i < 3; ++i)
+		{
+			std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
+			test_obj->SetName("Test_Object_" + std::to_string(1+i));
+			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+			test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
+			auto rb = test_obj->AddComponent<RigidbodyComponent>();
+			rb->SetUseGravity(false);
 
-	//	}
-	//}
+			RegisterObject(test_obj);
+		}
+	}
 
 
 //	// For Debug

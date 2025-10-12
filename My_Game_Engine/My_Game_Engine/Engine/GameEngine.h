@@ -1,7 +1,7 @@
 #pragma once
 #include "DX_Graphics/Renderer.h"
 #include "Managers/RendererManager.h"
-#include "Resource/ResourceManager.h"
+#include "Resource/ResourceSystem.h"
 #include "InputManager.h"
 #include "GameTimer.h"
 #include "Scene_Manager.h"
@@ -45,7 +45,7 @@ public:
 
     GameTimer* GetTimer() { return mTimer.get(); }
     PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
-    ResourceManager* GetResourceManager() { return resource_manager.get(); }
+    ResourceSystem* GetResourceSystem() { return m_ResourceSystem.get(); }
     ObjectManager* GetObjectManager() { return mObjectmanager.get(); }
 
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
@@ -64,9 +64,10 @@ private:
     bool Is_Initialized = false;
     
     std::unique_ptr<PhysicsSystem> m_PhysicsSystem;
+    std::unique_ptr<ResourceSystem> m_ResourceSystem;
     std::unique_ptr<GameTimer> mTimer;
     std::unique_ptr<DX12_Renderer>   mRenderer;
-    std::unique_ptr<ResourceManager> resource_manager;
+
     std::unique_ptr<ObjectManager> mObjectmanager;
 
     std::shared_ptr<Scene> active_scene;

@@ -18,7 +18,7 @@ Texture::Texture() : Game_Resource(ResourceType::Texture)
 {
 }
 
-bool Texture::LoadFromFile(std::string_view path, const RendererContext& ctx)
+bool Texture::LoadFromFile(std::string path, const RendererContext& ctx)
 {
     std::wstring wpath = ToWString(path);
 

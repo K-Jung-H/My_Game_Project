@@ -1,16 +1,25 @@
 #include "MaterialLoader.h"
-#include "ResourceRegistry.h"
+#include "GameEngine.h"
+#include "MetaIO.h"
 
 std::shared_ptr<Material> MaterialLoader::LoadOrReuse(
-    ResourceManager& manager,
     const RendererContext& ctx,
     const std::string& matFilePath,
     const std::string& uniqueName,
     const std::string& srcModelPath)
 {
-    std::shared_ptr<Material> mat = std::make_shared<Material>();
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
-    if (std::filesystem::exists(matFilePath))
+    if (auto cached = rs->GetByPath<Material>(matFilePath))
+    {
+        OutputDebugStringA(("[Material] Cached material reused: " + matFilePath + "\n").c_str());
+        return cached;
+    }
+
+    std::shared_ptr<Material> mat = std::make_shared<Material>();
+    bool existing = std::filesystem::exists(matFilePath);
+
+    if (existing)
     {
         if (!mat->LoadFromFile(matFilePath, ctx))
         {
@@ -25,9 +34,9 @@ std::shared_ptr<Material> MaterialLoader::LoadOrReuse(
     }
 
     mat->SetAlias(uniqueName);
-    mat->SetId(ResourceRegistry::GenerateID());
     mat->SetPath(matFilePath);
-    manager.Add(mat);
+
+    rs->RegisterResource(mat);
 
     return mat;
 }

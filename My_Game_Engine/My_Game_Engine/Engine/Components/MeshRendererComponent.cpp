@@ -7,8 +7,8 @@ rapidjson::Value MeshRendererComponent::ToJSON(rapidjson::Document::AllocatorTyp
     Value v(kObjectType);
     v.AddMember("type", "MeshRendererComponent", alloc);
 
-    auto rm = GameEngine::Get().GetResourceManager();
-    auto mesh = rm->GetById<Mesh>(meshId);
+    auto rsm = GameEngine::Get().GetResourceSystem();
+    auto mesh = rsm->GetById<Mesh>(meshId);
     if (!mesh)
         return v;
 
@@ -24,7 +24,7 @@ rapidjson::Value MeshRendererComponent::ToJSON(rapidjson::Document::AllocatorTyp
         UINT matId = (i < materialOverrides.size() && materialOverrides[i] != Engine::INVALID_ID)
             ? materialOverrides[i] : mesh->submeshes[i].materialId;;
 
-        if (auto mat = rm->GetById<Material>(matId))
+        if (auto mat = rsm->GetById<Material>(matId))
         {
             std::string mat_guid = mat->GetGUID();
             entry.AddMember("material_guid", Value(mat_guid.c_str(), alloc), alloc);
@@ -43,48 +43,81 @@ rapidjson::Value MeshRendererComponent::ToJSON(rapidjson::Document::AllocatorTyp
 
 void MeshRendererComponent::FromJSON(const rapidjson::Value& val)
 {
-    auto rm = GameEngine::Get().GetResourceManager();
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+    const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
 
-    if (!val.HasMember("mesh_guid") || !val["mesh_guid"].IsString())
-        return;
-
-    auto mesh = rm->GetByGUID<Mesh>(val["mesh_guid"].GetString());
-    if (!mesh)
-        return;
-
-    SetMesh(mesh->GetId()); 
-
-    if (!val.HasMember("submeshes") || !val["submeshes"].IsArray())
-        return;
-
-    const auto& subs = val["submeshes"].GetArray();
-    for (const auto& s : subs)
+    // --- Mesh 복원 ---
+    if (val.HasMember("mesh_guid") && val["mesh_guid"].IsString())
     {
-        if (!s.HasMember("index") || !s.HasMember("material_guid"))
-            continue;
+        std::string meshGuid = val["mesh_guid"].GetString();
+        auto mesh = rs->GetByGUID<Mesh>(meshGuid);
 
-        if (!s["index"].IsUint() || !s["material_guid"].IsString())
-            continue;
+        // GUID로 못 찾았을 경우, Path 기반 fallback
+        if (!mesh && val.HasMember("mesh_path") && val["mesh_path"].IsString())
+        {
+            std::string meshPath = val["mesh_path"].GetString();
+            LoadResult temp;
+            rs->Load(meshPath, "LoadedMesh", temp);
+            mesh = rs->GetByGUID<Mesh>(meshGuid);
+        }
 
-        size_t idx = s["index"].GetUint();
-        if (idx >= materialOverrides.size())
-            continue;
-
-        auto mat = rm->GetByGUID<Material>(s["material_guid"].GetString());
-        if (mat)
-            materialOverrides[idx] = mat->GetId();
+        if (mesh)
+        {
+            SetMesh(mesh->GetId());
+        }
         else
-            materialOverrides[idx] = Engine::INVALID_ID;
+        {
+            OutputDebugStringA(("[MeshRenderer] Missing mesh GUID: " + meshGuid + "\n").c_str());
+            return;
+        }
+    }
+
+    // --- Submesh별 Material 복원 ---
+    if (val.HasMember("submeshes") && val["submeshes"].IsArray())
+    {
+        const auto& subs = val["submeshes"].GetArray();
+        for (const auto& s : subs)
+        {
+            if (!s.HasMember("index") || !s.HasMember("material_guid"))
+                continue;
+
+            if (!s["index"].IsUint() || !s["material_guid"].IsString())
+                continue;
+
+            size_t idx = s["index"].GetUint();
+            if (idx >= materialOverrides.size())
+                continue;
+
+            std::string matGuid = s["material_guid"].GetString();
+            auto mat = rs->GetByGUID<Material>(matGuid);
+
+            // fallback: GUID로 못 찾으면 Path 기반 재로드
+            if (!mat && s.HasMember("material_path") && s["material_path"].IsString())
+            {
+                std::string matPath = s["material_path"].GetString();
+                LoadResult temp;
+                rs->Load(matPath, "LoadedMat", temp);
+                mat = rs->GetByGUID<Material>(matGuid);
+            }
+
+            if (mat)
+                materialOverrides[idx] = mat->GetId();
+            else
+            {
+                OutputDebugStringA(("[MeshRenderer] Missing material GUID: " + matGuid + "\n").c_str());
+                materialOverrides[idx] = Engine::INVALID_ID;
+            }
+        }
     }
 }
 
-
 void MeshRendererComponent::SetMesh(UINT id)
 {
+    auto rsm = GameEngine::Get().GetResourceSystem();
+
     meshId = id;
-    auto rc = GameEngine::Get().GetResourceManager();
-    
-    mMesh = rc->GetById<Mesh>(id);
+
+    mMesh = rsm->GetById<Mesh>(id);
 
     if (auto mesh = mMesh.lock())
     {

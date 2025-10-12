@@ -2,44 +2,50 @@
 #include "MaterialLoader.h"
 #include "TextureLoader.h"
 #include "MetaIO.h"
+#include "GameEngine.h"
 
 
 ModelLoader_Assimp::ModelLoader_Assimp()
 {
 }
 
-bool ModelLoader_Assimp::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx, LoadResult& result)
+
+bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+    RendererContext ctx = GameEngine::Get().Get_UploadContext();
+
     Assimp::Importer importer;
-    const aiScene* scene = importer.ReadFile(
+    const aiScene* ai_scene = importer.ReadFile(
         path,
         aiProcess_Triangulate |
         aiProcess_CalcTangentSpace |
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals);
 
-    if (!scene)
+    if (!ai_scene)
     {
         OutputDebugStringA(("[Assimp] Failed to load: " + path + "\n").c_str());
         return false;
     }
 
+    // --- 모델 생성 ---
     auto model = std::make_shared<Model>();
     model->SetAlias(std::filesystem::path(path).stem().string());
-    model->SetId(ResourceRegistry::GenerateID());
     model->SetPath(path);
-    manager.Add(model);
+    rs->RegisterResource(model);
     result.modelId = model->GetId();
 
     // --- Material 처리 ---
     std::unordered_map<std::string, int> matNameCount;
-    std::vector<UINT> matIdTable(scene->mNumMaterials);
+    std::vector<UINT> matIdTable(ai_scene->mNumMaterials);
+
     std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
     std::filesystem::create_directories(matDir);
 
-    for (unsigned int i = 0; i < scene->mNumMaterials; i++)
+    for (unsigned int i = 0; i < ai_scene->mNumMaterials; i++)
     {
-        aiMaterial* aiMat = scene->mMaterials[i];
+        aiMaterial* aiMat = ai_scene->mMaterials[i];
         aiString aiMatName;
         aiMat->Get(AI_MATKEY_NAME, aiMatName);
 
@@ -47,52 +53,54 @@ bool ModelLoader_Assimp::Load(ResourceManager& manager, const std::string& path,
         std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
 
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
-        auto mat = MaterialLoader::LoadOrReuse(manager, ctx, matFilePath, uniqueName, path);
+        auto mat = MaterialLoader::LoadOrReuse(ctx, matFilePath, uniqueName, path);
         if (!mat) continue;
 
         if (!std::filesystem::exists(matFilePath))
         {
             mat->FromAssimp(aiMat);
-            auto texIds = TextureLoader::LoadFromAssimp(manager, aiMat, path, mat, ctx);
+            auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, mat);
             result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
             mat->SaveToFile(matFilePath);
         }
 
+        rs->RegisterResource(mat);
         matIdTable[i] = mat->GetId();
         result.materialIds.push_back(mat->GetId());
     }
 
-    // --- Mesh ---
+    // --- Mesh 처리 ---
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
-    for (unsigned int i = 0; i < scene->mNumMeshes; i++)
+    for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
     {
         auto mesh = std::make_shared<Mesh>();
-        mesh->FromAssimp(scene->mMeshes[i]);
+        mesh->FromAssimp(ai_scene->mMeshes[i]);
 
-        std::string baseName = scene->mMeshes[i]->mName.C_Str();
+        std::string baseName = ai_scene->mMeshes[i]->mName.C_Str();
         if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
         mesh->SetAlias(baseName);
-        mesh->SetId(ResourceRegistry::GenerateID());
         mesh->SetPath(path);
 
         Mesh::Submesh sub{};
         sub.indexCount = (UINT)mesh->indices.size();
-        sub.materialId = scene->mMeshes[i]->mMaterialIndex < matIdTable.size() ? matIdTable[scene->mMeshes[i]->mMaterialIndex] : Engine::INVALID_ID;
+        sub.materialId = ai_scene->mMeshes[i]->mMaterialIndex < matIdTable.size()
+            ? matIdTable[ai_scene->mMeshes[i]->mMaterialIndex]
+            : Engine::INVALID_ID;
         mesh->submeshes.push_back(sub);
 
-        manager.Add(mesh);
+        rs->RegisterResource(mesh);
         loadedMeshes.push_back(mesh);
         result.meshIds.push_back(mesh->GetId());
         model->AddMesh(mesh);
     }
 
-    // --- Hierarchy / Skeleton ---
-    if (scene->mRootNode)
-        model->SetRoot(ProcessNode(scene->mRootNode, scene, loadedMeshes));
+    // --- 노드 계층 및 스켈레톤 구성 ---
+    if (ai_scene->mRootNode)
+        model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene, loadedMeshes));
 
-    model->SetSkeleton(BuildSkeleton(scene));
+    model->SetSkeleton(BuildSkeleton(ai_scene));
 
-    // --- Meta 저장 ---
+    // --- Meta 정보 저장 ---
     FbxMeta meta;
     meta.guid = model->GetGUID();
     meta.path = path;
@@ -110,7 +118,7 @@ bool ModelLoader_Assimp::Load(ResourceManager& manager, const std::string& path,
     // Material 등록
     for (auto& matId : result.materialIds)
     {
-        auto mat = manager.GetById<Material>(matId);
+        std::shared_ptr<Material> mat = rs->GetById<Material>(matId);
         if (!mat) continue;
 
         SubResourceMeta s{};
@@ -123,7 +131,7 @@ bool ModelLoader_Assimp::Load(ResourceManager& manager, const std::string& path,
     // Texture 등록
     for (auto& texId : result.textureIds)
     {
-        auto tex = manager.GetById<Texture>(texId);
+        std::shared_ptr<Texture> tex = rs->GetById<Texture>(texId);
         if (!tex) continue;
 
         SubResourceMeta s{};
@@ -132,9 +140,12 @@ bool ModelLoader_Assimp::Load(ResourceManager& manager, const std::string& path,
         s.guid = tex->GetGUID();
         meta.sub_resources.push_back(s);
     }
-    if(MetaIO::LoadFbxMeta(meta, path) == false)
+
+    // Meta 저장 (기존 파일 없을 경우만)
+    if (!MetaIO::LoadFbxMeta(meta, path))
         MetaIO::SaveFbxMeta(meta);
 
+    OutputDebugStringA(("[Assimp] Model loaded successfully: " + path + "\n").c_str());
     return true;
 }
 

@@ -21,7 +21,8 @@ Material::Material() : Game_Resource(ResourceType::Material)
     shaderName = "None";
 }
 
-bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
+
+bool Material::LoadFromFile(std::string path, const RendererContext& ctx)
 {
     std::ifstream ifs(path.data());
     if (!ifs.is_open())
@@ -30,8 +31,7 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
         return false;
     }
 
-    auto& rm = *GameEngine::Get().GetResourceManager();
-
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
     std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     Document doc;
@@ -45,33 +45,46 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
     if (doc.HasMember("albedoColor") && doc["albedoColor"].IsArray())
     {
         const auto& arr = doc["albedoColor"].GetArray();
-        if (arr.Size() > 2)
+        if (arr.Size() >= 3)
             albedoColor = XMFLOAT3(arr[0].GetFloat(), arr[1].GetFloat(), arr[2].GetFloat());
     }
 
-    if (doc.HasMember("metallic")) metallic = doc["metallic"].GetFloat();
+    if (doc.HasMember("metallic"))  metallic = doc["metallic"].GetFloat();
     if (doc.HasMember("roughness")) roughness = doc["roughness"].GetFloat();
 
-    if (doc.HasMember("textures"))
+    if (doc.HasMember("textures") && doc["textures"].IsObject())
     {
         const auto& texObj = doc["textures"];
         auto LoadTex = [&](const char* key, UINT& texId, UINT& texSlot)
             {
                 if (!texObj.HasMember(key)) return;
                 const auto& texEntry = texObj[key];
-
                 std::shared_ptr<Texture> tex = nullptr;
 
+                // 1GUID 우선 검색
                 if (texEntry.HasMember("guid"))
-                    tex = rm.GetByGUID<Texture>(texEntry["guid"].GetString());
+                    tex = rs->GetByGUID<Texture>(texEntry["guid"].GetString());
 
+                // 2GUID가 없거나 캐시 미존재 → 경로 기반 로드
                 if (!tex && texEntry.HasMember("path"))
                 {
                     std::string texPath = texEntry["path"].GetString();
-                    tex = std::make_shared<Texture>();
-                    tex->LoadFromFile(texPath, ctx);
-                    tex->SetPath(texPath);
-                    rm.Add(tex);
+                    tex = rs->GetByPath<Texture>(texPath);
+
+                    if (!tex)
+                    {
+                        tex = std::make_shared<Texture>();
+                        if (!tex->LoadFromFile(texPath, ctx))
+                        {
+                            OutputDebugStringA(("[Material] Texture load failed: " + texPath + "\n").c_str());
+                            return;
+                        }
+
+                        tex->SetPath(texPath);
+                        tex->SetAlias(std::filesystem::path(texPath).stem().string());
+
+                        rs->RegisterResource(tex);
+                    }
                 }
 
                 if (tex)
@@ -87,84 +100,75 @@ bool Material::LoadFromFile(std::string_view path, const RendererContext& ctx)
         LoadTex("metallic", metallicTexId, metallicTexSlot);
     }
 
-
     SetPath(path);
     return true;
 }
 
-
-bool Material::SaveToFile(const std::string& outputPath) const
+bool Material::SaveToFile(const std::string& path) const
 {
-    Document doc;
+    ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+
+    rapidjson::Document doc;
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
 
-    // --- 기본 정보 ---
-    doc.AddMember("guid", Value(GetGUID().c_str(), alloc), alloc);
-    doc.AddMember("name", Value(GetAlias().data(), alloc), alloc);
-    std::string shader = shaderName.empty() ? "StandardPBR" : shaderName;
-    doc.AddMember("shader", Value(shader.c_str(), alloc), alloc);
+    // --- 기본 메타 ---
+    doc.AddMember("guid", rapidjson::Value(GetGUID().c_str(), alloc), alloc);
+    doc.AddMember("name", rapidjson::Value(GetAlias().c_str(), alloc), alloc);
+    doc.AddMember("shader", rapidjson::Value(shaderName.c_str(), alloc), alloc);
 
-    // --- PBR 속성 ---
-    Value colorArr(kArrayType);
-    colorArr.PushBack(albedoColor.x, alloc);
-    colorArr.PushBack(albedoColor.y, alloc);
-    colorArr.PushBack(albedoColor.z, alloc);
-    doc.AddMember("albedoColor", colorArr, alloc);
+    // --- 물리 속성 ---
+    rapidjson::Value albedoArr(rapidjson::kArrayType);
+    albedoArr.PushBack(albedoColor.x, alloc);
+    albedoArr.PushBack(albedoColor.y, alloc);
+    albedoArr.PushBack(albedoColor.z, alloc);
+    doc.AddMember("albedoColor", albedoArr, alloc);
+
     doc.AddMember("metallic", metallic, alloc);
     doc.AddMember("roughness", roughness, alloc);
 
-    // --- 텍스처 정보 (경로 + GUID) ---
-    Value texObj(kObjectType);
-    auto resMgr = GameEngine::Get().GetResourceManager();
-    auto WriteTex = [&](const char* key, UINT texId)
+    // --- 텍스처 GUID/Path 저장 ---
+    rapidjson::Value texObj(rapidjson::kObjectType);
+
+    auto SaveTex = [&](const char* key, UINT texId)
         {
-            if (texId == Engine::INVALID_ID)    return;
+            if (texId == 0 || texId == Engine::INVALID_ID)
+                return;
 
-            auto tex = resMgr->GetById<Texture>(texId);
-            if (!tex)   return;
-
-            Value texEntry(kObjectType);
-
-            std::string texPath = tex->GetPath().data();
-            std::string texGuid = tex->GetGUID();
-
-            texEntry.AddMember("path", Value(texPath.c_str(), static_cast<SizeType>(texPath.size()), alloc), alloc);
-            texEntry.AddMember("guid", Value(texGuid.c_str(), static_cast<SizeType>(texGuid.size()), alloc), alloc);
-
-            texObj.AddMember(Value(key, alloc), texEntry, alloc);
+            if (auto tex = rsm->GetById<Texture>(texId))
+            {
+                rapidjson::Value texEntry(rapidjson::kObjectType);
+                texEntry.AddMember("guid", rapidjson::Value(tex->GetGUID().c_str(), alloc), alloc);
+                texEntry.AddMember("path", rapidjson::Value(tex->GetPath().c_str(), alloc), alloc);
+                texObj.AddMember(rapidjson::Value(key, alloc), texEntry, alloc);
+            }
         };
 
-    WriteTex("albedo", diffuseTexId);
-    WriteTex("normal", normalTexId);
-    WriteTex("roughness", roughnessTexId);
-    WriteTex("metallic", metallicTexId);
+    SaveTex("albedo", diffuseTexId);
+    SaveTex("normal", normalTexId);
+    SaveTex("roughness", roughnessTexId);
+    SaveTex("metallic", metallicTexId);
 
     doc.AddMember("textures", texObj, alloc);
 
-
-    std::filesystem::create_directories(std::filesystem::path(outputPath).parent_path());
-
-    std::ofstream ofs(outputPath, std::ios::trunc);
-    if (!ofs.is_open()) return false;
-
-    StringBuffer buffer;
-    PrettyWriter<StringBuffer> writer(buffer);
+    // --- 파일로 출력 ---
+    rapidjson::StringBuffer buffer;
+    rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
     doc.Accept(writer);
+
+    std::ofstream ofs(path, std::ios::trunc);
+    if (!ofs.is_open())
+    {
+        OutputDebugStringA(("[Material] Failed to save: " + path + "\n").c_str());
+        return false;
+    }
+
     ofs << buffer.GetString();
     ofs.close();
 
-
-    auto self = const_cast<Material*>(this);
-    self->SetPath(outputPath);
-    MetaIO::EnsureResourceGUID(std::shared_ptr<Game_Resource>(
-        std::const_pointer_cast<Material>(std::static_pointer_cast<const Material>(
-            std::shared_ptr<const Material>(this, [](const Material*) {})))));
-
-    MetaIO::SaveSimpleMeta(std::make_shared<Material>(*this));
+    OutputDebugStringA(("[Material] Saved: " + path + "\n").c_str());
     return true;
 }
-
 
 void Material::FromAssimp(const aiMaterial* material)
 {

@@ -1,4 +1,5 @@
 #include "ModelLoader_FBX.h"
+#include "GameEngine.h"
 #include "MaterialLoader.h"
 #include "TextureLoader.h"
 #include "MetaIO.h"
@@ -8,8 +9,13 @@ ModelLoader_FBX::ModelLoader_FBX()
 {
 }
 
-bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, std::string_view alias, const RendererContext& ctx, LoadResult& result)
+
+bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
+    RendererContext ctx = GameEngine::Get().Get_UploadContext();
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
+    // --- FBX SDK 초기화 ---
     FbxManager* fbxManager = FbxManager::Create();
     FbxIOSettings* ios = FbxIOSettings::Create(fbxManager, IOSROOT);
     fbxManager->SetIOSettings(ios);
@@ -30,9 +36,8 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
     // --- Model 생성 ---
     auto model = std::make_shared<Model>();
     model->SetAlias(std::filesystem::path(path).stem().string());
-    model->SetId(ResourceRegistry::GenerateID());
     model->SetPath(path);
-    manager.Add(model);
+    rs->RegisterResource(model);
     result.modelId = model->GetId();
 
     // --- Material 처리 ---
@@ -60,17 +65,18 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
         else matNameCount[baseName] = 0;
 
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
-        auto mat = MaterialLoader::LoadOrReuse(manager, ctx, matFilePath, uniqueName, path);
+        auto mat = MaterialLoader::LoadOrReuse(ctx, matFilePath, uniqueName, path);
         if (!mat) continue;
 
         if (!std::filesystem::exists(matFilePath))
         {
             mat->FromFbxSDK(fbxMat);
-            auto texIds = TextureLoader::LoadFromFbx(manager, fbxMat, path, mat, ctx);
+            auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, path, mat);
             result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
             mat->SaveToFile(matFilePath);
         }
 
+        rs->RegisterResource(mat);
         matMap[fbxMat] = mat->GetId();
         result.materialIds.push_back(mat->GetId());
     }
@@ -78,7 +84,7 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
     // --- Mesh + Node 계층 ---
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
     if (scene->GetRootNode())
-        model->SetRoot(ProcessNode(scene->GetRootNode(), manager, matMap, path, ctx, loadedMeshes));
+        model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, path, loadedMeshes));
 
     // --- Skeleton ---
     Skeleton skeleton = BuildSkeleton(scene);
@@ -89,7 +95,7 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
     meta.guid = model->GetGUID();
     meta.path = path;
 
-    // Mesh 정보 추가
+    // Mesh 등록
     for (auto& mesh : loadedMeshes)
     {
         SubResourceMeta s{};
@@ -99,10 +105,10 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
         meta.sub_resources.push_back(s);
     }
 
-    // Material 정보 추가
+    // Material 등록
     for (auto& [fbxMat, matId] : matMap)
     {
-        auto mat = manager.GetById<Material>(matId);
+        auto mat = rs->GetById<Material>(matId);
         if (!mat) continue;
 
         SubResourceMeta s{};
@@ -112,10 +118,10 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
         meta.sub_resources.push_back(s);
     }
 
-    // Texture
+    // Texture 등록
     for (auto& texId : result.textureIds)
     {
-        auto tex = manager.GetById<Texture>(texId);
+        auto tex = rs->GetById<Texture>(texId);
         if (!tex) continue;
 
         SubResourceMeta s{};
@@ -125,7 +131,7 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
         meta.sub_resources.push_back(s);
     }
 
-    if (MetaIO::LoadFbxMeta(meta, path) == false)
+    if (!MetaIO::LoadFbxMeta(meta, path))
         MetaIO::SaveFbxMeta(meta);
 
     fbxManager->Destroy();
@@ -133,14 +139,15 @@ bool ModelLoader_FBX::Load(ResourceManager& manager, const std::string& path, st
 }
 
 std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
+    const RendererContext& ctx,
     FbxNode* fbxNode,
-    ResourceManager& manager,
     std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap,
     const std::string& path,
-    const RendererContext& ctx,
     std::vector<std::shared_ptr<Mesh>>& loadedMeshes)
 {
     if (!fbxNode) return nullptr;
+
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
     auto node = std::make_shared<Model::Node>();
     node->name = fbxNode->GetName();
@@ -156,7 +163,7 @@ std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
     XMStoreFloat4x4(&node->localTransform, xm);
 
     // --- Mesh 생성 ---
-    if (auto mesh = CreateMeshFromNode(fbxNode, manager, matMap, path, ctx))
+    if (auto mesh = CreateMeshFromNode(fbxNode, matMap, path))
     {
         node->meshes.push_back(mesh);
         loadedMeshes.push_back(mesh);
@@ -166,32 +173,32 @@ std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
     int childCount = fbxNode->GetChildCount();
     for (int i = 0; i < childCount; i++)
     {
-        auto child = ProcessNode(fbxNode->GetChild(i), manager, matMap, path, ctx, loadedMeshes);
+        auto child = ProcessNode(ctx, fbxNode->GetChild(i), matMap, path, loadedMeshes);
         if (child) node->children.push_back(child);
     }
 
     return node;
 }
 
+
 std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     FbxNode* fbxNode,
-    ResourceManager& manager,
     std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap,
-    const std::string& path,
-    const RendererContext& ctx)
+    const std::string& path)
 {
     if (!fbxNode) return nullptr;
     FbxMesh* fbxMesh = fbxNode->GetMesh();
     if (!fbxMesh) return nullptr;
 
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
     auto mesh = std::make_shared<Mesh>();
     mesh->FromFbxSDK(fbxMesh);
 
     std::string baseName = fbxNode->GetName();
-    if (baseName.empty()) baseName = "Mesh_" + std::to_string(ResourceRegistry::PeekNextID());
+    if (baseName.empty()) baseName = "Mesh_" + std::to_string(rs->GetNextIdPreview());
 
     mesh->SetAlias(baseName);
-    mesh->SetId(ResourceRegistry::GenerateID());
     mesh->SetPath(path);
 
     // --- Submesh 분할 (Material Slot 기준) ---
@@ -201,18 +208,13 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     if (matElem && fbxNode->GetMaterialCount() > 0)
     {
         std::unordered_map<int, std::vector<UINT>> polyByMatSlot;
-
         int idx = 0;
         for (int p = 0; p < polyCount; p++)
         {
             int matSlot = matElem->GetIndexArray().GetAt(p);
             int vCountInPoly = fbxMesh->GetPolygonSize(p);
-
             for (int v = 0; v < vCountInPoly; v++)
-            {
-                polyByMatSlot[matSlot].push_back(mesh->indices[idx]);
-                idx++;
-            }
+                polyByMatSlot[matSlot].push_back(mesh->indices[idx++]);
         }
 
         UINT indexOffset = 0;
@@ -246,9 +248,10 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
         mesh->submeshes.push_back(sub);
     }
 
-    manager.Add(mesh);
+    rs->RegisterResource(mesh);
     return mesh;
 }
+
 
 Skeleton ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 {

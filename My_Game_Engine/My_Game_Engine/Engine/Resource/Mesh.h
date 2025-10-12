@@ -20,7 +20,7 @@ public:
 public:
     Mesh();
     virtual ~Mesh() = default;
-    virtual bool LoadFromFile(std::string_view path, const RendererContext& ctx);
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
 
     virtual void FromAssimp(const aiMesh* mesh);
     virtual void FromFbxSDK(FbxMesh* fbxMesh);
