@@ -12,7 +12,7 @@ std::shared_ptr<Object> ObjectManager::CreateObject(const std::shared_ptr<Scene>
     UINT id = AllocateId();
     auto obj = Object::Create(scene, name);
     obj->SetId(id);
-
+    obj->SetName(name);
     activeObjects[id] = obj;
     nameMap[name] = obj;
 

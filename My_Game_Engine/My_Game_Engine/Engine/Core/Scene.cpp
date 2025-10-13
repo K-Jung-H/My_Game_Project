@@ -1,6 +1,5 @@
 #include "Scene.h"
 #include "GameEngine.h"
-#include "Resource/ResourceRegistry.h"
 #include "Components/RigidbodyComponent.h"
 
 Scene::Scene() 

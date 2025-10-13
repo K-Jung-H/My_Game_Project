@@ -1,5 +1,4 @@
 #pragma once
-#include "ResourceManager.h"
 #include "Material.h"
 
 class MaterialLoader

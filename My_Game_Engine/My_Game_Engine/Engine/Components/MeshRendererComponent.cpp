@@ -122,10 +122,6 @@ void MeshRendererComponent::SetMesh(UINT id)
     if (auto mesh = mMesh.lock())
     {
         materialOverrides.resize(mesh->submeshes.size(), Engine::INVALID_ID);
-
-        for (size_t i = 0; i < mesh->submeshes.size(); ++i)
-            materialOverrides[i] = mesh->submeshes[i].materialId;
-
     }
     else
         materialOverrides.clear();
@@ -142,6 +138,7 @@ UINT MeshRendererComponent::GetMaterial(size_t submeshIndex) const
 {
     if (submeshIndex >= materialOverrides.size()) 
         return Engine::INVALID_ID;
+
 
     return materialOverrides[submeshIndex];
 }

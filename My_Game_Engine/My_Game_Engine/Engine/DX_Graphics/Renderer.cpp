@@ -1367,7 +1367,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     
                     ImGui::TableNextRow();
                     ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
-                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", mr->GetMesh());
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", mr->GetMesh()->GetId());
 
 
                     ImGui::EndTable();

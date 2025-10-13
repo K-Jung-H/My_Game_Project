@@ -22,6 +22,10 @@ struct LoadResult
     UINT modelId = Engine::INVALID_ID;
 };
 
+inline std::string MakeSubresourcePath(const std::string& containerPath, const char* kind, const std::string& nameOrIndex)
+{
+    return containerPath + "#" + kind + ":" + nameOrIndex;
+}
 
 static FileCategory DetectFileCategory(const std::string& path);
 

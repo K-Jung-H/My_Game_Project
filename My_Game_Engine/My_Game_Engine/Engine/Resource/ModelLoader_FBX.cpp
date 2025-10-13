@@ -131,7 +131,6 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         meta.sub_resources.push_back(s);
     }
 
-    if (!MetaIO::LoadFbxMeta(meta, path))
         MetaIO::SaveFbxMeta(meta);
 
     fbxManager->Destroy();
@@ -180,6 +179,13 @@ std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
     return node;
 }
 
+static std::string BuildNodePath(FbxNode* n)
+{
+    std::string out = n ? n->GetName() : "";
+    for (FbxNode* p = n ? n->GetParent() : nullptr; p && p->GetParent(); p = p->GetParent())
+        out = std::string(p->GetName()) + "/" + out;
+    return out;
+}
 
 std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     FbxNode* fbxNode,
@@ -199,7 +205,10 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     if (baseName.empty()) baseName = "Mesh_" + std::to_string(rs->GetNextIdPreview());
 
     mesh->SetAlias(baseName);
-    mesh->SetPath(path);
+
+    const std::string nodePath = BuildNodePath(fbxNode);
+    const std::string uniqueKey = MakeSubresourcePath(path, "mesh", nodePath);
+    mesh->SetPath(uniqueKey);
 
     // --- Submesh 분할 (Material Slot 기준) ---
     int polyCount = fbxMesh->GetPolygonCount();

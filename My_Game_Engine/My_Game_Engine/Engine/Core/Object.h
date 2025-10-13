@@ -20,6 +20,7 @@ public:
 private:
     static std::shared_ptr<Object> Create(const std::shared_ptr<Scene> scene, const std::string& name);
     static std::shared_ptr<Object> Create(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model> model);
+    void Initialize(const std::shared_ptr<Scene>& scene);
 
 public:
     Object() = delete;
@@ -65,8 +66,9 @@ public:
     void UpdateTransform_All();
     void Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty);
 
-private:
+protected:
     explicit Object(const std::string& name) : mName(name) {}
+
 
 private:
     std::string mName;

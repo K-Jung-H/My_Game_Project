@@ -171,13 +171,16 @@ std::shared_ptr<Object> Object::Create(const std::shared_ptr<Scene> scene, const
 
 std::shared_ptr<Object> Object::Create(const std::shared_ptr<Scene> scene, const std::string& name)
 {
-    auto obj = std::shared_ptr<Object>(new Object(name));
+    std::shared_ptr<Object> obj(new Object(name)); 
+    obj->Initialize(scene);
 
-    obj->mScene = scene;
-
-    auto obj_transform = obj->AddComponent<TransformComponent>();
-    obj->transform = obj_transform;
     return obj;
+}
+
+void Object::Initialize(const std::shared_ptr<Scene>& scene)
+{
+    mScene = scene;
+    transform = AddComponent<TransformComponent>();
 }
 
 Object::~Object()

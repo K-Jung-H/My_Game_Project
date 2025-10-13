@@ -79,7 +79,9 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         std::string baseName = ai_scene->mMeshes[i]->mName.C_Str();
         if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
         mesh->SetAlias(baseName);
-        mesh->SetPath(path);
+
+        const std::string uniqueKey = MakeSubresourcePath(path, "mesh", baseName + "_" + std::to_string(i));
+        mesh->SetPath(uniqueKey);
 
         Mesh::Submesh sub{};
         sub.indexCount = (UINT)mesh->indices.size();
@@ -142,7 +144,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     }
 
     // Meta 저장 (기존 파일 없을 경우만)
-    if (!MetaIO::LoadFbxMeta(meta, path))
         MetaIO::SaveFbxMeta(meta);
 
     OutputDebugStringA(("[Assimp] Model loaded successfully: " + path + "\n").c_str());
