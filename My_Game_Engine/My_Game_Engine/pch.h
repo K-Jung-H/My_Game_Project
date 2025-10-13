@@ -12,6 +12,8 @@
 #define NOMINMAX
 
 #include <windows.h>
+#include <commdlg.h>
+
 #include <wrl.h>
 #include <shellapi.h>
 #include <tchar.h>

@@ -84,3 +84,6 @@ private: // Sync to Win api
 };
 
 INT_PTR CALLBACK FrameInputProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam);
+std::string OpenFileDialog(const std::vector<std::pair<std::string, std::string>>& filters);
+std::string SaveFileDialog(const std::vector<std::pair<std::string, std::string>>& filters);
+

@@ -9,6 +9,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	Is_Initialized = true;
 	CoInitialize(NULL);
 
+
 	mRenderer = std::make_unique<DX12_Renderer>();
 	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
 
@@ -113,33 +114,14 @@ void GameEngine::OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM w
 	if (ImGui_ImplWin32_WndProcHandler(m_hWnd, nMessageID, wParam, lParam))
 		return;
 
-//	std::shared_ptr<Scene> active_scene = SceneManager::Get().GetActiveScene();
 	InputManager::Get().ProcessMessage(nMessageID, wParam, lParam);
 
 
 	switch (nMessageID)
 	{
-
 		case WM_KEYDOWN:
 			switch (wParam)
 			{
-			case 'P':
-			{
-				if (auto scene = SceneManager::Get().LoadScene("test_scene.json"))
-				{
-					SceneManager::Get().SetActiveScene(scene);
-					active_scene = scene;
-				}
-			}
-			break;
-				
-			case 'O':
-			{
-				if (auto scene = SceneManager::Get().GetActiveScene())
-					SceneManager::Get().SaveScene(scene, "test_scene");
-			}
-			break;
-
 			default:
 				break;
 			}
@@ -274,29 +256,54 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 		//	//SceneManager::Get().GetActiveScene()->SpawnEmptyObject();
 		//	break;
 
-//		case ID_SCENE_SAVE:
-//		case ID_SCENE_SAVE_AS:
-		case ID_ADD_OBJECT:
+
+		case ID_SCENE_SAVE:
 		{
-
-			if (auto scene = SceneManager::Get().LoadScene("test_scene.json"))
+			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				SceneManager::Get().SetActiveScene(scene);
-				active_scene = scene;
+				std::string scene_name = scene->GetAlias();
+				SceneManager::Get().SaveScene(scene, scene_name);
 			}
-
-			//if (auto scene = SceneManager::Get().GetActiveScene())
-			//	SceneManager::Get().SaveScene(scene, "test_scene");
 
 			break;
 		}
 		
+		case ID_SCENE_SAVE_AS:
+		{
+			std::vector<std::pair<std::string, std::string>> filters = {
+				{"Scene Files (*.json)", "*.json"},
+				{"All Files", "*.*"}
+			};
+
+			std::string path = SaveFileDialog(filters);
+
+			if (!path.empty())
+			{
+				if (auto scene = SceneManager::Get().GetActiveScene())
+				{
+					SceneManager::Get().SaveScene(scene, path);
+				}
+			}
+		}
 		break;
 
-
-
-	//	case ID_SCENE_LOAD:
+		case ID_SCENE_LOAD:
 		{
+			std::vector<std::pair<std::string, std::string>> filters = {
+				{"Scene Files (*.json)", "*.json"},
+				{"All Files", "*.*"}
+			};
+
+			std::string path = OpenFileDialog(filters);
+
+			if (!path.empty())
+			{
+				if (auto scene = SceneManager::Get().LoadScene(path))
+				{
+					SceneManager::Get().SetActiveScene(scene);
+					active_scene = scene;
+				}
+			}
 		}
 		break;
 
@@ -347,4 +354,75 @@ INT_PTR CALLBACK FrameInputProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 		break;
 	}
 	return (INT_PTR)FALSE;
+}
+
+std::string OpenFileDialog(const std::vector<std::pair<std::string, std::string>>& filters)
+{
+	std::string filterStr;
+	for (const auto& f : filters)
+	{
+		filterStr += f.first + '\0' + f.second + '\0';
+	}
+	filterStr += '\0';
+
+	OPENFILENAMEA ofn;
+	CHAR szFile[MAX_PATH] = { 0 };
+	ZeroMemory(&ofn, sizeof(ofn));
+
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = nullptr;
+	ofn.lpstrFile = szFile;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.lpstrFilter = filterStr.c_str();
+	ofn.nFilterIndex = 1;
+
+	std::filesystem::path initDir = std::filesystem::absolute("Assets/Scenes");
+	std::string absDir = initDir.string();
+	ofn.lpstrInitialDir = absDir.c_str();
+
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+
+	if (GetOpenFileNameA(&ofn))
+		return std::string(ofn.lpstrFile);
+
+
+	return "";
+}
+
+
+std::string SaveFileDialog(const std::vector<std::pair<std::string, std::string>>& filters)
+{
+	std::string filterStr;
+	for (const auto& f : filters)
+	{
+		filterStr += f.first + '\0' + f.second + '\0';
+	}
+	filterStr += '\0';
+
+	OPENFILENAMEA ofn;
+	CHAR szFile[MAX_PATH] = { 0 };
+	ZeroMemory(&ofn, sizeof(ofn));
+
+	ofn.lStructSize = sizeof(ofn);
+	ofn.hwndOwner = nullptr;
+	ofn.lpstrFile = szFile;
+	ofn.nMaxFile = MAX_PATH;
+	ofn.lpstrFilter = filterStr.c_str();
+	ofn.nFilterIndex = 1;
+
+	std::filesystem::path initDir = std::filesystem::absolute("Assets/Scenes");
+	std::string absDir = initDir.string();
+	ofn.lpstrInitialDir = absDir.c_str();
+
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_OVERWRITEPROMPT;
+
+	if (GetSaveFileNameA(&ofn))
+	{
+		std::string result = ofn.lpstrFile;
+		if (result.find(".json") == std::string::npos)
+			result += ".json";
+		return result;
+	}
+
+	return "";
 }

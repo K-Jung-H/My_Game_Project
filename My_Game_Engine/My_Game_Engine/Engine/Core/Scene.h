@@ -16,7 +16,7 @@ public:
 
 
     UINT GetId() const { return scene_id; }
-    std::string_view GetAlias() const { return alias; }
+    std::string GetAlias() const { return alias; }
 
 
     void RegisterObject(const std::shared_ptr<Object>& obj);
@@ -43,7 +43,7 @@ public:
 
 protected:
     void SetId(UINT new_id) { scene_id = new_id; }
-    void SetAlias(std::string_view a) { alias = a; }
+    void SetAlias(std::string a) { alias = a; }
 
     virtual void Build();
 

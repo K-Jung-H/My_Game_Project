@@ -56,3 +56,11 @@ static bool HasExtension(const std::string& filename, const std::string& ext)
         return false;
     return filename.compare(filename.length() - ext.length(), ext.length(), ext) == 0;
 }
+
+static std::filesystem::path EnsureSceneDirectory()
+{
+    std::filesystem::path sceneDir = "Assets/Scenes";
+    if (!std::filesystem::exists(sceneDir))
+        std::filesystem::create_directories(sceneDir);
+    return sceneDir;
+}
