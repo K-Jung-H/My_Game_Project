@@ -70,17 +70,34 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     }
 
     // --- Mesh 처리 ---
+    std::unordered_map<std::string, int> nameCount;
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
+
     for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
     {
         auto mesh = std::make_shared<Mesh>();
         mesh->FromAssimp(ai_scene->mMeshes[i]);
 
+        // --- 기본 이름 설정 ---
         std::string baseName = ai_scene->mMeshes[i]->mName.C_Str();
-        if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
+        if (baseName.empty())
+            baseName = "Mesh_" + std::to_string(i);
+
+        if (nameCount.count(baseName) > 0)
+        {
+            nameCount[baseName]++;
+            baseName += "_" + std::to_string(nameCount[baseName]);
+        }
+        else
+            nameCount[baseName] = 0;
+
+
         mesh->SetAlias(baseName);
 
-        const std::string uniqueKey = MakeSubresourcePath(path, "mesh", baseName + "_" + std::to_string(i));
+
+        mesh->SetGUID(MetaIO::CreateGUID(path, baseName));
+
+        std::string uniqueKey = path + "#" + baseName;
         mesh->SetPath(uniqueKey);
 
         Mesh::Submesh sub{};

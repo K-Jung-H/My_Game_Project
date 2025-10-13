@@ -1,7 +1,45 @@
 #pragma once
 
+
+enum class FileCategory
+{
+    ComplexModel,
+    FBX,
+    Texture,
+    Material,
+    Unknown
+};
+
+static FileCategory DetectFileCategory(const std::string& path)
+{
+    std::string ext;
+    try {
+        ext = std::filesystem::path(path).extension().string();
+    }
+    catch (...) {
+        return FileCategory::Unknown;
+    }
+
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    if (ext == ".fbx")
+        return FileCategory::FBX;
+
+    if (ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".dae")
+        return FileCategory::ComplexModel;
+
+    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
+        ext == ".tga" || ext == ".bmp" || ext == ".dds" || ext == ".hdr")
+        return FileCategory::Texture;
+
+    if (ext == ".mat")
+        return FileCategory::Material;
+
+    return FileCategory::Unknown;
+}
+
+
 struct RendererContext;
-class ResourceRegistry;
 
 enum class ResourceType 
 {
@@ -14,9 +52,6 @@ enum class ResourceType
 
 class Game_Resource 
 {
-    friend class ResourceRegistry;
-    friend class ResourceManager;
-
 private:
     UINT resource_id; // Resource ID
 

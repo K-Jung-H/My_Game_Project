@@ -19,6 +19,8 @@ struct FbxMeta
 namespace MetaIO
 {
     std::string CreateGUID();
+    std::string CreateGUID(const std::string& path, const std::string& name);
+
     void EnsureResourceGUID(const std::shared_ptr<Game_Resource>& res);
 
     bool SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res);

@@ -5,30 +5,6 @@
 #include "MaterialLoader.h"
 #include "TextureLoader.h"
 
-static FileCategory DetectFileCategory(const std::string& path)
-{
-    std::string ext;
-    try {
-        ext = std::filesystem::path(path).extension().string();
-    }
-    catch (...) {
-        return FileCategory::Unknown;
-    }
-
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    if (ext == ".fbx" || ext == ".obj" || ext == ".gltf" || ext == ".glb" || ext == ".dae")
-        return FileCategory::ComplexModel;
-
-    if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
-        ext == ".tga" || ext == ".bmp" || ext == ".dds" || ext == ".hdr")
-        return FileCategory::Texture;
-
-    if (ext == ".mat")
-        return FileCategory::Material;
-
-    return FileCategory::Unknown;
-}
 
 void ResourceSystem::Initialize(const std::string& assetRoot)
 {
@@ -78,14 +54,17 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 
     ResourceEntry entry;
     entry.id = mNextResourceID++;
-    entry.guid = GetOrCreateGUID(res->GetPath());
     entry.path = res->GetPath();
     entry.alias = res->GetAlias();
     entry.resource = res;
 
+    if (res->GetGUID().empty())
+        entry.guid = MetaIO::CreateGUID(entry.path, entry.alias);
+    else
+        entry.guid = res->GetGUID();
+
     res->SetId(entry.id);
     res->SetGUID(entry.guid);
-
 
     mResources[entry.id] = entry;
     mGUIDToId[entry.guid] = entry.id;
@@ -133,22 +112,32 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     // -------------------------------
     switch (category)
     {
-        // ----------------------------------------------
-        // 복합 모델 파일 (FBX / OBJ / GLTF / DAE)
-        // ----------------------------------------------
+    case FileCategory::FBX:
+    {
+        ModelLoader_FBX fbxLoader;
+        if (fbxLoader.Load(path, alias, result))
+        {
+            OutputDebugStringA(("[FBX SDK] Loaded model: " + path + "\n").c_str());
+            return;
+        }
+
+        ModelLoader_Assimp assimpLoader;
+        if (assimpLoader.Load(path, alias, result))
+        {
+            OutputDebugStringA(("[Assimp Fallback] Loaded FBX: " + path + "\n").c_str());
+            return;
+        }
+
+        OutputDebugStringA(("[ResourceSystem] Failed to load FBX file: " + path + "\n").c_str());
+        break;
+    }
+
     case FileCategory::ComplexModel:
     {
         ModelLoader_Assimp assimpLoader;
         if (assimpLoader.Load(path, alias, result))
         {
             OutputDebugStringA(("[Assimp] Loaded model: " + path + "\n").c_str());
-            return;
-        }
-
-        ModelLoader_FBX fbxLoader;
-        if (fbxLoader.Load(path, alias, result))
-        {
-            OutputDebugStringA(("[FBX] Loaded model: " + path + "\n").c_str());
             return;
         }
 

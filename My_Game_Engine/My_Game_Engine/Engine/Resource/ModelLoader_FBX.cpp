@@ -68,6 +68,8 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         auto mat = MaterialLoader::LoadOrReuse(ctx, matFilePath, uniqueName, path);
         if (!mat) continue;
 
+        mat->SetGUID(MetaIO::CreateGUID(path, uniqueName));
+
         if (!std::filesystem::exists(matFilePath))
         {
             mat->FromFbxSDK(fbxMat);
@@ -179,12 +181,18 @@ std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
     return node;
 }
 
-static std::string BuildNodePath(FbxNode* n)
+static std::string BuildNodePath(FbxNode* node)
 {
-    std::string out = n ? n->GetName() : "";
-    for (FbxNode* p = n ? n->GetParent() : nullptr; p && p->GetParent(); p = p->GetParent())
-        out = std::string(p->GetName()) + "/" + out;
-    return out;
+    if (!node) return "";
+
+    std::string path = node->GetName();
+    FbxNode* parent = node->GetParent();
+    while (parent && parent->GetParent())
+    {
+        path = std::string(parent->GetName()) + "/" + path;
+        parent = parent->GetParent();
+    }
+    return path;
 }
 
 std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
@@ -201,12 +209,15 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     auto mesh = std::make_shared<Mesh>();
     mesh->FromFbxSDK(fbxMesh);
 
+    std::string nodePath = BuildNodePath(fbxNode);
     std::string baseName = fbxNode->GetName();
-    if (baseName.empty()) baseName = "Mesh_" + std::to_string(rs->GetNextIdPreview());
+    if (baseName.empty())
+        baseName = nodePath;
 
     mesh->SetAlias(baseName);
 
-    const std::string nodePath = BuildNodePath(fbxNode);
+    mesh->SetGUID(MetaIO::CreateGUID(path, baseName));
+
     const std::string uniqueKey = MakeSubresourcePath(path, "mesh", nodePath);
     mesh->SetPath(uniqueKey);
 

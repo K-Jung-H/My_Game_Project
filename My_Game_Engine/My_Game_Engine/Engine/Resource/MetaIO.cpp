@@ -1,6 +1,13 @@
 #include "MetaIO.h"
 #include "Game_Resource.h"
 
+static uint64_t SimpleHash(const std::string& key)
+{
+    uint64_t hash = 1469598103934665603ull;
+    for (unsigned char c : key)
+        hash = (hash ^ c) * 1099511628211ull; 
+    return hash;
+}
 
 std::string MetaIO::CreateGUID()
 {
@@ -14,6 +21,18 @@ std::string MetaIO::CreateGUID()
     std::stringstream ss;
     ss << std::hex << std::setw(16) << std::setfill('0') << high
         << std::setw(16) << std::setfill('0') << low;
+    return ss.str();
+}
+
+std::string MetaIO::CreateGUID(const std::string& path, const std::string& name)
+{
+    std::string key = path + "|" + name;
+
+    uint64_t h = SimpleHash(key);
+
+    std::stringstream ss;
+    ss << std::hex << std::setw(16) << std::setfill('0') << h;
+
     return ss.str();
 }
 
@@ -40,7 +59,25 @@ void MetaIO::EnsureResourceGUID(const std::shared_ptr<Game_Resource>& res)
         }
     }
 
-    res->SetGUID(CreateGUID());
+    const std::string path = res->GetPathCopy();
+    const std::string name = res->GetAlias();
+    FileCategory category = DetectFileCategory(path);
+
+    switch (category)
+    {
+    case FileCategory::ComplexModel:
+        res->SetGUID(CreateGUID(path, name));
+        break;
+
+    case FileCategory::Texture:
+    case FileCategory::Material:
+        res->SetGUID(CreateGUID());
+        break;
+
+    default:
+        res->SetGUID(CreateGUID());
+        break;
+    }
 }
 
 

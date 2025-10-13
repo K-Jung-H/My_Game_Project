@@ -6,13 +6,6 @@
 #include "Model.h"
 #include "MetaIO.h"
 
-enum class FileCategory
-{
-    ComplexModel,
-    Texture,
-    Material,
-    Unknown
-};
 
 struct LoadResult
 {
@@ -26,9 +19,6 @@ inline std::string MakeSubresourcePath(const std::string& containerPath, const c
 {
     return containerPath + "#" + kind + ":" + nameOrIndex;
 }
-
-static FileCategory DetectFileCategory(const std::string& path);
-
 
 class ResourceSystem
 {
