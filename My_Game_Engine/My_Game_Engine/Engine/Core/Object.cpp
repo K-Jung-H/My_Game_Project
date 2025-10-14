@@ -38,6 +38,7 @@ rapidjson::Value Object::ToJSON(rapidjson::Document::AllocatorType& alloc) const
 
     return val;
 }
+
 void Object::FromJSON(const rapidjson::Value& val)
 {
     mName = val["name"].GetString();
@@ -54,6 +55,7 @@ void Object::FromJSON(const rapidjson::Value& val)
             if (type == "CameraComponent") AddComponent<CameraComponent>()->FromJSON(compVal);
             else if (type == "RigidbodyComponent") AddComponent<RigidbodyComponent>()->FromJSON(compVal);
             else if (type == "MeshRendererComponent") AddComponent<MeshRendererComponent>()->FromJSON(compVal);
+            else if (type == "LightComponent") AddComponent<LightComponent>()->FromJSON(compVal);
         }
     }
 }

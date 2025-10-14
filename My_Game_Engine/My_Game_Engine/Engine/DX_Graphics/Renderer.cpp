@@ -895,7 +895,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 {
     std::shared_ptr<CameraComponent> mainCam = render_scene->GetActiveCamera();
     std::vector<RenderData> renderData_list = render_scene->GetRenderable();
-    
+    std::vector<GPULight > light_data_list = render_scene->GetLightList();
+
     if (!mainCam)
         return;
 
@@ -911,6 +912,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     UpdateObjectCBs(renderData_list);
 
     GeometryPass(renderData_list, mainCam);
+
+    LightPass(light_data_list, mainCam);
 
     CompositePass(mainCam);
 
@@ -949,6 +952,47 @@ void DX12_Renderer::GeometryPass(std::vector<RenderData> renderData_list, std::s
 
     Render_Objects(mCommandList);
 }
+
+void DX12_Renderer::LightPass(std::vector<GPULight > light_data_list, std::shared_ptr<CameraComponent> render_camera)
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
+    mCommandList->SetGraphicsRootSignature(rs);
+
+    PSO_Manager::Instance().BindShader(mCommandList, "Composite", ShaderVariant::Default);
+
+    //============================================
+
+    PrepareGBuffer_SRV();
+
+    fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
+    mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
+
+    Bind_SceneCBV();
+    render_camera->Bind(mCommandList, RootParameter_Default::CameraCBV);
+
+
+    if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
+    {
+        auto gbufferSrv = mResource_Heap_Manager->GetGpuHandle(fr.GBufferSrvSlot_IDs[0]);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::GBufferTable, gbufferSrv);
+    }
+
+    if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
+    {
+        auto depthSrv = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::DepthTexture, depthSrv);
+    }
+
+    mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    mCommandList->DrawInstanced(6, 1, 0, 0);
+
+    std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
+}
+
 
 void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera)
 {
@@ -1313,6 +1357,7 @@ void DrawInspector(std::shared_ptr<Object> obj)
         case    Camera: component_name = "Camera"; break;
         case    Collider:   component_name = "Collider"; break;
         case    Rigidbody:  component_name = "Rigidbody"; break;
+        case    Light:  component_name = "Light"; break;
 
         case    Transform:
         case    etc:
@@ -1420,7 +1465,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Unindent();
         }
     }
-        break;
+    break;
 
 
     case Camera:
@@ -1453,6 +1498,67 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
         }
     }
     break;
+
+    case Light:
+    {
+        std::shared_ptr<LightComponent> light = std::dynamic_pointer_cast<LightComponent>(comp);
+        if (light)
+        {
+            ImGui::Text("Light Component");
+            ImGui::Separator();
+            ImGui::Indent();
+
+            // Light Type ¼±ÅÃ
+            LightType type = light->GetLightType();
+            const char* typeNames[] = { "Directional", "Point", "Spot" };
+            int currentType = static_cast<int>(type);
+
+            if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
+                light->SetLightType(static_cast<LightType>(currentType));
+
+            XMFLOAT3 color = light->GetColor();
+            float intensity = light->GetIntensity();
+
+            if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color)))
+                light->SetColor(color);
+            if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
+                light->SetIntensity(intensity);
+
+            if (type == LightType::Point || type == LightType::Spot)
+            {
+                float range = light->GetRange();
+                if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 1000.0f))
+                    light->SetRange(range);
+            }
+
+            if (type == LightType::Spot)
+            {
+                float inner = XMConvertToDegrees(light->GetInnerAngle());
+                float outer = XMConvertToDegrees(light->GetOuterAngle());
+                if (ImGui::DragFloat("Inner Angle", &inner, 0.5f, 0.0f, 90.0f))
+                    light->SetInnerAngle(XMConvertToRadians(inner));
+                if (ImGui::DragFloat("Outer Angle", &outer, 0.5f, 0.0f, 180.0f))
+                    light->SetOuterAngle(XMConvertToRadians(outer));
+            }
+
+            bool castShadow = light->CastsShadow();
+            if (ImGui::Checkbox("Cast Shadow", &castShadow))
+                light->SetCastShadow(castShadow);
+
+
+            if (auto tf = light->GetTransform())
+            {
+                XMFLOAT3 dir = { 0,1,0 };//tf->GetForwardVector();
+                ImGui::Text("Direction: %.2f, %.2f, %.2f", dir.x, dir.y, dir.z);
+            }
+
+            ImGui::Unindent();
+        }
+    }
+    break;
+
+
+
     case Collider:
         break;
     case Rigidbody:

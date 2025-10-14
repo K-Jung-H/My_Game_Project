@@ -11,7 +11,6 @@ public:
 
 public:
     static constexpr Component_Type Type = Component_Type::Mesh_Renderer;
-
     Component_Type GetType() const override { return Type; }
 
 public:

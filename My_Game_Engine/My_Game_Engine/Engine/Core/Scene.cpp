@@ -29,6 +29,14 @@ void Scene::Build()
 
 	//--------------------------------------------------------------------------------
 
+	std::shared_ptr<Object> light_obj = om->CreateObject(shared_from_this(), "Main_Light");
+	auto light_component = light_obj->AddComponent<LightComponent>();
+	light_component->SetTransform(light_obj->GetTransform());
+	RegisterObject(light_obj);
+	
+
+	//--------------------------------------------------------------------------------
+	
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	Model::loadAndExport(path_0, "test_assimp_export.txt");
@@ -162,30 +170,38 @@ void Scene::Update_Late(float dt)
 	{
 		obj_ptr->UpdateTransform_All();
 	}
+
+	for (auto lightComponent : light_list)
+	{
+		if (auto lc = lightComponent.lock())
+			lc->Update();
+	}
 }
 
-void Scene::RegisterObject(const std::shared_ptr<Object>& obj)
+void Scene::RegisterObject(const std::shared_ptr<Object>& obj, bool includeComponents)
 {
 	if (!obj) return;
 
 	if (obj->GetParent().expired())
-			obj_root_list.push_back(obj);
+		obj_root_list.push_back(obj);
 
 	obj_map[obj->GetId()] = obj;
 
 	obj->SetScene(weak_from_this());
 
-
-	for (auto& [type, comps] : obj->GetComponents())
+	if (includeComponents)
 	{
-		for (auto& c : comps)
-			RegisterComponent(c);
-	}
+		for (auto& [type, comps] : obj->GetComponents())
+		{
+			for (auto& c : comps)
+				RegisterComponent(c);
+		}
 
-	for (auto& child : obj->GetChildren())
-	{
-		if (child)
-			RegisterObject(child); 
+		for (auto& child : obj->GetChildren())
+		{
+			if (child)
+				RegisterObject(child);
+		}
 	}
 }
 
@@ -213,6 +229,15 @@ void Scene::RegisterComponent(std::weak_ptr<Component> comp)
 			}
 		}
 		break;
+
+		case Component_Type::Light:
+		{
+			if (auto light = std::dynamic_pointer_cast<LightComponent>(c))
+			{
+				light_list.push_back(light);
+			}
+			break;
+		}
 
 		case Component_Type::Rigidbody:
 		case Component_Type::Collider:
@@ -271,6 +296,21 @@ std::vector<RenderData> Scene::GetRenderable() const
 	}
 	return result;
 }
+
+std::vector<GPULight> Scene::GetLightList() const
+{
+	std::vector<GPULight> list;
+	for (const auto& light_comp : light_list)
+	{
+		if (auto light = light_comp.lock())
+		{ 
+			GPULight light_data = light->ToGPUData();
+			list.push_back(light_data);
+		}
+	}
+	return list;
+}
+
 
 void Scene::RegisterCamera(std::weak_ptr<CameraComponent> cam)
 {

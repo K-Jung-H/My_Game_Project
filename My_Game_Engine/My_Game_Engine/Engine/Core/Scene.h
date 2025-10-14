@@ -19,10 +19,12 @@ public:
     std::string GetAlias() const { return alias; }
 
 
-    void RegisterObject(const std::shared_ptr<Object>& obj);
+    void RegisterObject(const std::shared_ptr<Object>& obj, bool includeComponents = false);
     void RegisterComponent(std::weak_ptr<Component> comp);
     void RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp);
     std::vector<RenderData> GetRenderable() const;
+
+    std::vector<GPULight> GetLightList() const;
 
     void RegisterCamera(std::weak_ptr<CameraComponent> cam);
     void SetActiveCamera(const std::shared_ptr<CameraComponent>& cam) { activeCamera = cam; }
@@ -53,9 +55,15 @@ private:
     std::string alias;
 
     std::vector<RenderData> renderData_list;
+
     std::vector<std::weak_ptr<CameraComponent>> camera_list;
     std::weak_ptr<CameraComponent> activeCamera;
 
+    std::vector<std::weak_ptr<LightComponent>> light_list;
+
+
     std::unordered_map<uint64_t, std::shared_ptr<Object>> obj_map;
     std::vector<std::shared_ptr<Object>> obj_root_list;
+
+
 };

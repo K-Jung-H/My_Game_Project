@@ -30,7 +30,6 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 
 
 
-
 할 일:
 - 조명 연산 추가하기
 	- 객체를 배열로 CBV로 바인딩하는 방식을 활용하여, 씬에 있는 모든 조명 정보를 필요한 정보만 담은 구조체 배열로 정리하고, 이를 CBV에 복사하여 바인딩하기
@@ -42,6 +41,34 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 - 조명, 그림자 사이에 추가적인 연결 정보가 필요함
 	- 해당 그림자는 어떤 조명과 연산 되어야 하는지
 	- 조명이 사용하는 ShadowMap의 SRV 인덱스는 몇번인지 등등
+
+
+진행 상황:
+- Light 컴포넌트 추가 // Direction 속성 추가 필요
+- Light 컴포넌트 인스팩터 연결 // Direction 추가 필요
+
+Composite-Pass 외에 Light-Pass를 별도로 분리
+
+
+Light-Pass
+- Cluster Build Pass // 조명 연산 공간 분리
+- Light Assignment Pass // 각 공간에서 처리할 조명 데이터 인덱스 선별
+- Lighting Pass // 조명 및 그림자 연산
+
+사실 Cluster Build, LightAssignment 단계는 하나의 Pass로 처리해도 됨
+그러나,
+	- GPU 공간 낭비
+	- 분리한 공간을 기반으로 후처리에서 활용 가능
+
+-> 3-Pass 단계로 결정
+
+기존 Composite 단계에서 기대한 조명 연산 동작을 전부 Light-Pass에 위임하고, Composite 단계는 다른 동작 담당
+
+Composite-Pass
+- Alpha Blending
+- Particle Rendering
+담당 예정
+
 
 -------------------------------------
 

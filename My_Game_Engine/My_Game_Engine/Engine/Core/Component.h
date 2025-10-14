@@ -9,6 +9,7 @@ enum Component_Type
     Camera,
     Collider,
     Rigidbody,
+    Light,
     etc
 };
 

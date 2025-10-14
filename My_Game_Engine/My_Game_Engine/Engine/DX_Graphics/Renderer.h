@@ -234,6 +234,7 @@ private:
     FrameResource& GetCurrentFrameResource();
 
     void GeometryPass(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
+    void LightPass(std::vector<GPULight > light_data_list, std::shared_ptr<CameraComponent> render_camera);
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);
     void PostProcessPass(std::shared_ptr<CameraComponent> render_camera);
     void Blit_BackBufferPass();
