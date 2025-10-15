@@ -30,7 +30,7 @@ DescriptorManager::DescriptorManager(ID3D12Device* device,
         mRegions[HeapRegion::CBV] = { offset, 512, 0 };
         offset += 512;
 
-        mRegions[HeapRegion::UAV] = { offset, 128, 0 };
+        mRegions[HeapRegion::UAV] = { offset, 512, 0 };
         offset += 128;
     }
     else if (type == D3D12_DESCRIPTOR_HEAP_TYPE_RTV)

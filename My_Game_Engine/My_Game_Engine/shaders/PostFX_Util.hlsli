@@ -11,21 +11,29 @@
 cbuffer SceneCB : register(b0)
 {
     float4 gTimeInfo;
+    
+    uint gLightCount;
     uint gRenderFlags;
-    float3 padding1;
+    float2 padding;
 };
 
 cbuffer CameraCB : register(b1)
 {
     float4x4 gView;
     float4x4 gProj;
+    float4x4 gInvProj;
     float4x4 gInvViewProj;
     float3 gCameraPos;
-    float gPadding;
+    float gPadding0;
 
     float gNearZ;
     float gFarZ;
-    float2 padding2;
+    float2 gPadding1;
+
+    uint gClusterCountX;
+    uint gClusterCountY;
+    uint gClusterCountZ;
+    float gPadding2;
 };
 
 // === GBuffer Textures ===
@@ -37,12 +45,40 @@ cbuffer CameraCB : register(b1)
 //     Count
 // };
 
+struct ClusterBound
+{
+    float3 minPoint;
+    float pad0;
+    float3 maxPoint;
+    float pad1;
+};
+
+struct LightInfo
+{
+    float3 position;
+    float range;
+
+    float3 direction;
+    float intensity;
+
+    float3 color;
+    uint type;
+
+    uint castsShadow;
+    uint shadowMapStartIndex;
+    uint shadowMapLength;
+    uint padding0;
+};
+
+
 Texture2D gGBuffer_Albedo : register(t0);
 Texture2D gGBuffer_Normal : register(t1);
 Texture2D gGBuffer_Material : register(t2);
 Texture2D gDepthTex : register(t3);
-
 Texture2D gMergeTex : register(t4);
+StructuredBuffer<ClusterBound> ClusterListSRV : register(t5);
+StructuredBuffer<LightInfo> LightInput : register(t6);
+
 
 SamplerState gLinearSampler : register(s0);
 SamplerState gClampSampler : register(s1);

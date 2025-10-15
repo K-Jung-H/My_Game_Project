@@ -9,13 +9,32 @@ struct CameraCB
 {
     XMFLOAT4X4 View;
     XMFLOAT4X4 Proj;
+    XMFLOAT4X4 InvProj;
     XMFLOAT4X4 InvViewProj;
     XMFLOAT3   CameraPos;
-    float      Padding;
+    float      Padding1;
     float      NearZ;
     float      FarZ;
     XMFLOAT2   Padding2;
+
+    UINT ClusterCountX;
+    UINT ClusterCountY;
+    UINT ClusterCountZ;
+    float Padding3;
 };
+
+struct ClusterBound
+{
+    XMFLOAT3 minPoint;
+    float pad0;
+    XMFLOAT3 maxPoint;
+    float pad1;
+};
+
+constexpr UINT CLUSTER_X = 16;
+constexpr UINT CLUSTER_Y = 9;
+constexpr UINT CLUSTER_Z = 24;
+constexpr UINT TOTAL_CLUSTER_COUNT = CLUSTER_X * CLUSTER_Y * CLUSTER_Z;
 
 class CameraComponent : public Component 
 {
@@ -35,7 +54,8 @@ public:
 
     void CreateCBV(const RendererContext& ctx);
     void UpdateCBV();
-    void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex);
+    void Graphics_Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex);
+    void Compute_Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex);
 
     virtual void Update();
 

@@ -1,6 +1,7 @@
 #include "ResourceUtils.h"
 #include "DDSTextureLoader12.h"
 #include "WICTextureLoader12.h"
+#include "Renderer.h"
 
 using namespace DirectX;
 
@@ -116,6 +117,12 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateBufferResource(const RendererContext
     return CreateResource(ctx, pData, nBytes, D3D12_RESOURCE_DIMENSION_BUFFER, nBytes, 1, 1, 1, flags, DXGI_FORMAT_UNKNOWN, heapType, finalState, uploadBuffer);
 }
 
+ComPtr<ID3D12Resource> ResourceUtils::CreateBufferResourceEmpty(const RendererContext& ctx, UINT nBytes, D3D12_HEAP_TYPE heapType,
+    D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES finalState)
+{
+    ComPtr<ID3D12Resource> dummyUpload;
+    return CreateBufferResource(ctx, nullptr , nBytes, heapType, flags, finalState, dummyUpload);
+}
 
 
 ComPtr<ID3D12Resource> ResourceUtils::CreateTextureResource(const RendererContext& ctx, void* pData, UINT64 rowPitchBytes, UINT width, UINT height, UINT arraySize, UINT mipLevels,

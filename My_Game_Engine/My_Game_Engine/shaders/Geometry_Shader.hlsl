@@ -1,11 +1,33 @@
 cbuffer SceneCB : register(b0)
 {
     float4 gTimeInfo;
+    
+    uint gLightNum;
     uint gRenderFlags;
-    float3 padding1;
+    float2 padding1;
 };
 
-cbuffer ObjectCB : register(b1)
+cbuffer CameraCB : register(b1)
+{
+    float4x4 gView;
+    float4x4 gProj;
+    float4x4 gInvProj;
+    float4x4 gInvViewProj;
+    float3 gCameraPos;
+    float gPadding0;
+
+    float gNearZ;
+    float gFarZ;
+    float2 gPadding1;
+
+    uint gClusterCountX;
+    uint gClusterCountY;
+    uint gClusterCountZ;
+    float gPadding2;
+};
+
+
+cbuffer ObjectCB : register(b2)
 {
     float4x4 gWorld;
     float4 Albedo; 
@@ -18,13 +40,6 @@ cbuffer ObjectCB : register(b1)
     int MetallicTexIdx;
 };
 
-cbuffer CameraCB : register(b2)
-{
-    float4x4 gView;
-    float4x4 gProj;
-    float3 gCameraPos;
-    float _pad0;
-};
 
 
 Texture2D gTextures[2000] : register(t0); 

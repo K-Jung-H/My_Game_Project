@@ -96,6 +96,7 @@ void GameEngine::FrameAdvance()
 
 	scene_data.deltaTime = deltaTime;
 	scene_data.totalTime = runTime;
+	scene_data.LightCount = (UINT)active_scene->GetLightList().size();
 
 	mRenderer->Update_SceneCBV(scene_data);
 

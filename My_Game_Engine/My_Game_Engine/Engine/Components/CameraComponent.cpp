@@ -72,12 +72,15 @@ void CameraComponent::UpdateCBV()
     XMMATRIX proj = GetProjectionMatrix();
     XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
+    XMMATRIX invProj = XMMatrixInverse(nullptr, proj);
     XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
 
     XMStoreFloat4x4(&cb.View, XMMatrixTranspose(view));
     XMStoreFloat4x4(&cb.Proj, XMMatrixTranspose(proj));
+    XMStoreFloat4x4(&cb.InvProj, XMMatrixTranspose(invProj));
     XMStoreFloat4x4(&cb.InvViewProj, XMMatrixTranspose(invViewProj));
 
+    
     if (auto tf = mTransform.lock())
         cb.CameraPos = tf->GetPosition();
     else
@@ -85,14 +88,26 @@ void CameraComponent::UpdateCBV()
 
     cb.NearZ = mNearZ;
     cb.FarZ = mFarZ;
-    cb.Padding = 0.0f;
+    
+	cb.ClusterCountX = CLUSTER_X;
+	cb.ClusterCountY = CLUSTER_Y;  
+	cb.ClusterCountZ = CLUSTER_Z;
+
+	cb.Padding1 = 0.0f;
+	cb.Padding2 = XMFLOAT2(0.0f, 0.0f);
+	cb.Padding3 = 0.0f;
 
     memcpy(mMappedCB, &cb, sizeof(CameraCB));
 }
 
-void CameraComponent::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex)
+void CameraComponent::Graphics_Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex)
 {
     cmdList->SetGraphicsRootConstantBufferView(rootParamIndex, mCameraCB->GetGPUVirtualAddress());
+}
+
+void CameraComponent::Compute_Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT rootParamIndex)
+{
+    cmdList->SetComputeRootConstantBufferView(rootParamIndex, mCameraCB->GetGPUVirtualAddress());
 }
 
 void CameraComponent::SetViewport(XMUINT2 LeftTop, XMUINT2 RightBottom)

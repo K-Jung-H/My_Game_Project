@@ -1,5 +1,6 @@
 #pragma once
 #include "Texture.h"
+#include "DX_Graphics/Renderer.h"
 #include "DX_Graphics/ResourceUtils.h"
 
 static std::wstring ToWString(std::string_view str)

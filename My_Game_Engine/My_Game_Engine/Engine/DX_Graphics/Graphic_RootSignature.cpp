@@ -9,6 +9,7 @@ void RootSignatureFactory::Init(ID3D12Device* device)
     //cache[(int)RootSignature_Type::Terrain] = CreateTerrain(device);
     //cache[(int)RootSignature_Type::Skinned] = CreateSkinned(device);
     //cache[(int)RootSignature_Type::UI] = CreateUI(device);
+    cache[(int)RootSignature_Type::LightPass] = CreateLightPass(device);
 
     initialized = true;
 }
@@ -28,6 +29,8 @@ void RootSignatureFactory::Destroy()
 
 ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateDefault(ID3D12Device* pd3dDevice)
 {
+    using namespace RootParameter_Default;
+
     D3D12_DESCRIPTOR_RANGE srvRange = {};
     srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     srvRange.NumDescriptors = 2000;   
@@ -35,27 +38,27 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateDefault(ID3D12Device* pd
     srvRange.RegisterSpace = 0;
     srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_ROOT_PARAMETER params[RootParameter_Default::Count] = {};
+    D3D12_ROOT_PARAMETER params[Count] = {};
 
-    params[RootParameter_Default::SceneCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    params[RootParameter_Default::SceneCBV].Descriptor.ShaderRegister = 0;
-    params[RootParameter_Default::SceneCBV].Descriptor.RegisterSpace = 0;
-    params[RootParameter_Default::SceneCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[SceneCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[SceneCBV].Descriptor.ShaderRegister = 0;
+    params[SceneCBV].Descriptor.RegisterSpace = 0;
+    params[SceneCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    params[RootParameter_Default::CameraCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    params[RootParameter_Default::CameraCBV].Descriptor.ShaderRegister = 2;
-    params[RootParameter_Default::CameraCBV].Descriptor.RegisterSpace = 0;
-    params[RootParameter_Default::CameraCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[CameraCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[CameraCBV].Descriptor.ShaderRegister = 1;
+    params[CameraCBV].Descriptor.RegisterSpace = 0;
+    params[CameraCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    params[RootParameter_Default::ObjectCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    params[RootParameter_Default::ObjectCBV].Descriptor.ShaderRegister = 1;
-    params[RootParameter_Default::ObjectCBV].Descriptor.RegisterSpace = 0;
-    params[RootParameter_Default::ObjectCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[ObjectCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[ObjectCBV].Descriptor.ShaderRegister = 2;
+    params[ObjectCBV].Descriptor.RegisterSpace = 0;
+    params[ObjectCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    params[RootParameter_Default::TextureTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    params[RootParameter_Default::TextureTable].DescriptorTable.NumDescriptorRanges = 1;
-    params[RootParameter_Default::TextureTable].DescriptorTable.pDescriptorRanges = &srvRange;
-    params[RootParameter_Default::TextureTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    params[TextureTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[TextureTable].DescriptorTable.NumDescriptorRanges = 1;
+    params[TextureTable].DescriptorTable.pDescriptorRanges = &srvRange;
+    params[TextureTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
 
     D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
@@ -95,6 +98,8 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateDefault(ID3D12Device* pd
 
 ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3dDevice)
 {
+    using namespace RootParameter_PostFX;
+
     // === GBuffer Range ===
     D3D12_DESCRIPTOR_RANGE gbufferRange = {};
     gbufferRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
@@ -119,39 +124,65 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
     mergeRange.RegisterSpace = 0;
     mergeRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
+    D3D12_DESCRIPTOR_RANGE clusterRange = {};
+    clusterRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    clusterRange.NumDescriptors = 1;
+    clusterRange.BaseShaderRegister = (UINT)GBufferType::Count + 2;
+    clusterRange.RegisterSpace = 0;
+    clusterRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+
+    D3D12_DESCRIPTOR_RANGE lightBufferRange = {};
+    lightBufferRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    lightBufferRange.NumDescriptors = 1;
+    lightBufferRange.BaseShaderRegister = (UINT)GBufferType::Count + 3;
+    lightBufferRange.RegisterSpace = 0;
+    lightBufferRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
     // === Root Parameters ===
-    D3D12_ROOT_PARAMETER params[(UINT)RootParameter_PostFX::Count] = {};
+    D3D12_ROOT_PARAMETER params[(UINT)Count] = {};
 
     // b0 : SceneCBV
-    params[RootParameter_PostFX::SceneCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    params[RootParameter_PostFX::SceneCBV].Descriptor.ShaderRegister = 0;
-    params[RootParameter_PostFX::SceneCBV].Descriptor.RegisterSpace = 0;
-    params[RootParameter_PostFX::SceneCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[SceneCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[SceneCBV].Descriptor.ShaderRegister = 0;
+    params[SceneCBV].Descriptor.RegisterSpace = 0;
+    params[SceneCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     // b1 : CameraCBV
-    params[RootParameter_PostFX::CameraCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-    params[RootParameter_PostFX::CameraCBV].Descriptor.ShaderRegister = 1;
-    params[RootParameter_PostFX::CameraCBV].Descriptor.RegisterSpace = 0;
-    params[RootParameter_PostFX::CameraCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    params[CameraCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[CameraCBV].Descriptor.ShaderRegister = 1;
+    params[CameraCBV].Descriptor.RegisterSpace = 0;
+    params[CameraCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     // t0~t(N-1) : GBuffer
-    params[RootParameter_PostFX::GBufferTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    params[RootParameter_PostFX::GBufferTable].DescriptorTable.NumDescriptorRanges = 1;
-    params[RootParameter_PostFX::GBufferTable].DescriptorTable.pDescriptorRanges = &gbufferRange;
-    params[RootParameter_PostFX::GBufferTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    params[GBufferTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[GBufferTable].DescriptorTable.NumDescriptorRanges = 1;
+    params[GBufferTable].DescriptorTable.pDescriptorRanges = &gbufferRange;
+    params[GBufferTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     // tN : Depth
-    params[RootParameter_PostFX::DepthTexture].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    params[RootParameter_PostFX::DepthTexture].DescriptorTable.NumDescriptorRanges = 1;
-    params[RootParameter_PostFX::DepthTexture].DescriptorTable.pDescriptorRanges = &depthRange;
-    params[RootParameter_PostFX::DepthTexture].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    params[DepthTexture].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[DepthTexture].DescriptorTable.NumDescriptorRanges = 1;
+    params[DepthTexture].DescriptorTable.pDescriptorRanges = &depthRange;
+    params[DepthTexture].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     // tN+1 : MergeRT
-    params[RootParameter_PostFX::MergeTexture].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    params[RootParameter_PostFX::MergeTexture].DescriptorTable.NumDescriptorRanges = 1;
-    params[RootParameter_PostFX::MergeTexture].DescriptorTable.pDescriptorRanges = &mergeRange;
-    params[RootParameter_PostFX::MergeTexture].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    params[MergeTexture].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[MergeTexture].DescriptorTable.NumDescriptorRanges = 1;
+    params[MergeTexture].DescriptorTable.pDescriptorRanges = &mergeRange;
+    params[MergeTexture].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+    // tN+2 : ClusterSRV
+    params[ClusterAreaSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterAreaSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterAreaSRV].DescriptorTable.pDescriptorRanges = &clusterRange;
+    params[ClusterAreaSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // tN+3 : LightBufferSRV
+    params[LightBufferSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[LightBufferSRV].Descriptor.ShaderRegister = 1;
+    params[LightBufferSRV].DescriptorTable.pDescriptorRanges = &lightBufferRange;
+    params[LightBufferSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
     samplers[0] = CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
@@ -188,7 +219,6 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
 
     return rootSig;
 }
-
 
 ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateTerrain(ID3D12Device* pd3dDevice)
 {
@@ -367,6 +397,135 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateUI(ID3D12Device* pd3dDev
     if (FAILED(hr))
     {
         OutputDebugStringA("Failed to create root signature.\n");
+        return nullptr;
+    }
+
+    return rootSig;
+}
+
+ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateLightPass(ID3D12Device* pd3dDevice)
+{
+    using namespace RootParameter_LightPass;
+
+    // === SRV / UAV Range  ===
+    D3D12_DESCRIPTOR_RANGE srvRanges[2] = {};
+    srvRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRanges[0].NumDescriptors = 1;           // LightBuffer (t0)
+    srvRanges[0].BaseShaderRegister = 0;
+    srvRanges[0].RegisterSpace = 0;
+    srvRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    srvRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRanges[1].NumDescriptors = 1;           // ClusterBuffer (t1)
+    srvRanges[1].BaseShaderRegister = 1;
+    srvRanges[1].RegisterSpace = 0;
+    srvRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_DESCRIPTOR_RANGE uavRanges[4] = {};
+    uavRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    uavRanges[0].NumDescriptors = 1;
+    uavRanges[0].BaseShaderRegister = 0;
+    uavRanges[0].RegisterSpace = 0;
+    uavRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    uavRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    uavRanges[1].NumDescriptors = 1;
+    uavRanges[1].BaseShaderRegister = 1;
+    uavRanges[1].RegisterSpace = 0;
+    uavRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    uavRanges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    uavRanges[2].NumDescriptors = 1;
+    uavRanges[2].BaseShaderRegister = 2;
+    uavRanges[2].RegisterSpace = 0;
+    uavRanges[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    uavRanges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    uavRanges[3].NumDescriptors = 1;
+    uavRanges[3].BaseShaderRegister = 3;
+    uavRanges[3].RegisterSpace = 0;
+    uavRanges[3].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    // === Root Parameters ===
+    D3D12_ROOT_PARAMETER params[(UINT)Count] = {};
+
+    // b0 : SceneCBV
+    params[SceneCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[SceneCBV].Descriptor.ShaderRegister = 0;
+    params[SceneCBV].Descriptor.RegisterSpace = 0;
+    params[SceneCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // b0 : CameraCBV
+    params[CameraCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[CameraCBV].Descriptor.ShaderRegister = 1;
+    params[CameraCBV].Descriptor.RegisterSpace = 0;
+    params[CameraCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // t0 : LightBuffer SRV
+    params[LightBufferSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[LightBufferSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[LightBufferSRV].DescriptorTable.pDescriptorRanges = &srvRanges[0];
+    params[LightBufferSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // t1 : Cluster SRV
+    params[ClusterAreaSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterAreaSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterAreaSRV].DescriptorTable.pDescriptorRanges = &srvRanges[1];
+    params[ClusterAreaSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // u0 : Cluster UAV
+    params[ClusterAreaUAV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterAreaUAV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterAreaUAV].DescriptorTable.pDescriptorRanges = &uavRanges[0];
+    params[ClusterAreaUAV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // u1 : ClusterLightMeta UAV
+    params[ClusterLightMetaUAV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterLightMetaUAV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterLightMetaUAV].DescriptorTable.pDescriptorRanges = &uavRanges[1];
+    params[ClusterLightMetaUAV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // u2 : ClusterLightIndices UAV
+    params[ClusterLightIndicesUAV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterLightIndicesUAV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterLightIndicesUAV].DescriptorTable.pDescriptorRanges = &uavRanges[2];
+    params[ClusterLightIndicesUAV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // u3 : GlobalCounter UAV
+    params[GlobalCounterUAV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[GlobalCounterUAV].DescriptorTable.NumDescriptorRanges = 1;
+    params[GlobalCounterUAV].DescriptorTable.pDescriptorRanges = &uavRanges[3];
+    params[GlobalCounterUAV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+   
+
+    // === Root Signature Desc ===
+    D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+    rsDesc.NumParameters = _countof(params);
+    rsDesc.pParameters = params;
+    rsDesc.NumStaticSamplers = 0;
+    rsDesc.pStaticSamplers = nullptr;
+    rsDesc.Flags =
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
+
+    // === Serialize & Create ===
+    ComPtr<ID3DBlob> sigBlob, errorBlob;
+    HRESULT hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+        sigBlob.GetAddressOf(), errorBlob.GetAddressOf());
+    if (FAILED(hr))
+    {
+        if (errorBlob) OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+        return nullptr;
+    }
+
+    ComPtr<ID3D12RootSignature> rootSig;
+    hr = pd3dDevice->CreateRootSignature(0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(),
+        IID_PPV_ARGS(&rootSig));
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to create LightPass root signature.\n");
         return nullptr;
     }
 

@@ -44,6 +44,21 @@ struct ObjectCBResource
     UINT MaxObjects = 0;
 };
 
+struct LightResource
+{
+    ComPtr<ID3D12Resource> ClusterBuffer;
+    UINT ClusterBuffer_SRV_Index;
+    UINT ClusterBuffer_UAV_Index;
+
+
+    ComPtr<ID3D12Resource> LightBuffer;
+    ComPtr<ID3D12Resource> LightUploadBuffer;
+    GPULight* MappedLightUploadBuffer = nullptr;
+    UINT LightBuffer_SRV_Index;
+
+    UINT NumLights = 0;
+};
+
 //=================================================================
 
 enum RenderFlags : UINT
@@ -65,8 +80,9 @@ struct SceneData
     UINT frameCount;
     UINT padding0;
 
+    UINT LightCount;
     UINT RenderFlags;
-    XMFLOAT3 padding1;
+    XMFLOAT2 padding1;
 };
 
 
@@ -97,6 +113,8 @@ struct FrameResource
     UINT Merge_Target_Index = 1;
 
     ObjectCBResource ObjectCB;
+
+	LightResource light_resource;
 
     ResourceStateTracker StateTracker;
 };
@@ -195,6 +213,7 @@ private:
     bool Create_Shader();
     bool Create_SceneCBV();
     bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
+    bool Create_LightResources(FrameResource& fr, UINT maxLights);
 
 
     // Frame resource creation
@@ -233,8 +252,8 @@ private:
     void WaitForFrame(UINT64 fenceValue);
     FrameResource& GetCurrentFrameResource();
 
-    void GeometryPass(std::vector<RenderData> renderData_list, std::shared_ptr<CameraComponent> render_camera);
-    void LightPass(std::vector<GPULight > light_data_list, std::shared_ptr<CameraComponent> render_camera);
+    void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
+    void LightPass(std::shared_ptr<CameraComponent> render_camera);
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);
     void PostProcessPass(std::shared_ptr<CameraComponent> render_camera);
     void Blit_BackBufferPass();
@@ -244,6 +263,7 @@ private:
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
+	void UpdateLightResources(const std::vector<GPULight>& lights);
 
     void Bind_SceneCBV();
 

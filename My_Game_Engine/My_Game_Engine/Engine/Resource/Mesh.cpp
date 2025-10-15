@@ -1,7 +1,7 @@
-#include "DX_Graphics/ResourceUtils.h"
-#include "GameEngine.h"
 #include "Mesh.h"
+#include "GameEngine.h"
 #include "Model.h"
+#include "DX_Graphics/ResourceUtils.h"
 
 Mesh::Mesh() : Game_Resource(ResourceType::Mesh)
 {

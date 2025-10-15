@@ -107,6 +107,35 @@ void Shader::CreateAllGraphicsPSOs(ID3D12Device* device, RootSignature_Type root
     }
 }
 
+void Shader::CreateComputePSO(ID3D12Device* device, RootSignature_Type rootType, ShaderVariant variant, const ShaderSetting& setting)
+{
+    if (!setting.cs.IsValid())
+        throw std::runtime_error("Compute shader missing.");
+
+    ComPtr<ID3DBlob> csBlob = CompileShader(setting.cs);
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC desc = {};
+    desc.pRootSignature = RootSignatureFactory::Get(rootType);
+    desc.CS = { csBlob->GetBufferPointer(), csBlob->GetBufferSize() };
+    desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+
+    HRESULT hr = device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&mPSOs[(int)variant]));
+
+    if (FAILED(hr))
+        throw std::runtime_error("Failed to create compute PSO");
+}
+
+void Shader::CreateAllComputePSOs(ID3D12Device* device, RootSignature_Type rootType, const std::vector<VariantConfig>& configs)
+{
+	mPrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED;
+    mRootType = rootType;
+
+    for (const auto& cfg : configs)
+    {
+        CreateComputePSO(device, rootType, cfg.variant, cfg.setting);
+    }
+}
+
 void Shader::SetShader(ComPtr<ID3D12GraphicsCommandList> cmdList, ShaderVariant shadervariant)
 {
     ID3D12PipelineState* pso = mPSOs[(int)shadervariant].Get();
@@ -118,11 +147,16 @@ void Shader::SetShader(ComPtr<ID3D12GraphicsCommandList> cmdList, ShaderVariant 
 
     cmdList->SetPipelineState(pso);
 
-
     ID3D12RootSignature* rootSig = RootSignatureFactory::Get(mRootType);
 
     if (rootSig)
-        cmdList->SetGraphicsRootSignature(rootSig);
+    {
+        if(mShaderType == Shader_Type::Graphics)
+            cmdList->SetGraphicsRootSignature(rootSig);
+
+        if (mShaderType == Shader_Type::Compute)
+            cmdList->SetComputeRootSignature(rootSig);
+    }
 }
 
 
@@ -141,11 +175,29 @@ std::shared_ptr<Shader> PSO_Manager::RegisterShader(const std::string& name, Roo
         return it->second;
     }
 
-    auto shader = std::make_shared<Shader>(rootType);
+    auto shader = std::make_shared<Shader>(Shader_Type::Graphics, rootType);
     shader->CreateAllGraphicsPSOs(mDevice.Get(), rootType, variants, topologyType);
     mShaders[name] = shader;
     return shader;
 }
+
+std::shared_ptr<Shader> PSO_Manager::RegisterComputeShader(const std::string& name, RootSignature_Type rootType, const std::vector<VariantConfig>& variants)
+{
+    auto it = mShaders.find(name);
+    if (it != mShaders.end())
+    {
+        OutputDebugStringA(("Compute Shader already registered: " + name + "\n").c_str());
+        return it->second;
+    }
+
+    auto shader = std::make_shared<Shader>(Shader_Type::Compute, rootType);
+
+    shader->CreateAllComputePSOs(mDevice.Get(), rootType, variants);
+
+    mShaders[name] = shader;
+    return shader;
+}
+
 
 
 std::shared_ptr<Shader> PSO_Manager::GetShader(const std::string& name)
