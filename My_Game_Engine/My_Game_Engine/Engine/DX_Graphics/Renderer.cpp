@@ -1548,7 +1548,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
 
             if (auto tf = light->GetTransform())
             {
-                XMFLOAT3 dir = { 0,1,0 };//tf->GetForwardVector();
+                XMFLOAT3 dir = tf->GetForward();
                 ImGui::Text("Direction: %.2f, %.2f, %.2f", dir.x, dir.y, dir.z);
             }
 

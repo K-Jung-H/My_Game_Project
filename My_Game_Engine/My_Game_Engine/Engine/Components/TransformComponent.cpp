@@ -91,14 +91,10 @@ void TransformComponent::AddPosition(const XMFLOAT3& dp)
 
 void TransformComponent::AddRotate(const XMFLOAT4& deltaQuat)
 {
-    XMVECTOR dq = XMLoadFloat4(&deltaQuat);
-    dq = XMQuaternionNormalize(dq);
-
+    XMVECTOR dq = XMQuaternionNormalize(XMLoadFloat4(&deltaQuat));
     XMVECTOR q = XMLoadFloat4(&mRotation);
     q = XMQuaternionMultiply(dq, q);
-    q = XMQuaternionNormalize(q);
-
-    XMStoreFloat4(&mRotation, q);
+    XMStoreFloat4(&mRotation, XMQuaternionNormalize(q));
     mUpdateFlag = true;
 }
 
@@ -115,9 +111,7 @@ void TransformComponent::SetFromMatrix(const XMFLOAT4X4& mat)
 {
     XMMATRIX M = XMLoadFloat4x4(&mat);
 
-    XMVECTOR scale;
-    XMVECTOR rotQuat;
-    XMVECTOR trans;
+    XMVECTOR scale, rotQuat, trans;
 
     if (XMMatrixDecompose(&scale, &rotQuat, &trans, M))
     {
@@ -126,8 +120,6 @@ void TransformComponent::SetFromMatrix(const XMFLOAT4X4& mat)
         XMStoreFloat3(&mPosition, trans);
 
         XMStoreFloat4x4(&mLocal, M);
-
-        mUpdateFlag = true;
     }
     else
     {
@@ -137,9 +129,9 @@ void TransformComponent::SetFromMatrix(const XMFLOAT4X4& mat)
 
         XMStoreFloat4x4(&mLocal, XMMatrixIdentity());
         XMStoreFloat4x4(&mWorld, XMMatrixIdentity());
-
-        mUpdateFlag = true;
     }
+
+    mUpdateFlag = true;
 }
 
 bool TransformComponent::UpdateTransform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty)
@@ -161,10 +153,8 @@ bool TransformComponent::UpdateTransform(const XMFLOAT4X4* parentWorld, bool par
     if (worldDirty)
     {
         XMMATRIX L = XMLoadFloat4x4(&mLocal);
-
-        XMMATRIX P = XMLoadFloat4x4(parentWorld);
+        XMMATRIX P = parentWorld ? XMLoadFloat4x4(parentWorld) : XMMatrixIdentity();
         XMStoreFloat4x4(&mWorld, L * P);
-
     }
 
     return worldDirty;
@@ -179,4 +169,32 @@ void TransformComponent::ApplyMovePhysics(const XMFLOAT3& linearDelta, const XMF
         XMFLOAT4 deltaQuat = Matrix4x4::QuaternionFromEulerRad(angVel.x * dt, angVel.y * dt, angVel.z * dt);
         AddRotate(deltaQuat);
     }
+}
+
+
+XMFLOAT3 TransformComponent::GetForward() const
+{
+    XMMATRIX rotMat = XMMatrixRotationQuaternion(XMLoadFloat4(&mRotation));
+    XMVECTOR dir = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), rotMat);
+    XMFLOAT3 out;
+    XMStoreFloat3(&out, XMVector3Normalize(dir));
+    return out;
+}
+
+XMFLOAT3 TransformComponent::GetRight() const
+{
+    XMMATRIX rotMat = XMMatrixRotationQuaternion(XMLoadFloat4(&mRotation));
+    XMVECTOR dir = XMVector3TransformNormal(XMVectorSet(1, 0, 0, 0), rotMat);
+    XMFLOAT3 out;
+    XMStoreFloat3(&out, XMVector3Normalize(dir));
+    return out;
+}
+
+XMFLOAT3 TransformComponent::GetUp() const
+{
+    XMMATRIX rotMat = XMMatrixRotationQuaternion(XMLoadFloat4(&mRotation));
+    XMVECTOR dir = XMVector3TransformNormal(XMVectorSet(0, 1, 0, 0), rotMat);
+    XMFLOAT3 out;
+    XMStoreFloat3(&out, XMVector3Normalize(dir));
+    return out;
 }

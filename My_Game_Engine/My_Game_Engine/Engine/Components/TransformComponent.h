@@ -48,6 +48,10 @@ public:
     void ApplyMovePhysics(const XMFLOAT3& linearDelta, const XMFLOAT3& angVel, float dt);
 
 
+    XMFLOAT3 GetForward() const;
+    XMFLOAT3 GetRight() const;
+    XMFLOAT3 GetUp() const;
+
 private:
     bool mUpdateFlag = false;
 
