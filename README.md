@@ -46,7 +46,7 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 진행 상황:
 - Light 컴포넌트 추가 // Direction 속성 추가 필요
 - Light 컴포넌트 인스팩터 연결 // Direction 추가 필요
-
+- Light Pass 추가 중 // 문제 발생 <-
 Composite-Pass 외에 Light-Pass를 별도로 분리
 
 
@@ -54,6 +54,7 @@ Light-Pass
 - Cluster Build Pass // 조명 연산 공간 분리
 - Light Assignment Pass // 각 공간에서 처리할 조명 데이터 인덱스 선별
 - Lighting Pass // 조명 및 그림자 연산
+	-> Lighting Pass 는 Composite-Pass에서 한번에 처리하기 // CS에서 처리하면, 기능적 손해가 많음 // MSAA, 레스터라이저 기능, 블랜딩 기능 등등
 
 사실 Cluster Build, LightAssignment 단계는 하나의 Pass로 처리해도 됨
 그러나,
@@ -62,12 +63,19 @@ Light-Pass
 
 -> 3-Pass 단계로 결정
 
-기존 Composite 단계에서 기대한 조명 연산 동작을 전부 Light-Pass에 위임하고, Composite 단계는 다른 동작 담당
 
-Composite-Pass
-- Alpha Blending
-- Particle Rendering
-담당 예정
+문제 발생
+- Light Pass 단계를 추가하고, 리소스 관리 동작 까지 전부 연결하였는데, 문제 발생함
+- 일부 텍스쳐가 바인딩이 안됬다는 오류 발생 // 0번 텍스쳐는 바인딩 안되고, 그 외의 텍스쳐는 바인딩이 되고 있다고 함
+- Light Pass 추가 전에는 이런 문제가 없었음
+- Light Pass 동작을 전부 주석처리하고 실행하였으나, 랜더링되는 오류 화면만 변화가 생기고, 디버깅 툴 오류 문구는 동일함 ###
+	-> Light Pass 외에 어딘가 변질 되었음 or 메모리 영역이 오염되었음
+
+가능성
+- RootSignature, hlsl 설정 오류 // 새로운 LightPass RootSignature, CS 함수, 전역 hlsli 을 생성, 수정 하면서, 일부 변경한 설정들이 건드렸을 수도 있음
+- SRV_Frame에서 SRV_Texture의 Heap 범위 침범 // 리소스 생성시 할당되는 ID를 확인하니, 그런 것 같지는 않음, 그러나 증상이, 0번 인덱스만 UAV 리소스로 침범된 느낌
+- UAV or Structured 관리 미흡 // 말 그대로임
+
 
 
 -------------------------------------
