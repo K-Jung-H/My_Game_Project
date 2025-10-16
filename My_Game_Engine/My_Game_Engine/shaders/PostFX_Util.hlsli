@@ -7,6 +7,9 @@
 #define RENDER_DEBUG_DEPTH_SCREEN (1 << 5)
 #define RENDER_DEBUG_DEPTH_VIEW (1 << 6)
 #define RENDER_DEBUG_DEPTH_WORLD (1 << 7)
+#define RENDER_DEBUG_CLUSTER_AABB (1 << 8)
+#define RENDER_DEBUG_CLUSTER_ID       (1 << 9) 
+#define RENDER_DEBUG_LIGHT_COUNT      (1 << 10) 
 
 cbuffer SceneCB : register(b0)
 {
@@ -71,15 +74,22 @@ struct LightInfo
     uint padding0;
 };
 
+struct ClusterLightMeta
+{
+    uint offset;
+    uint count;
+};
 
 Texture2D gGBuffer_Albedo : register(t0);
 Texture2D gGBuffer_Normal : register(t1);
 Texture2D gGBuffer_Material : register(t2);
 Texture2D gDepthTex : register(t3);
 Texture2D gMergeTex : register(t4);
+
 StructuredBuffer<ClusterBound> ClusterListSRV : register(t5);
 StructuredBuffer<LightInfo> LightInput : register(t6);
-
+StructuredBuffer<ClusterLightMeta> ClusterLightMetaSRV : register(t7);
+StructuredBuffer<uint> ClusterLightIndicesSRV : register(t8);
 
 SamplerState gLinearSampler : register(s0);
 SamplerState gClampSampler : register(s1);

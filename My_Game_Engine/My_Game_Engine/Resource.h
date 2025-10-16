@@ -37,6 +37,11 @@
 #define ID_SCENE_SAVE32794              32794
 #define ID_SCENE_SAVEAS                 32795
 #define ID_SCENE_SAVE_AS                32796
+#define ID_CAMERA_LIGHT                 32797
+#define ID_LIGHT_CLUSTER                32798
+#define ID_LIGHT_CLUSTER_AREA           32799
+#define ID_LIGHT_CLUSTER32800           32800
+#define ID_LIGHT_LIGHT                  32801
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -45,7 +50,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        133
-#define _APS_NEXT_COMMAND_VALUE         32797
+#define _APS_NEXT_COMMAND_VALUE         32802
 #define _APS_NEXT_CONTROL_VALUE         1003
 #define _APS_NEXT_SYMED_VALUE           110
 #endif

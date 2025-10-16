@@ -60,6 +60,8 @@ namespace RootParameter_PostFX
         MergeTexture = 4,
         ClusterAreaSRV = 5,
         LightBufferSRV = 6,
+        ClusterLightMetaSRV = 7,
+        ClusterLightIndicesSRV = 8,
         Count
     };
 }

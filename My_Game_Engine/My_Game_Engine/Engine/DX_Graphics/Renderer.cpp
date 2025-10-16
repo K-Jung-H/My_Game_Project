@@ -1343,7 +1343,6 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         mCommandList->Dispatch(dispatchX, 1, 1);
     }
     //============================================
-
 }
 
 
@@ -1366,7 +1365,20 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
     
     Bind_SceneCBV();
+
     render_camera->Graphics_Bind(mCommandList, RootParameter_PostFX::CameraCBV);
+
+    auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterAreaSRV, ClusterSrv);
+
+    auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::LightBufferSRV, LightSrv);
+
+    auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightMetaSRV, LightMetaSrv);
+
+    auto LightIndicesSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightIndicesBuffer_SRV_Index);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightIndicesSRV, LightIndicesSrv);
 
 
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)

@@ -44,40 +44,12 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 
 
 진행 상황:
-- Light 컴포넌트 추가 // Direction 속성 추가 필요
-- Light 컴포넌트 인스팩터 연결 // Direction 추가 필요
-- Light Pass 추가 중 // 문제 발생 <-
-Composite-Pass 외에 Light-Pass를 별도로 분리
+- Light Debug 동작 추가 중
+- Light 리소스가 제대로 생성되고 바인딩 되고 있는지 검사하기
 
 
-Light-Pass
-- Cluster Build Pass // 조명 연산 공간 분리
-- Light Assignment Pass // 각 공간에서 처리할 조명 데이터 인덱스 선별
-- Lighting Pass // 조명 및 그림자 연산
-	-> Lighting Pass 는 Composite-Pass에서 한번에 처리하기 // CS에서 처리하면, 기능적 손해가 많음 // MSAA, 레스터라이저 기능, 블랜딩 기능 등등
-
-사실 Cluster Build, LightAssignment 단계는 하나의 Pass로 처리해도 됨
-그러나,
-	- GPU 공간 낭비
-	- 분리한 공간을 기반으로 후처리에서 활용 가능
-
--> 3-Pass 단계로 결정
 
 
-문제 해결
-1. LightReource 생성, LightPass 단계를 모두 제거하여 시도 -> 오류 지속
-2. hlsl 코드 및 루트 시그니쳐 분석 하였으나, 문제 없음 -> 오류 지속
---> 코드 설계, Light Pass 문제가 아님 == 어디선가 자원 관리에 오염 발생
-
-3. 
-- 자원을 재생성하는 시점을 분석, OnResize 함수 호출 시 자원 해제 및 재할당 
--> OnResize 함수 진입을 차단하고 실행 시도 -> 화면에 따른 비율이 안맞지만, 오류 발생 X
-
-원인 파악: OnResize에서 자원을 해제,/재생성하는 과정에서 놓치는 부분이 있다.
--> Light Pass를 추가한 이후에 발생한 문제 == LightResource의 자원이 원인
--> LightResource 중, 재할당 코드는 작성했으나, 자원 해제 코드가 작성 안된 상태임을 파악
-
-문제 해결: LightResource 자원 해제 코드 작성
 
 
 -------------------------------------

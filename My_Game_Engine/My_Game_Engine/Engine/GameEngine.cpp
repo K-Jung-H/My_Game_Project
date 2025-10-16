@@ -210,15 +210,20 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 			break;
 
 		case ID_CAMERA_ALBEDO:
-			scene_data.RenderFlags = RENDER_DEBUG_ALBEDO;
+//			scene_data.RenderFlags = RENDER_DEBUG_ALBEDO;
+			scene_data.RenderFlags = RENDER_DEBUG_CLUSTER_AABB;
 			break;
 
 		case ID_CAMERA_NORMAL:
-			scene_data.RenderFlags = RENDER_DEBUG_NORMAL;
+//			scene_data.RenderFlags = RENDER_DEBUG_NORMAL;
+			scene_data.RenderFlags = RENDER_DEBUG_CLUSTER_ID;
+
 			break;
 
 		case ID_MATERIAL_ROUGHNESS:
-			scene_data.RenderFlags = RENDER_DEBUG_MATERIAL_ROUGHNESS;
+//			scene_data.RenderFlags = RENDER_DEBUG_MATERIAL_ROUGHNESS;
+			scene_data.RenderFlags = RENDER_DEBUG_LIGHT_COUNT;
+
 			break;
 
 		case ID_MATERIAL_METALLIC:

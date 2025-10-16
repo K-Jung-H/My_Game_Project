@@ -11,12 +11,6 @@ struct ClusterBound
     float pad1;
 };
 
-struct ClusterLightMeta
-{
-    uint offset;
-    uint count;
-};
-
 struct LightInfo
 {
     float3 position;
@@ -29,6 +23,12 @@ struct LightInfo
     uint shadowMapStartIndex;
     uint shadowMapLength;
     uint padding0;
+};
+
+struct ClusterLightMeta
+{
+    uint offset;
+    uint count;
 };
 
 cbuffer SceneCB : register(b0)

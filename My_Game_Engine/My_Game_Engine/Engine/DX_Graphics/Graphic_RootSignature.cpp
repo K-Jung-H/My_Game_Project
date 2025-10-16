@@ -124,20 +124,30 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
     mergeRange.RegisterSpace = 0;
     mergeRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_DESCRIPTOR_RANGE clusterRange = {};
-    clusterRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    clusterRange.NumDescriptors = 1;
-    clusterRange.BaseShaderRegister = (UINT)GBufferType::Count + 2;
-    clusterRange.RegisterSpace = 0;
-    clusterRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    D3D12_DESCRIPTOR_RANGE clusterLightRange[4] = {};
+    clusterLightRange[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    clusterLightRange[0].NumDescriptors = 1;
+    clusterLightRange[0].BaseShaderRegister = (UINT)GBufferType::Count + 2;
+    clusterLightRange[0].RegisterSpace = 0;
+    clusterLightRange[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
+    clusterLightRange[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    clusterLightRange[1].NumDescriptors = 1;
+    clusterLightRange[1].BaseShaderRegister = (UINT)GBufferType::Count + 3;
+    clusterLightRange[1].RegisterSpace = 0;
+    clusterLightRange[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    D3D12_DESCRIPTOR_RANGE lightBufferRange = {};
-    lightBufferRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    lightBufferRange.NumDescriptors = 1;
-    lightBufferRange.BaseShaderRegister = (UINT)GBufferType::Count + 3;
-    lightBufferRange.RegisterSpace = 0;
-    lightBufferRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+    clusterLightRange[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    clusterLightRange[2].NumDescriptors = 1;
+    clusterLightRange[2].BaseShaderRegister = (UINT)GBufferType::Count + 4;
+    clusterLightRange[2].RegisterSpace = 0;
+    clusterLightRange[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    clusterLightRange[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    clusterLightRange[3].NumDescriptors = 1;
+    clusterLightRange[3].BaseShaderRegister = (UINT)GBufferType::Count + 5;
+    clusterLightRange[3].RegisterSpace = 0;
+    clusterLightRange[3].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
     // === Root Parameters ===
     D3D12_ROOT_PARAMETER params[(UINT)Count] = {};
@@ -175,14 +185,26 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
     // tN+2 : ClusterSRV
     params[ClusterAreaSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     params[ClusterAreaSRV].DescriptorTable.NumDescriptorRanges = 1;
-    params[ClusterAreaSRV].DescriptorTable.pDescriptorRanges = &clusterRange;
+    params[ClusterAreaSRV].DescriptorTable.pDescriptorRanges = &clusterLightRange[0];
     params[ClusterAreaSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     // tN+3 : LightBufferSRV
     params[LightBufferSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    params[LightBufferSRV].Descriptor.ShaderRegister = 1;
-    params[LightBufferSRV].DescriptorTable.pDescriptorRanges = &lightBufferRange;
+    params[LightBufferSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[LightBufferSRV].DescriptorTable.pDescriptorRanges = &clusterLightRange[1];
     params[LightBufferSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // tN+4 : ClusterLightMetaSRV
+    params[ClusterLightMetaSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterLightMetaSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterLightMetaSRV].DescriptorTable.pDescriptorRanges = &clusterLightRange[2];
+    params[ClusterLightMetaSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // tN+5 : ClusterLightIndicesSRV
+    params[ClusterLightIndicesSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ClusterLightIndicesSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ClusterLightIndicesSRV].DescriptorTable.pDescriptorRanges = &clusterLightRange[3];
+    params[ClusterLightIndicesSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
     samplers[0] = CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR);

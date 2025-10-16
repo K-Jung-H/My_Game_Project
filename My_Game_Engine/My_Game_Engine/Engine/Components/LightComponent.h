@@ -75,7 +75,7 @@ protected:
 
     XMFLOAT3 mColor = { 1.0f, 1.0f, 1.0f };
     float mIntensity = 10.0f;
-    float mRange = 10.0f;
+    float mRange = 1000.0f;
     float mInnerAngle = XM_PIDIV4;
     float mOuterAngle = XM_PIDIV2;
     bool mCastsShadow = false;
