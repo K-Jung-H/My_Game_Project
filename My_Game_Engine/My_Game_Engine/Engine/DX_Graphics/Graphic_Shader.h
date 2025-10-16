@@ -17,6 +17,7 @@ enum class ShaderVariant
 
 	//============= Compute shaders =============
 
+    LightClusterClear,
     ClusterBuild,
     LightAssign,
 

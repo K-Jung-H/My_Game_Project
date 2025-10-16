@@ -8,6 +8,7 @@ struct ResourceStateTracker
 {
     void Register(ID3D12Resource* resource, D3D12_RESOURCE_STATES initialState);
     void Transition(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource, D3D12_RESOURCE_STATES newState);
+    void UAVBarrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource);
 
 private:
     std::unordered_map<ID3D12Resource*, D3D12_RESOURCE_STATES> mCurrentStates;
@@ -44,6 +45,12 @@ struct ObjectCBResource
     UINT MaxObjects = 0;
 };
 
+struct ClusterLightMeta
+{
+    UINT offset;
+    UINT count;
+};
+
 struct LightResource
 {
     ComPtr<ID3D12Resource> ClusterBuffer;
@@ -56,8 +63,20 @@ struct LightResource
     GPULight* MappedLightUploadBuffer = nullptr;
     UINT LightBuffer_SRV_Index;
 
+    ComPtr<ID3D12Resource> ClusterLightMetaBuffer;
+    UINT ClusterLightMetaBuffer_SRV_Index;
+    UINT ClusterLightMetaBuffer_UAV_Index;
+
+    ComPtr<ID3D12Resource> ClusterLightIndicesBuffer;
+    UINT ClusterLightIndicesBuffer_SRV_Index;
+    UINT ClusterLightIndicesBuffer_UAV_Index;
+
+    ComPtr<ID3D12Resource> GlobalOffsetCounterBuffer;
+	UINT GlobalOffsetCounterBuffer_UAV_Index;
+
     UINT NumLights = 0;
 };
+
 
 //=================================================================
 
@@ -81,8 +100,9 @@ struct SceneData
     UINT padding0;
 
     UINT LightCount;
+    UINT ClusterIndexCapacity;
     UINT RenderFlags;
-    XMFLOAT2 padding1;
+    float padding1;
 };
 
 
@@ -134,7 +154,7 @@ class DrawItem;
 class DX12_Renderer
 {
     static float clear_color[4];
-
+    
 public:
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
@@ -148,7 +168,6 @@ public:
     RendererContext Get_UploadContext() const;
     void BeginUpload();
     void EndUpload();
-
 private:
     UINT mWidth = 0;
     UINT mHeight = 0;

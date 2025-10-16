@@ -32,6 +32,12 @@ void ResourceStateTracker::Transition(ID3D12GraphicsCommandList* cmdList, ID3D12
     }
 }
 
+void ResourceStateTracker::UAVBarrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource)
+{
+    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(resource);
+    cmdList->ResourceBarrier(1, &barrier);
+}
+
 //=======================================================================
 
 float DX12_Renderer::clear_color[4] = { 0.95f, 0.55f, 0.60f, 1.00f };
@@ -542,6 +548,12 @@ bool DX12_Renderer::Create_Shader()
     );
 
     //==================================
+    
+
+    ShaderSetting light_cluster_clear_ss;
+    light_cluster_clear_ss.cs.file = L"Shaders/LightAssign_Shader.hlsl";
+    light_cluster_clear_ss.cs.entry = "LightClusterClearCS";
+    light_cluster_clear_ss.cs.target = "cs_5_1";
 
     ShaderSetting camera_cluster_ss;
     camera_cluster_ss.cs.file = L"Shaders/LightAssign_Shader.hlsl";
@@ -557,6 +569,7 @@ bool DX12_Renderer::Create_Shader()
 
     std::vector<VariantConfig> light_configs =
     {
+        { ShaderVariant::LightClusterClear, light_cluster_clear_ss, light_pp },
         { ShaderVariant::ClusterBuild, camera_cluster_ss, light_pp },
         { ShaderVariant::LightAssign, light_assign_ss, light_pp },
     };
@@ -704,112 +717,270 @@ bool DX12_Renderer::CreateObjectCB(FrameResource& fr, UINT maxObjects)
 
 bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
 {
-	const RendererContext ctx = Get_UploadContext();
+    const RendererContext ctx = Get_UploadContext();
 
 
     //---------------------------------------
     // Cluster Buffer (UAV + SRV)
     //---------------------------------------
-    ComPtr<ID3D12Resource> ClusterBuffer;
+    {
+        ComPtr<ID3D12Resource> ClusterBuffer;
 
-    const UINT clusterBufferSize = sizeof(ClusterBound) * TOTAL_CLUSTER_COUNT;
+        const UINT clusterBufferSize = sizeof(ClusterBound) * TOTAL_CLUSTER_COUNT;
 
-    ClusterBuffer = ResourceUtils::CreateBufferResourceEmpty(
-        ctx, clusterBufferSize, 
-        D3D12_HEAP_TYPE_DEFAULT,
-        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-        D3D12_RESOURCE_STATE_COMMON
-    );
+        ClusterBuffer = ResourceUtils::CreateBufferResourceEmpty(
+            ctx, clusterBufferSize,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON
+        );
 
-    if (!ClusterBuffer) return false;
+        if (!ClusterBuffer) return false;
 
-    UINT clusterSRVIndex = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
-    UINT clusterUAVIndex = mResource_Heap_Manager->Allocate(HeapRegion::UAV);
+        UINT clusterSRVIndex = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
+        UINT clusterUAVIndex = mResource_Heap_Manager->Allocate(HeapRegion::UAV);
 
-    D3D12_SHADER_RESOURCE_VIEW_DESC clusterSRVDesc = {};
-    clusterSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-    clusterSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    clusterSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    clusterSRVDesc.Buffer.FirstElement = 0;
-    clusterSRVDesc.Buffer.NumElements = TOTAL_CLUSTER_COUNT;
-    clusterSRVDesc.Buffer.StructureByteStride = sizeof(ClusterBound);
-    clusterSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+        D3D12_SHADER_RESOURCE_VIEW_DESC clusterSRVDesc = {};
+        clusterSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        clusterSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        clusterSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        clusterSRVDesc.Buffer.FirstElement = 0;
+        clusterSRVDesc.Buffer.NumElements = TOTAL_CLUSTER_COUNT;
+        clusterSRVDesc.Buffer.StructureByteStride = sizeof(ClusterBound);
+        clusterSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
 
-    mDevice->CreateShaderResourceView(
-        ClusterBuffer.Get(),
-        &clusterSRVDesc,
-        mResource_Heap_Manager->GetCpuHandle(clusterSRVIndex)
-    );
+        mDevice->CreateShaderResourceView(
+            ClusterBuffer.Get(),
+            &clusterSRVDesc,
+            mResource_Heap_Manager->GetCpuHandle(clusterSRVIndex)
+        );
 
-    D3D12_UNORDERED_ACCESS_VIEW_DESC clusterUAVDesc = {};
-    clusterUAVDesc.Format = DXGI_FORMAT_UNKNOWN;
-    clusterUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
-    clusterUAVDesc.Buffer.FirstElement = 0;
-    clusterUAVDesc.Buffer.NumElements = TOTAL_CLUSTER_COUNT;
-    clusterUAVDesc.Buffer.StructureByteStride = sizeof(ClusterBound);
-    clusterUAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+        D3D12_UNORDERED_ACCESS_VIEW_DESC clusterUAVDesc = {};
+        clusterUAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        clusterUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        clusterUAVDesc.Buffer.FirstElement = 0;
+        clusterUAVDesc.Buffer.NumElements = TOTAL_CLUSTER_COUNT;
+        clusterUAVDesc.Buffer.StructureByteStride = sizeof(ClusterBound);
+        clusterUAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
 
-    mDevice->CreateUnorderedAccessView(
-        ClusterBuffer.Get(),
-        nullptr,
-        &clusterUAVDesc,
-        mResource_Heap_Manager->GetCpuHandle(clusterUAVIndex)
-    );
+        mDevice->CreateUnorderedAccessView(
+            ClusterBuffer.Get(),
+            nullptr,
+            &clusterUAVDesc,
+            mResource_Heap_Manager->GetCpuHandle(clusterUAVIndex)
+        );
 
-    fr.light_resource.ClusterBuffer = ClusterBuffer;
-	fr.light_resource.ClusterBuffer_SRV_Index = clusterSRVIndex;
-    fr.light_resource.ClusterBuffer_UAV_Index = clusterUAVIndex;
+        fr.light_resource.ClusterBuffer = ClusterBuffer;
+        fr.light_resource.ClusterBuffer_SRV_Index = clusterSRVIndex;
+        fr.light_resource.ClusterBuffer_UAV_Index = clusterUAVIndex;
+    }
 
-   //---------------------------------------
-   // Light Buffer (SRV 전용)
-   //---------------------------------------
+    //---------------------------------------
+    // Light Buffer (SRV 전용)
+    //---------------------------------------
+    {
+        const UINT lightBufferSize = sizeof(GPULight) * maxLights;
+
+        ComPtr<ID3D12Resource> LightBuffer;
+
+        LightBuffer = ResourceUtils::CreateBufferResourceEmpty(
+            ctx, lightBufferSize,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_COMMON
+        );
+
+        if (!LightBuffer) return false;
+
+        UINT lightSRVIndex = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC lightSRVDesc = {};
+        lightSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        lightSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        lightSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        lightSRVDesc.Buffer.FirstElement = 0;
+        lightSRVDesc.Buffer.NumElements = maxLights;
+        lightSRVDesc.Buffer.StructureByteStride = sizeof(GPULight);
+        lightSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+        mDevice->CreateShaderResourceView(
+            LightBuffer.Get(),
+            &lightSRVDesc,
+            mResource_Heap_Manager->GetCpuHandle(lightSRVIndex)
+        );
+
+        fr.light_resource.LightBuffer = LightBuffer;
+        fr.light_resource.LightBuffer_SRV_Index = lightSRVIndex;
     
-    const UINT lightBufferSize = sizeof(GPULight) * maxLights;
-
-    ComPtr<ID3D12Resource> LightBuffer;
-
-    LightBuffer = ResourceUtils::CreateBufferResourceEmpty(
-        ctx, lightBufferSize, 
-        D3D12_HEAP_TYPE_DEFAULT,
-        D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_COMMON
-    );
-
-    if (!LightBuffer) return false;
-
-    UINT lightSRVIndex = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC lightSRVDesc = {};
-    lightSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
-    lightSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    lightSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    lightSRVDesc.Buffer.FirstElement = 0;
-    lightSRVDesc.Buffer.NumElements = maxLights;
-    lightSRVDesc.Buffer.StructureByteStride = sizeof(GPULight);
-    lightSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
-
-    mDevice->CreateShaderResourceView(
-        LightBuffer.Get(),
-        &lightSRVDesc,
-        mResource_Heap_Manager->GetCpuHandle(lightSRVIndex)
-    );
-
-	fr.light_resource.LightBuffer = LightBuffer;
-
     //---------------------------------------
     // Light UploadBuffer - Mapped + Copy용
     //---------------------------------------
-    fr.light_resource.LightUploadBuffer = ResourceUtils::CreateBufferResourceEmpty(
-        ctx, lightBufferSize, 
-        D3D12_HEAP_TYPE_UPLOAD,
-        D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_GENERIC_READ
-    );
+    
+        fr.light_resource.LightUploadBuffer = ResourceUtils::CreateBufferResourceEmpty(
+            ctx, lightBufferSize,
+            D3D12_HEAP_TYPE_UPLOAD,
+            D3D12_RESOURCE_FLAG_NONE,
+            D3D12_RESOURCE_STATE_GENERIC_READ
+        );
 
-    fr.light_resource.LightUploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&fr.light_resource.MappedLightUploadBuffer));
+        fr.light_resource.LightUploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&fr.light_resource.MappedLightUploadBuffer));
 
-    fr.StateTracker.Register(fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
-    fr.StateTracker.Register(fr.light_resource.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+        fr.StateTracker.Register(fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+        fr.StateTracker.Register(fr.light_resource.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    }
+
+
+    //---------------------------------------
+    // ClusterLightMetaBuffer(UAV + SRV)
+    //---------------------------------------
+    {
+        ComPtr<ID3D12Resource> ClusterLightMetaBuffer;
+
+        const UINT ClusterLightMetaBufferSize = sizeof(ClusterLightMeta) * TOTAL_CLUSTER_COUNT;
+
+        ClusterLightMetaBuffer = ResourceUtils::CreateBufferResourceEmpty(
+            ctx, ClusterLightMetaBufferSize,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON
+        );
+
+        if (!ClusterLightMetaBuffer) return false;
+
+        UINT ClusterLightMetaSRVIndex = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
+        UINT ClusterLightMetaUAVIndex = mResource_Heap_Manager->Allocate(HeapRegion::UAV);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC ClusterLightMetaSRVDesc = {};
+        ClusterLightMetaSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        ClusterLightMetaSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        ClusterLightMetaSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        ClusterLightMetaSRVDesc.Buffer.FirstElement = 0;
+        ClusterLightMetaSRVDesc.Buffer.NumElements = TOTAL_CLUSTER_COUNT;
+        ClusterLightMetaSRVDesc.Buffer.StructureByteStride = sizeof(ClusterLightMeta);
+        ClusterLightMetaSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+        mDevice->CreateShaderResourceView(
+            ClusterLightMetaBuffer.Get(),
+            &ClusterLightMetaSRVDesc,
+            mResource_Heap_Manager->GetCpuHandle(ClusterLightMetaSRVIndex)
+        );
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC ClusterLightMetaUAVDesc = {};
+        ClusterLightMetaUAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        ClusterLightMetaUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        ClusterLightMetaUAVDesc.Buffer.FirstElement = 0;
+        ClusterLightMetaUAVDesc.Buffer.NumElements = TOTAL_CLUSTER_COUNT;
+        ClusterLightMetaUAVDesc.Buffer.StructureByteStride = sizeof(ClusterLightMeta);
+        ClusterLightMetaUAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+
+        mDevice->CreateUnorderedAccessView(
+            ClusterLightMetaBuffer.Get(),
+            nullptr,
+            &ClusterLightMetaUAVDesc,
+            mResource_Heap_Manager->GetCpuHandle(ClusterLightMetaUAVIndex)
+        );
+
+        fr.light_resource.ClusterLightMetaBuffer = ClusterLightMetaBuffer;
+        fr.light_resource.ClusterLightMetaBuffer_SRV_Index = ClusterLightMetaSRVIndex;
+        fr.light_resource.ClusterLightMetaBuffer_UAV_Index = ClusterLightMetaUAVIndex;
+    }
+
+
+    //---------------------------------------
+    // ClusterLightIndicesBuffer(UAV + SRV)
+    //---------------------------------------
+    {
+        ComPtr<ID3D12Resource> ClusterLightIndicesBuffer;
+
+        const UINT MAX_CLUSTER_INCLUDE_LIGHT = 3;
+        const UINT totalIndices = TOTAL_CLUSTER_COUNT * MAX_CLUSTER_INCLUDE_LIGHT;
+        const UINT ClusterLightIndicesBufferSize = sizeof(UINT) * totalIndices;
+
+        ClusterLightIndicesBuffer = ResourceUtils::CreateBufferResourceEmpty(
+            ctx, ClusterLightIndicesBufferSize,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON
+        );
+
+        if (!ClusterLightIndicesBuffer) return false;
+
+        UINT ClusterLightIndicesBufferSRVIndex = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
+        UINT ClusterLightIndicesBufferUAVIndex = mResource_Heap_Manager->Allocate(HeapRegion::UAV);
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC ClusterLightIndicesBufferSRVDesc = {};
+        ClusterLightIndicesBufferSRVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        ClusterLightIndicesBufferSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        ClusterLightIndicesBufferSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        ClusterLightIndicesBufferSRVDesc.Buffer.FirstElement = 0;
+        ClusterLightIndicesBufferSRVDesc.Buffer.NumElements = totalIndices;
+        ClusterLightIndicesBufferSRVDesc.Buffer.StructureByteStride = sizeof(UINT);
+        ClusterLightIndicesBufferSRVDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+        mDevice->CreateShaderResourceView(
+            ClusterLightIndicesBuffer.Get(),
+            &ClusterLightIndicesBufferSRVDesc,
+            mResource_Heap_Manager->GetCpuHandle(ClusterLightIndicesBufferSRVIndex)
+        );
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC ClusterLightIndicesBufferUAVDesc = {};
+        ClusterLightIndicesBufferUAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        ClusterLightIndicesBufferUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        ClusterLightIndicesBufferUAVDesc.Buffer.FirstElement = 0;
+        ClusterLightIndicesBufferUAVDesc.Buffer.NumElements = totalIndices;
+        ClusterLightIndicesBufferUAVDesc.Buffer.StructureByteStride = sizeof(UINT);
+        ClusterLightIndicesBufferUAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+
+        mDevice->CreateUnorderedAccessView(
+            ClusterLightIndicesBuffer.Get(),
+            nullptr,
+            &ClusterLightIndicesBufferUAVDesc,
+            mResource_Heap_Manager->GetCpuHandle(ClusterLightIndicesBufferUAVIndex)
+        );
+
+        fr.light_resource.ClusterLightIndicesBuffer = ClusterLightIndicesBuffer;
+        fr.light_resource.ClusterLightIndicesBuffer_SRV_Index = ClusterLightIndicesBufferSRVIndex;
+        fr.light_resource.ClusterLightIndicesBuffer_UAV_Index = ClusterLightIndicesBufferUAVIndex;
+    }
+
+
+    //---------------------------------------
+    // GlobalOffsetCounterBuffer(UAV 전용)
+    //---------------------------------------
+    {
+        ComPtr<ID3D12Resource> GlobalOffsetCounterBuffer;
+
+        const UINT GlobalOffsetCounterBufferSize = sizeof(UINT);
+
+        GlobalOffsetCounterBuffer = ResourceUtils::CreateBufferResourceEmpty(
+            ctx, GlobalOffsetCounterBufferSize,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_COMMON
+        );
+
+        if (!GlobalOffsetCounterBuffer) return false;
+
+        UINT GlobalOffsetCounterBufferUAVIndex = mResource_Heap_Manager->Allocate(HeapRegion::UAV);
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC GlobalOffsetCounterBufferUAVDesc = {};
+        GlobalOffsetCounterBufferUAVDesc.Format = DXGI_FORMAT_UNKNOWN;
+        GlobalOffsetCounterBufferUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        GlobalOffsetCounterBufferUAVDesc.Buffer.FirstElement = 0;
+        GlobalOffsetCounterBufferUAVDesc.Buffer.NumElements = 1;
+        GlobalOffsetCounterBufferUAVDesc.Buffer.StructureByteStride = sizeof(UINT);
+        GlobalOffsetCounterBufferUAVDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_NONE;
+
+        mDevice->CreateUnorderedAccessView(
+            GlobalOffsetCounterBuffer.Get(),
+            nullptr,
+            &GlobalOffsetCounterBufferUAVDesc,
+            mResource_Heap_Manager->GetCpuHandle(GlobalOffsetCounterBufferUAVIndex)
+        );
+
+        fr.light_resource.GlobalOffsetCounterBuffer = GlobalOffsetCounterBuffer;
+        fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index = GlobalOffsetCounterBufferUAVIndex;
+    }
 
 }
 
@@ -1043,6 +1214,7 @@ void DX12_Renderer::PresentFrame()
     mCommandQueue->Signal(mFence.Get(), currentFence);
 
     mFrameFenceValues[mFrameIndex] = currentFence;
+    mFrameResources[mFrameIndex].FenceValue = currentFence;
 }
 
 void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
@@ -1082,7 +1254,6 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     TransitionBackBufferToPresent();
     mCommandList->Close();
     PresentFrame();
-
 }
 
 void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
@@ -1116,31 +1287,61 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
     ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::LightPass);
     mCommandList->SetComputeRootSignature(rs);
 
-
     //============================================
-    PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::ClusterBuild);
-    render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
+    {
+        PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::LightClusterClear);
 
-	fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    auto ClusterUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_UAV_Index);
-    mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterAreaUAV, ClusterUav);
-    UINT dispatchX = (CLUSTER_X + 7) / 8;
-    UINT dispatchY = (CLUSTER_Y + 7) / 8;
-    UINT dispatchZ = CLUSTER_Z;
-    mCommandList->Dispatch(dispatchX, dispatchY, dispatchZ);
+        render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
+
+		auto LightMetaUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
+		mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterLightMetaUAV, LightMetaUav);
+
+		auto GlobalOffsetUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index);
+		mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::GlobalCounterUAV, GlobalOffsetUav);
+
+        UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
+        mCommandList->Dispatch(dispatchX, 1, 1);
+    }
     //============================================
-    PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::LightAssign);
-    render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
+    {
+        PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::ClusterBuild);
 
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-    auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
-    mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterAreaSRV, ClusterSrv);
+        render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
 
-    auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
-    mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::LightBufferSRV, LightSrv);
+        fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        auto ClusterUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_UAV_Index);
+        mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterAreaUAV, ClusterUav);
 
-    mCommandList->Dispatch(1, 1, 1);
+        UINT dispatchX = (CLUSTER_X + 7) / 8;
+        UINT dispatchY = (CLUSTER_Y + 7) / 8;
+        UINT dispatchZ = CLUSTER_Z;
 
+        mCommandList->Dispatch(dispatchX, dispatchY, dispatchZ);
+    }
+    //============================================
+    {
+        PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::LightAssign);
+
+        render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get());
+        fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+        auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
+        mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterAreaSRV, ClusterSrv);
+
+        auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
+        mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::LightBufferSRV, LightSrv);
+
+        auto LightMetaUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
+        mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterLightMetaUAV, LightMetaUav);
+
+		auto LightIndicesUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightIndicesBuffer_UAV_Index);
+		mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterLightIndicesUAV, LightIndicesUav);
+
+        UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
+        mCommandList->Dispatch(dispatchX, 1, 1);
+    }
     //============================================
 
 }
@@ -1347,7 +1548,8 @@ bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
     if (!mDevice || !mSwapChain) return false;
 
     for (auto& fr : mFrameResources)
-        WaitForFrame(fr.FenceValue);
+        if (fr.FenceValue > 0)
+            WaitForFrame(fr.FenceValue);
 
     mWidth = newWidth;
     mHeight = newHeight;
@@ -1384,6 +1586,21 @@ bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
         if (fr.light_resource.LightBuffer_SRV_Index != UINT_MAX)
             mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.LightBuffer_SRV_Index);
 
+        if (fr.light_resource.ClusterLightMetaBuffer_SRV_Index != UINT_MAX)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
+
+        if (fr.light_resource.ClusterLightMetaBuffer_UAV_Index != UINT_MAX)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
+
+        if (fr.light_resource.ClusterLightIndicesBuffer_SRV_Index != UINT_MAX)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterLightIndicesBuffer_SRV_Index);
+
+        if (fr.light_resource.ClusterLightIndicesBuffer_UAV_Index != UINT_MAX)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterLightIndicesBuffer_UAV_Index);
+
+        if (fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index != UINT_MAX)
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index);
+        
         if (fr.light_resource.MappedLightUploadBuffer)
         {
             fr.light_resource.LightUploadBuffer->Unmap(0, nullptr);

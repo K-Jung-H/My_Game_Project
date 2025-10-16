@@ -1,3 +1,8 @@
+
+#ifndef MAX_LIGHTS_PER_CLUSTER
+#define MAX_LIGHTS_PER_CLUSTER 64
+#endif
+
 struct ClusterBound
 {
     float3 minPoint;
@@ -31,8 +36,9 @@ cbuffer SceneCB : register(b0)
     float4 gTimeInfo;
     
     uint gLightCount;
+    uint gClusterIndexCapacity;
     uint gRenderFlags;
-    float2 padding;
+    float padding;
 };
 
 cbuffer CameraCB : register(b1)
@@ -63,7 +69,47 @@ RWStructuredBuffer<uint> ClusterLightIndicesUAV : register(u2);
 
 RWStructuredBuffer<uint> GlobalOffsetCounter : register(u3);
 
-#define MAX_LIGHTS_PER_CLUSTER 128
+
+uint TotalClusters()
+{
+    return gClusterCountX * gClusterCountY * gClusterCountZ;
+}
+
+uint3 Cluster3DFromLinear(uint idx)
+{
+    uint xy = gClusterCountX * gClusterCountY;
+    uint z = idx / xy;
+    uint r = idx - z * xy;
+    uint y = r / gClusterCountX;
+    uint x = r - y * gClusterCountX;
+    return uint3(x, y, z);
+}
+
+// -----------------------------------------------------------------------------
+// LightClusterClearCS : 각 Cluster 에 저장된 내용 초기화
+// -----------------------------------------------------------------------------
+[numthreads(64, 1, 1)]
+void LightClusterClearCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
+{
+    uint idx = Gid.x * 64u + GTid.x;
+
+    // Clear global offset counter exactly once
+    if (Gid.x == 0 && GTid.x == 0)
+    {
+        GlobalOffsetCounter[0] = 0;
+    }
+
+    // Clear per-cluster meta (offset/count = 0)
+    uint total = TotalClusters();
+    if (idx < total)
+    {
+        ClusterLightMeta m;
+        m.offset = 0;
+        m.count = 0;
+        ClusterLightMetaUAV[idx] = m;
+    }
+}
+
 
 // -----------------------------------------------------------------------------
 // ClusterBoundsBuildCS : 클러스터의 View-space AABB 계산
@@ -80,39 +126,57 @@ void ClusterBoundsBuildCS(uint3 DTid : SV_DispatchThreadID)
 
     uint index = z * (gClusterCountX * gClusterCountY) + y * gClusterCountX + x;
 
-    float ndcMinX = (float) x / gClusterCountX * 2.0f - 1.0f;
-    float ndcMaxX = (float) (x + 1) / gClusterCountX * 2.0f - 1.0f;
-    float ndcMinY = 1.0f - (float) (y + 1) / gClusterCountY * 2.0f;
-    float ndcMaxY = 1.0f - (float) y / gClusterCountY * 2.0f;
+    // NDC tile
+    float ndcMinX = ((float) x / gClusterCountX) * 2.0f - 1.0f;
+    float ndcMaxX = ((float) (x + 1u) / gClusterCountX) * 2.0f - 1.0f;
+    float ndcMaxY = 1.0f - ((float) y / gClusterCountY) * 2.0f;
+    float ndcMinY = 1.0f - ((float) (y + 1u) / gClusterCountY) * 2.0f;
 
+    // Exponential partition along Z in view space
     float z0 = (float) z / gClusterCountZ;
     float z1 = (float) (z + 1) / gClusterCountZ;
     float viewMinZ = gNearZ * pow(gFarZ / gNearZ, z0);
     float viewMaxZ = gNearZ * pow(gFarZ / gNearZ, z1);
 
-    float4 corners[8] =
-    {
-        float4(ndcMinX, ndcMinY, 0, 1),
-        float4(ndcMaxX, ndcMinY, 0, 1),
-        float4(ndcMinX, ndcMaxY, 0, 1),
-        float4(ndcMaxX, ndcMaxY, 0, 1),
-        float4(ndcMinX, ndcMinY, 1, 1),
-        float4(ndcMaxX, ndcMinY, 1, 1),
-        float4(ndcMinX, ndcMaxY, 1, 1),
-        float4(ndcMaxX, ndcMaxY, 1, 1)
-    };
+    // Compute 4 view rays from NDC corners at clip.w = 1, then scale by depths
+    float4 clip00 = float4(ndcMinX, ndcMinY, 1.0f, 1.0f);
+    float4 clip10 = float4(ndcMaxX, ndcMinY, 1.0f, 1.0f);
+    float4 clip01 = float4(ndcMinX, ndcMaxY, 1.0f, 1.0f);
+    float4 clip11 = float4(ndcMaxX, ndcMaxY, 1.0f, 1.0f);
+
+    float4 v00 = mul(clip00, gInvProj);
+    v00.xyz /= max(v00.w, 1e-6);
+    float4 v10 = mul(clip10, gInvProj);
+    v10.xyz /= max(v10.w, 1e-6);
+    float4 v01 = mul(clip01, gInvProj);
+    v01.xyz /= max(v01.w, 1e-6);
+    float4 v11 = mul(clip11, gInvProj);
+    v11.xyz /= max(v11.w, 1e-6);
+
+    // Normalize direction along view rays (z>0 in view space)
+    float3 ray00 = normalize(v00.xyz);
+    float3 ray10 = normalize(v10.xyz);
+    float3 ray01 = normalize(v01.xyz);
+    float3 ray11 = normalize(v11.xyz);
+
+    // 8 corners in view space
+    float3 corners[8];
+    corners[0] = ray00 * viewMinZ;
+    corners[1] = ray10 * viewMinZ;
+    corners[2] = ray01 * viewMinZ;
+    corners[3] = ray11 * viewMinZ;
+    corners[4] = ray00 * viewMaxZ;
+    corners[5] = ray10 * viewMaxZ;
+    corners[6] = ray01 * viewMaxZ;
+    corners[7] = ray11 * viewMaxZ;
 
     float3 minP = float3(1e9, 1e9, 1e9);
     float3 maxP = float3(-1e9, -1e9, -1e9);
-
-    for (int i = 0; i < 8; ++i)
+    [unroll]
+    for (int i = 0; i < 8; i++)
     {
-        float4 v = corners[i];
-        float viewZ = lerp(viewMinZ, viewMaxZ, v.z);
-        float4 viewPos = mul(float4(v.x, v.y, viewZ, 1.0f), gInvProj);
-        viewPos /= viewPos.w;
-        minP = min(minP, viewPos.xyz);
-        maxP = max(maxP, viewPos.xyz);
+        minP = min(minP, corners[i]);
+        maxP = max(maxP, corners[i]);
     }
 
     ClusterBound cb;
@@ -127,17 +191,13 @@ void ClusterBoundsBuildCS(uint3 DTid : SV_DispatchThreadID)
 // -----------------------------------------------------------------------------
 // LightAssignCS : 각 Cluster에 포함된 Light 인덱스를 계산
 // -----------------------------------------------------------------------------
-[numthreads(8, 8, 1)]
-void LightAssignCS(uint3 DTid : SV_DispatchThreadID)
+[numthreads(64, 1, 1)]
+void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
 {
-    uint x = DTid.x;
-    uint y = DTid.y;
-    uint z = DTid.z;
-
-    if (x >= gClusterCountX || y >= gClusterCountY || z >= gClusterCountZ)
+    uint clusterIndex = Gid.x * 64u + GTid.x;
+    uint total = TotalClusters();
+    if (clusterIndex >= total)
         return;
-
-    uint clusterIndex = z * (gClusterCountX * gClusterCountY) + y * gClusterCountX + x;
 
     ClusterBound bound = ClusterListSRV[clusterIndex];
     float3 boxMin = bound.minPoint;
@@ -146,32 +206,51 @@ void LightAssignCS(uint3 DTid : SV_DispatchThreadID)
     uint localCount = 0;
     uint localIndices[MAX_LIGHTS_PER_CLUSTER];
 
-    for (uint i = 0; i < gLightCount; ++i)
+    // Light intersection (sphere vs AABB)
+    [loop]
+    for (uint li = 0; li < gLightCount; ++li)
     {
-        LightInfo light = LightInput[i];
-
+        LightInfo light = LightInput[li];
         float3 L = light.position;
         float R = light.range;
+        float R2 = R * R;
 
         float3 closest = clamp(L, boxMin, boxMax);
         float3 delta = L - closest;
         float dist2 = dot(delta, delta);
 
-        if (dist2 <= R * R)
+        if (dist2 <= R2)
         {
             if (localCount < MAX_LIGHTS_PER_CLUSTER)
-                localIndices[localCount++] = i;
+            {
+                localIndices[localCount++] = li;
+            }
+            // Optional early-out if reaching cap
+            if (localCount == MAX_LIGHTS_PER_CLUSTER)
+                break;
         }
     }
 
+    // Reserve a global range
     uint offset = 0;
     InterlockedAdd(GlobalOffsetCounter[0], localCount, offset);
 
-    for (uint k = 0; i < localCount; ++k)
-        ClusterLightIndicesUAV[offset + k] = localIndices[k];
+    // Capacity clamp to avoid buffer overrun
+    uint capacity = gClusterIndexCapacity;
+    uint writeCount = 0;
+    if (offset < capacity)
+        writeCount = min(localCount, capacity - offset);
 
+    // Write indices
+    [loop]
+    for (uint k = 0; k < writeCount; ++k)
+    {
+        ClusterLightIndicesUAV[offset + k] = localIndices[k];
+    }
+
+    // Store meta
     ClusterLightMeta meta;
     meta.offset = offset;
-    meta.count = localCount;
+    meta.count = writeCount;
     ClusterLightMetaUAV[clusterIndex] = meta;
 }

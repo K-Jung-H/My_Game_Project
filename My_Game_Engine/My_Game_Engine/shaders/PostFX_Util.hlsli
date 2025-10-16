@@ -13,8 +13,9 @@ cbuffer SceneCB : register(b0)
     float4 gTimeInfo;
     
     uint gLightCount;
+    uint gClusterIndexCapacity;
     uint gRenderFlags;
-    float2 padding;
+    float padding;
 };
 
 cbuffer CameraCB : register(b1)
