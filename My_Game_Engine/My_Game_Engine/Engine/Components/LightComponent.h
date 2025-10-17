@@ -17,7 +17,7 @@ struct GPULight
     float intensity;
 
     XMFLOAT3 color;
-    uint32_t type;
+    UINT type;
 
     bool castsShadow;
     UINT shadowMapStartIndex;

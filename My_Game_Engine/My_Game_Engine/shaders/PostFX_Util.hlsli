@@ -80,6 +80,7 @@ struct ClusterLightMeta
 {
     uint offset;
     uint count;
+    float2 padding0;
 };
 
 Texture2D gGBuffer_Albedo : register(t0);
@@ -116,6 +117,13 @@ VS_SCREEN_OUT FullscreenQuad_VS(uint vid : SV_VertexID)
     static const uint indices[6] = { 0, 1, 2, 0, 2, 3 };
 
     return g_FullscreenQuadCorners[indices[vid]];
+}
+
+float ComputeClusterZ_FromViewZ(float viewZ, float nearZ, float farZ, uint clusterCountZ)
+{
+    // viewZ > 0 가정 (RH면 gDepthSign로 반전)
+    float z0 = log(viewZ / nearZ) / log(farZ / nearZ);
+    return floor(saturate(z0) * clusterCountZ);
 }
 
 // === 선형화 함수 (View-space Depth 복원) ===

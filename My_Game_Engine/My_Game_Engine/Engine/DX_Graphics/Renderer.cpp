@@ -883,6 +883,9 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
         fr.light_resource.ClusterLightMetaBuffer = ClusterLightMetaBuffer;
         fr.light_resource.ClusterLightMetaBuffer_SRV_Index = ClusterLightMetaSRVIndex;
         fr.light_resource.ClusterLightMetaBuffer_UAV_Index = ClusterLightMetaUAVIndex;
+
+        fr.StateTracker.Register(fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+
     }
 
 
@@ -941,6 +944,9 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
         fr.light_resource.ClusterLightIndicesBuffer = ClusterLightIndicesBuffer;
         fr.light_resource.ClusterLightIndicesBuffer_SRV_Index = ClusterLightIndicesBufferSRVIndex;
         fr.light_resource.ClusterLightIndicesBuffer_UAV_Index = ClusterLightIndicesBufferUAVIndex;
+
+        fr.StateTracker.Register(fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+
     }
 
 
@@ -980,6 +986,9 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
 
         fr.light_resource.GlobalOffsetCounterBuffer = GlobalOffsetCounterBuffer;
         fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index = GlobalOffsetCounterBufferUAVIndex;
+
+        fr.StateTracker.Register(fr.light_resource.GlobalOffsetCounterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+
     }
 
 }
@@ -1100,13 +1109,13 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
         view_space_lights.push_back(view_light);
     }
 
-    memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * lights.size());
+    memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * view_space_lights.size());
 
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
 
-    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * lights.size());
+    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * view_space_lights.size());
 
-    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
 
 void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
@@ -1256,6 +1265,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     mCommandList->SetDescriptorHeaps(1, heaps);
 
     mainCam->SetViewportsAndScissorRects(mCommandList);
+
+
     mainCam->UpdateCBV();
 
     //------------------------------------------
@@ -1317,6 +1328,9 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 
         Bind_SceneCBV(Shader_Type::Compute, RootParameter_LightPass::SceneCBV);
 
+        fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.GlobalOffsetCounterBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
 		auto LightMetaUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
 		mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterLightMetaUAV, LightMetaUav);
 
@@ -1331,6 +1345,7 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
     }
     //============================================
     {
+
         PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::ClusterBuild);
 
         render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
@@ -1338,6 +1353,7 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         Bind_SceneCBV(Shader_Type::Compute, RootParameter_LightPass::SceneCBV);
 
         fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
         auto ClusterUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_UAV_Index);
         mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterAreaUAV, ClusterUav);
 
@@ -1357,8 +1373,9 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 
         Bind_SceneCBV(Shader_Type::Compute, RootParameter_LightPass::SceneCBV);
 
-        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get());
         fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+        fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+        fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
         mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterAreaSRV, ClusterSrv);
@@ -1372,14 +1389,21 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 		auto LightIndicesUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightIndicesBuffer_UAV_Index);
 		mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterLightIndicesUAV, LightIndicesUav);
 
+        auto GlobalOffsetUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index);
+        mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::GlobalCounterUAV, GlobalOffsetUav);
+
+
         UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
         mCommandList->Dispatch(dispatchX, 1, 1);
 
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get());
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.GlobalOffsetCounterBuffer.Get());
     }
     //============================================
 
+    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(nullptr);
+    mCommandList->ResourceBarrier(1, &barrier);
 }
 
 
@@ -1411,6 +1435,9 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::LightBufferSRV, LightSrv);
 
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
     auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightMetaSRV, LightMetaSrv);
 
@@ -1434,6 +1461,11 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     mCommandList->DrawInstanced(6, 1, 0, 0);
 
     std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
+
+    auto& lr = fr.light_resource;
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
 
 void DX12_Renderer::PostProcessPass(std::shared_ptr<CameraComponent> render_camera)
@@ -1651,11 +1683,28 @@ bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
         if (fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index != UINT_MAX)
             mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index);
         
+
         if (fr.light_resource.MappedLightUploadBuffer)
         {
             fr.light_resource.LightUploadBuffer->Unmap(0, nullptr);
+            fr.light_resource.LightUploadBuffer.Reset();
             fr.light_resource.MappedLightUploadBuffer = nullptr;
         }
+
+        if (fr.light_resource.LightBuffer)
+            fr.light_resource.LightBuffer.Reset();
+
+        if(fr.light_resource.ClusterBuffer)
+			fr.light_resource.ClusterBuffer.Reset();   
+
+        if(fr.light_resource.ClusterLightMetaBuffer)
+			fr.light_resource.ClusterLightMetaBuffer.Reset();
+
+        if (fr.light_resource.ClusterLightIndicesBuffer)
+            fr.light_resource.ClusterLightIndicesBuffer.Reset();
+
+        if (fr.light_resource.GlobalOffsetCounterBuffer)
+            fr.light_resource.GlobalOffsetCounterBuffer.Reset();
     }
 
     for (auto& fr : mFrameResources)

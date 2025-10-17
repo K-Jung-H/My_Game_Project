@@ -124,6 +124,8 @@ void GameEngine::OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM w
 		case WM_KEYDOWN:
 			switch (wParam)
 			{
+			case VK_SPACE:
+				mRenderer->test_value = !mRenderer->test_value;
 			default:
 				break;
 			}

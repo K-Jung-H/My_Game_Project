@@ -1,8 +1,4 @@
 
-#ifndef MAX_LIGHTS_PER_CLUSTER
-#define MAX_LIGHTS_PER_CLUSTER 64
-#endif
-
 struct ClusterBound
 {
     float3 minPoint;
@@ -29,6 +25,7 @@ struct ClusterLightMeta
 {
     uint offset;
     uint count;
+    float2 padding0;
 };
 
 cbuffer SceneCB : register(b0)
@@ -106,6 +103,7 @@ void LightClusterClearCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
         ClusterLightMeta m;
         m.offset = 0;
         m.count = 0;
+        m.padding0 = float2(0.0f, 0.0f);
         ClusterLightMetaUAV[idx] = m;
     }
 }
@@ -185,6 +183,8 @@ void ClusterBoundsBuildCS(uint3 DTid : SV_DispatchThreadID)
     cb.pad0 = 0;
     cb.pad1 = 0;
 
+    
+    
     ClusterListUAV[index] = cb;
 }
 
@@ -194,6 +194,8 @@ void ClusterBoundsBuildCS(uint3 DTid : SV_DispatchThreadID)
 [numthreads(64, 1, 1)]
 void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
 {
+    uint MAX_LIGHTS_PER_CLUSTER = gClusterIndexCapacity;
+    
     uint clusterIndex = Gid.x * 64u + GTid.x;
     uint total = TotalClusters();
     if (clusterIndex >= total)
@@ -204,7 +206,7 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
     float3 boxMax = bound.maxPoint;
 
     uint localCount = 0;
-    uint localIndices[MAX_LIGHTS_PER_CLUSTER];
+    uint localIndices[64];
 
     // Light intersection (sphere vs AABB)
     [loop]
@@ -236,10 +238,10 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
     InterlockedAdd(GlobalOffsetCounter[0], localCount, offset);
 
     // Capacity clamp to avoid buffer overrun
-    uint capacity = gClusterIndexCapacity;
+    uint totalCapacity = TotalClusters() * gClusterIndexCapacity;
     uint writeCount = 0;
-    if (offset < capacity)
-        writeCount = min(localCount, capacity - offset);
+    if (offset < totalCapacity)
+        writeCount = min(localCount, totalCapacity - offset);
 
     // Write indices
     [loop]
@@ -252,5 +254,6 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
     ClusterLightMeta meta;
     meta.offset = offset;
     meta.count = writeCount;
+    meta.padding0 = float2(0.0f, 0.0f);
     ClusterLightMetaUAV[clusterIndex] = meta;
 }

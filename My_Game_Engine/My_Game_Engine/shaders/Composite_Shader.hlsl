@@ -36,7 +36,15 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     float Roughness = Material.r;
     float Metallic = Material.g;
     float Depth = gDepthTex.Sample(gLinearSampler, input.uv).r;
-
+    //=============================================
+    float viewDepth = LinearizeDepth(Depth, gNearZ, gFarZ);
+    uint clusterX = floor(input.uv.x * gClusterCountX);
+    uint clusterY = floor(input.uv.y * gClusterCountY);
+    float log_viewZ = log(viewDepth / gNearZ);
+    float log_far_over_near = log(gFarZ / gNearZ);
+    uint clusterZ = floor(saturate(log_viewZ / log_far_over_near) * gClusterCountZ);
+    uint clusterIndex = clusterZ * (gClusterCountX * gClusterCountY) + clusterY * gClusterCountX + clusterX;
+    //=============================================
     float3 finalColor = float3(0.0, 0.0, 0.0);
 
 
@@ -75,34 +83,15 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     }
     else if (gRenderFlags & RENDER_DEBUG_CLUSTER_AABB)
     {
-        float viewDepth = LinearizeDepth(Depth, gNearZ, gFarZ);
-        uint clusterX = floor(input.uv.x * gClusterCountX);
-        uint clusterY = floor(input.uv.y * gClusterCountY);
-        float log_viewZ = log(viewDepth / gNearZ);
-        float log_far_over_near = log(gFarZ / gNearZ);
-        uint clusterZ = floor((log_viewZ / log_far_over_near) * gClusterCountZ);
-        uint clusterIndex = clusterZ * (gClusterCountX * gClusterCountY) + clusterY * gClusterCountX + clusterX;
-
         ClusterBound bound = ClusterListSRV[clusterIndex];
-
-
-        float farPlaneZ = abs(bound.maxPoint.z); 
+        float farPlaneZ = abs(bound.maxPoint.z);
         finalColor = saturate(farPlaneZ / gFarZ).xxx;
 
-        float3 posVec = normalize(bound.minPoint);
-        finalColor = posVec * 0.5f + 0.5f;
+        float3 dir = normalize(bound.minPoint);
+        finalColor = dir * 0.5f + 0.5f;
     }
     else if (gRenderFlags & RENDER_DEBUG_CLUSTER_ID)
     {
-        float viewDepth = LinearizeDepth(Depth, gNearZ, gFarZ);
-
-        uint clusterX = floor(input.uv.x * gClusterCountX);
-        uint clusterY = floor(input.uv.y * gClusterCountY);
-
-        float log_viewZ = log(viewDepth / gNearZ);
-        float log_far_over_near = log(gFarZ / gNearZ);
-        uint clusterZ = floor((log_viewZ / log_far_over_near) * gClusterCountZ);
-
         finalColor = float3(
             (float) clusterX / gClusterCountX,
             (float) clusterY / gClusterCountY,
@@ -111,23 +100,18 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     }
     else if (gRenderFlags & RENDER_DEBUG_LIGHT_COUNT)
     {
-        float viewDepth = LinearizeDepth(Depth, gNearZ, gFarZ);
-        uint clusterX = floor(input.uv.x * gClusterCountX);
-        uint clusterY = floor(input.uv.y * gClusterCountY);
-        float log_viewZ = log(viewDepth / gNearZ);
-        float log_far_over_near = log(gFarZ / gNearZ);
-        uint clusterZ = floor((log_viewZ / log_far_over_near) * gClusterCountZ);
-        
-        uint clusterIndex = clusterZ * (gClusterCountX * gClusterCountY) + clusterY * gClusterCountX + clusterX;
-
         ClusterLightMeta meta = ClusterLightMetaSRV[clusterIndex];
         uint lightCount = meta.count;
+        uint offset = meta.offset;
 
-        if (lightCount > 0)
-        {
-            float normalizedCount = saturate((float) lightCount / 16.0f);
-            finalColor = Heatmap(normalizedCount);
-        }
+        float normalizedCount = saturate((float) lightCount / 16.0f);
+        float3 heatColor = Heatmap(normalizedCount);
+
+        float3 metaColor = float3(frac(offset * 0.0001f), normalizedCount, (lightCount > 0) ? 1.0f : 0.0f);
+
+        finalColor = lerp(metaColor, heatColor, 0.6f);
+        
+        
         for (uint i = 0; i < gLightCount; ++i)
         {
             float3 light_view_pos = LightInput[i].position;
@@ -150,8 +134,65 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     }
     else // RENDER_DEBUG_DEFAULT
     {
-        finalColor = Albedo;
+        float3 pixel_world_pos = ReconstructWorldPos(input.uv, Depth);
+        float3 pixel_view_pos = mul(float4(pixel_world_pos, 1.0f), gView).xyz;
+        float3 normal_view = normalize(mul(Normal, (float3x3) gView));
+        
+        float3 V = normalize(-pixel_view_pos);
+
+        uint clusterX = floor(input.uv.x * gClusterCountX);
+        uint clusterY = floor(input.uv.y * gClusterCountY);
+        float viewDepth = length(pixel_view_pos);
+
+        float log_viewZ = log(viewDepth / gNearZ);
+        float log_far_over_near = log(gFarZ / gNearZ);
+        uint clusterZ = floor(saturate(log_viewZ / log_far_over_near) * gClusterCountZ);
+        uint clusterIndex = clusterZ * (gClusterCountX * gClusterCountY) + clusterY * gClusterCountX + clusterX;
+
+        ClusterLightMeta meta = ClusterLightMetaSRV[clusterIndex];
+        uint lightCount = meta.count;
+        uint lightOffset = meta.offset;
+        
+        for (uint i = 0; i < lightCount; ++i)
+        {
+            uint lightIndex = ClusterLightIndicesSRV[lightOffset + i];
+            LightInfo light = LightInput[lightIndex];
+
+            float3 light_pos_view = light.position;
+            
+            float3 L = light_pos_view - pixel_view_pos;
+            float distanceToLight = length(L);
+            L = normalize(L);
+            float3 H = normalize(L + V);
+
+            float NdotL = saturate(dot(normal_view, L));
+            float NdotV = saturate(dot(normal_view, V));
+            float NdotH = saturate(dot(normal_view, H));
+            float VdotH = saturate(dot(V, H));
+
+            float attenuation = pow(saturate(1.0 - distanceToLight / light.range), 2.0);
+            float3 radiance = light.color * light.intensity * attenuation;
+            
+            float3 F0 = lerp(0.04.xxx, Albedo, Metallic); 
+            
+            float D = D_GGX(NdotH, Roughness);
+            float G = G_Smith(NdotV, NdotL, Roughness);
+            float3 F = F_Schlick(VdotH, F0);
+            
+            float3 specular = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
+            
+            float3 kS = F;
+            float3 kD = 1.0 - kS;
+            kD *= (1.0 - Metallic); 
+            
+            float3 diffuse = kD * Albedo / PI;
+
+            finalColor += (diffuse + specular) * radiance * NdotL;
+        }
+
     }
+
+
 
     return float4(finalColor, 1.0f);
 }

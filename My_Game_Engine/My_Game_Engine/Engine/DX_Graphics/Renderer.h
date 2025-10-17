@@ -49,6 +49,7 @@ struct ClusterLightMeta
 {
     UINT offset;
     UINT count;
+    XMFLOAT2 padding0;;
 };
 
 struct LightResource
@@ -171,6 +172,9 @@ public:
     RendererContext Get_UploadContext() const;
     void BeginUpload();
     void EndUpload();
+
+    bool test_value = false;
+
 private:
     UINT mWidth = 0;
     UINT mHeight = 0;
