@@ -11,6 +11,8 @@
 #define RENDER_DEBUG_CLUSTER_ID       (1 << 9) 
 #define RENDER_DEBUG_LIGHT_COUNT      (1 << 10) 
 
+static const float PI = 3.14159265359;
+
 cbuffer SceneCB : register(b0)
 {
     float4 gTimeInfo;
@@ -130,4 +132,36 @@ float3 ReconstructWorldPos(float2 uv, float depth)
     float4 world = mul(ndc, gInvViewProj);
     world /= world.w;
     return world.xyz;
+}
+
+
+
+// Normal Distribution Function (GGX) - 노멀 분포 함수
+float D_GGX(float NdotH, float roughness)
+{
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float d = (NdotH * a2 - NdotH) * NdotH + 1.0;
+    return a2 / (PI * d * d);
+}
+
+// Geometry Function (Smith's method with Schlick-GGX) - 기하 함수
+float G_SchlickGGX(float NdotV, float roughness)
+{
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+    return NdotV / (NdotV * (1.0 - k) + k);
+}
+
+float G_Smith(float NdotV, float NdotL, float roughness)
+{
+    float ggx1 = G_SchlickGGX(NdotL, roughness);
+    float ggx2 = G_SchlickGGX(NdotV, roughness);
+    return ggx1 * ggx2;
+}
+
+// Fresnel Equation (Schlick's approximation) - 프레넬 방정식
+float3 F_Schlick(float cosTheta, float3 F0)
+{
+    return F0 + (1.0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
 }

@@ -285,9 +285,9 @@ private:
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
-	void UpdateLightResources(const std::vector<GPULight>& lights);
+	void UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<GPULight>& lights);
 
-    void Bind_SceneCBV();
+    void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);
 
 public:
     ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;

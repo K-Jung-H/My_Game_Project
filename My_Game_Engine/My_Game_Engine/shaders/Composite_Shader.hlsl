@@ -123,9 +123,30 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         ClusterLightMeta meta = ClusterLightMetaSRV[clusterIndex];
         uint lightCount = meta.count;
 
-        float normalizedCount = saturate((float) lightCount / 16.0f);
-        finalColor = Heatmap(normalizedCount);
-        // finalColor = normalizedCount.xxx;
+        if (lightCount > 0)
+        {
+            float normalizedCount = saturate((float) lightCount / 16.0f);
+            finalColor = Heatmap(normalizedCount);
+        }
+        for (uint i = 0; i < gLightCount; ++i)
+        {
+            float3 light_view_pos = LightInput[i].position;
+            float4 light_clip_pos = mul(float4(light_view_pos, 1.0f), gProj);
+            float3 light_ndc = light_clip_pos.xyz / light_clip_pos.w;
+
+            float2 light_uv;
+            light_uv.x = light_ndc.x * 0.5f + 0.5f;
+            light_uv.y = -light_ndc.y * 0.5f + 0.5f;
+
+            if (distance(input.uv, light_uv) < 0.005f)
+            {
+                finalColor = float3(1.0f, 0.0f, 0.0f); 
+                break; 
+            }
+        }
+
+        
+        
     }
     else // RENDER_DEBUG_DEFAULT
     {

@@ -562,7 +562,7 @@ bool DX12_Renderer::Create_Shader()
 
     ShaderSetting light_assign_ss;
     light_assign_ss.cs.file = L"Shaders/LightAssign_Shader.hlsl";
-    light_assign_ss.cs.entry = "ClusterBoundsBuildCS";
+    light_assign_ss.cs.entry = "LightAssignCS";
     light_assign_ss.cs.target = "cs_5_1";
 
     PipelinePreset light_pp{};
@@ -1008,9 +1008,12 @@ void DX12_Renderer::Update_SceneCBV(const SceneData& data)
     memcpy(mappedSceneDataCB, &data, sizeof(SceneData));
 }
 
-void DX12_Renderer::Bind_SceneCBV()
+void DX12_Renderer::Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter)
 {
-    mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Default::SceneCBV, mSceneData_CB->GetGPUVirtualAddress());
+    if(shader_type == Shader_Type::Graphics)
+        mCommandList->SetGraphicsRootConstantBufferView(rootParameter, mSceneData_CB->GetGPUVirtualAddress());
+	else if (shader_type == Shader_Type::Compute)
+		mCommandList->SetComputeRootConstantBufferView(rootParameter, mSceneData_CB->GetGPUVirtualAddress());
 }
 
 void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
@@ -1072,19 +1075,38 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     }
 }
 
-void DX12_Renderer::UpdateLightResources(const std::vector<GPULight>& lights)
+void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<GPULight>& lights)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     LightResource& lr = fr.light_resource;
 
-    memcpy(lr.MappedLightUploadBuffer, lights.data(), sizeof(GPULight) * lr.NumLights);
+    XMMATRIX view_matrix = render_camera->GetViewMatrix();
+
+    std::vector<GPULight> view_space_lights;
+    view_space_lights.reserve(lights.size());
+
+    for (const auto& world_light : lights)
+    {
+        GPULight view_light = world_light;
+
+        XMVECTOR world_pos = XMLoadFloat3(&world_light.position);
+        XMVECTOR view_pos = XMVector3TransformCoord(world_pos, view_matrix);
+        XMStoreFloat3(&view_light.position, view_pos);
+
+        XMVECTOR world_dir = XMLoadFloat3(&world_light.direction);
+        XMVECTOR view_dir = XMVector3TransformNormal(world_dir, view_matrix);
+        XMStoreFloat3(&view_light.direction, view_dir);
+
+        view_space_lights.push_back(view_light);
+    }
+
+    memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * lights.size());
 
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
 
-    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * lr.NumLights);
+    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * lights.size());
 
-    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
+    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE | D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 }
 
 void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
@@ -1240,7 +1262,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     UpdateObjectCBs(renderData_list);
     GeometryPass(mainCam);
     //------------------------------------------
-    UpdateLightResources(light_data_list);
+    UpdateLightResources(mainCam, light_data_list);
     LightPass(mainCam);
     //------------------------------------------
 
@@ -1273,7 +1295,7 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Default::TextureTable, mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Texture));
 
-    Bind_SceneCBV();
+    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Default::SceneCBV);
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
@@ -1293,6 +1315,8 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 
         render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
 
+        Bind_SceneCBV(Shader_Type::Compute, RootParameter_LightPass::SceneCBV);
+
 		auto LightMetaUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
 		mCommandList->SetComputeRootDescriptorTable(RootParameter_LightPass::ClusterLightMetaUAV, LightMetaUav);
 
@@ -1301,12 +1325,17 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 
         UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
         mCommandList->Dispatch(dispatchX, 1, 1);
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.GlobalOffsetCounterBuffer.Get());
     }
     //============================================
     {
         PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::ClusterBuild);
 
         render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
+
+        Bind_SceneCBV(Shader_Type::Compute, RootParameter_LightPass::SceneCBV);
 
         fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         auto ClusterUav = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_UAV_Index);
@@ -1317,12 +1346,16 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         UINT dispatchZ = CLUSTER_Z;
 
         mCommandList->Dispatch(dispatchX, dispatchY, dispatchZ);
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get());
     }
     //============================================
     {
         PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::LightAssign);
 
         render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
+
+        Bind_SceneCBV(Shader_Type::Compute, RootParameter_LightPass::SceneCBV);
 
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get());
         fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -1341,8 +1374,12 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 
         UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
         mCommandList->Dispatch(dispatchX, 1, 1);
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get());
     }
     //============================================
+
 }
 
 
@@ -1364,7 +1401,7 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
     
-    Bind_SceneCBV();
+    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_PostFX::SceneCBV);
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_PostFX::CameraCBV);
 
@@ -1417,7 +1454,8 @@ void DX12_Renderer::PostProcessPass(std::shared_ptr<CameraComponent> render_came
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
-    Bind_SceneCBV();
+    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_PostFX::SceneCBV);
+
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
 
@@ -1460,7 +1498,7 @@ void DX12_Renderer::Blit_BackBufferPass()
     auto rtv = mRtvManager->GetCpuHandle(fr.BackBufferRtvSlot_ID);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
 
-    Bind_SceneCBV();
+    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_PostFX::SceneCBV);
 
     if (fr.GBufferSrvSlot_IDs.size() >= (UINT)GBufferType::Count)
     {

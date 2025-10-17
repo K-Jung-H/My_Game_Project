@@ -40,8 +40,9 @@
 #define ID_CAMERA_LIGHT                 32797
 #define ID_LIGHT_CLUSTER                32798
 #define ID_LIGHT_CLUSTER_AREA           32799
-#define ID_LIGHT_CLUSTER32800           32800
 #define ID_LIGHT_LIGHT                  32801
+#define ID_LIGHT_LIGHT_COUNT            32802
+#define ID_LIGHT_CLUSTER_ID             32803
 #define IDC_STATIC                      -1
 
 // Next default values for new objects
@@ -50,7 +51,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        133
-#define _APS_NEXT_COMMAND_VALUE         32802
+#define _APS_NEXT_COMMAND_VALUE         32804
 #define _APS_NEXT_CONTROL_VALUE         1003
 #define _APS_NEXT_SYMED_VALUE           110
 #endif
