@@ -119,13 +119,6 @@ VS_SCREEN_OUT FullscreenQuad_VS(uint vid : SV_VertexID)
     return g_FullscreenQuadCorners[indices[vid]];
 }
 
-float ComputeClusterZ_FromViewZ(float viewZ, float nearZ, float farZ, uint clusterCountZ)
-{
-    // viewZ > 0 가정 (RH면 gDepthSign로 반전)
-    float z0 = log(viewZ / nearZ) / log(farZ / nearZ);
-    return floor(saturate(z0) * clusterCountZ);
-}
-
 // === 선형화 함수 (View-space Depth 복원) ===
 float LinearizeDepth(float depth, float nearZ, float farZ)
 {
@@ -140,36 +133,4 @@ float3 ReconstructWorldPos(float2 uv, float depth)
     float4 world = mul(ndc, gInvViewProj);
     world /= world.w;
     return world.xyz;
-}
-
-
-
-// Normal Distribution Function (GGX) - 노멀 분포 함수
-float D_GGX(float NdotH, float roughness)
-{
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float d = (NdotH * a2 - NdotH) * NdotH + 1.0;
-    return a2 / (PI * d * d);
-}
-
-// Geometry Function (Smith's method with Schlick-GGX) - 기하 함수
-float G_SchlickGGX(float NdotV, float roughness)
-{
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-    return NdotV / (NdotV * (1.0 - k) + k);
-}
-
-float G_Smith(float NdotV, float NdotL, float roughness)
-{
-    float ggx1 = G_SchlickGGX(NdotL, roughness);
-    float ggx2 = G_SchlickGGX(NdotV, roughness);
-    return ggx1 * ggx2;
-}
-
-// Fresnel Equation (Schlick's approximation) - 프레넬 방정식
-float3 F_Schlick(float cosTheta, float3 F0)
-{
-    return F0 + (1.0 - F0) * pow(saturate(1.0 - cosTheta), 5.0);
 }

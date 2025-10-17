@@ -1340,12 +1340,10 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
         mCommandList->Dispatch(dispatchX, 1, 1);
 
-        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.GlobalOffsetCounterBuffer.Get());
     }
     //============================================
     {
-
         PSO_Manager::Instance().BindShader(mCommandList, "Light_Pass", ShaderVariant::ClusterBuild);
 
         render_camera->Compute_Bind(mCommandList, RootParameter_LightPass::CameraCBV);
@@ -1396,14 +1394,9 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         UINT dispatchX = (TOTAL_CLUSTER_COUNT + 63) / 64;
         mCommandList->Dispatch(dispatchX, 1, 1);
 
-        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get());
-        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.GlobalOffsetCounterBuffer.Get());
     }
     //============================================
-
-    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(nullptr);
-    mCommandList->ResourceBarrier(1, &barrier);
 }
 
 
@@ -1429,14 +1422,14 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_PostFX::CameraCBV);
 
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
     auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterAreaSRV, ClusterSrv);
 
     auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::LightBufferSRV, LightSrv);
-
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightMetaSRV, LightMetaSrv);
@@ -1462,10 +1455,9 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
 
     std::swap(fr.Merge_Base_Index, fr.Merge_Target_Index);
 
-    auto& lr = fr.light_resource;
-    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
-    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
-    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
 
 void DX12_Renderer::PostProcessPass(std::shared_ptr<CameraComponent> render_camera)
@@ -2037,8 +2029,9 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
 
             if (auto tf = light->GetTransform())
             {
-                XMFLOAT3 dir = tf->GetForward();
-                ImGui::Text("Direction: %.2f, %.2f, %.2f", dir.x, dir.y, dir.z);
+     //           XMFLOAT3 dir = tf->GetForward();
+     //           if (ImGui::DragFloat3("MainDirection", reinterpret_cast<float*>(&dir), 0.01f))
+					//tf->SetRotationEuler(dir);
             }
 
             ImGui::Unindent();

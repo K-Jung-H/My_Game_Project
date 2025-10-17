@@ -208,49 +208,77 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
     uint localCount = 0;
     uint localIndices[64];
 
-    // Light intersection (sphere vs AABB)
+
     [loop]
     for (uint li = 0; li < gLightCount; ++li)
     {
         LightInfo light = LightInput[li];
-        float3 L = light.position;
-        float R = light.range;
-        float R2 = R * R;
+        bool intersects = false;
 
-        float3 closest = clamp(L, boxMin, boxMax);
-        float3 delta = L - closest;
-        float dist2 = dot(delta, delta);
+        switch (light.type)
+        {
+            case 0: // Directional Light
+            {
+                    intersects = true;
+                    break;
+                }
 
-        if (dist2 <= R2)
+            // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
+            case 1: // Point Light (Sphere vs AABB)
+            {
+                    float3 closest = clamp(light.position, boxMin, boxMax);
+                    float3 delta = light.position - closest;
+                    float dist2 = dot(delta, delta);
+                    intersects = (dist2 <= light.range * light.range);
+                    break;
+                }
+
+            // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
+            case 2: // Spot Light (Cone vs AABB)
+            {
+                    float3 closest = clamp(light.position, boxMin, boxMax);
+                    float3 delta = closest - light.position;
+                    float dist = length(delta);
+                    if (dist > light.range)
+                        break;
+
+                    float3 dir = normalize(light.direction);
+                    float3 toBox = normalize(closest - light.position);
+                    float cosTheta = dot(dir, toBox);
+
+                    float cutoff = 0.7f; 
+                    intersects = (cosTheta >= cutoff);
+                    break;
+                }
+
+            // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
+            default:
+                break;
+        }
+
+        if (intersects)
         {
             if (localCount < MAX_LIGHTS_PER_CLUSTER)
-            {
                 localIndices[localCount++] = li;
-            }
-            // Optional early-out if reaching cap
+
             if (localCount == MAX_LIGHTS_PER_CLUSTER)
                 break;
         }
     }
 
-    // Reserve a global range
+
     uint offset = 0;
     InterlockedAdd(GlobalOffsetCounter[0], localCount, offset);
 
-    // Capacity clamp to avoid buffer overrun
     uint totalCapacity = TotalClusters() * gClusterIndexCapacity;
     uint writeCount = 0;
     if (offset < totalCapacity)
         writeCount = min(localCount, totalCapacity - offset);
 
-    // Write indices
     [loop]
     for (uint k = 0; k < writeCount; ++k)
-    {
         ClusterLightIndicesUAV[offset + k] = localIndices[k];
-    }
 
-    // Store meta
     ClusterLightMeta meta;
     meta.offset = offset;
     meta.count = writeCount;

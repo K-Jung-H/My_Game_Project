@@ -2,7 +2,7 @@
 
 enum class LightType
 {
-    Directional,
+    Directional = 0,
     Point,
     Spot,
     etc,
