@@ -44,10 +44,13 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 
 
 진행 상황:
-- Light Debug 동작 추가 중
-- Light 리소스가 제대로 생성되고 바인딩 되고 있는지 검사하기
+Point, Directional Light의 Cluster Lighting 연산 
 
 
+할 일:
+- Point, Directional Light는 제대로 연산 되고 있음 // Spot 조명이 적용 안되는 중 - 방향 문제일 수도 있음
+- LightComponent에 MainDirection 속성을 추가하고, Imgui에 연결하기 + 해당 내용을 기반으로 Spot 조명 디버깅하기
+- Point Light 결과가 카메라 회전에 따라 달라지고 있음 // 오류일 가능성 높음, 검토 할 것
 
 
 
