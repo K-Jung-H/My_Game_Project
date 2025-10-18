@@ -21,19 +21,29 @@ void LightComponent::FromJSON(const rapidjson::Value& val)
 GPULight LightComponent::ToGPUData() const
 {
     GPULight g{};
+
     g.position = mPosition;
     g.range = mRange;
     g.direction = mDirection;
     g.intensity = mIntensity;
     g.color = mColor;
-    g.type = static_cast<uint32_t>(lightType);
+    g.spotOuterCosAngle = cosf(mOuterAngle / 2.0f);
+    g.spotInnerCosAngle = cosf(mInnerAngle / 2.0f);
+    g.type = static_cast<UINT>(lightType);
     g.castsShadow = mCastsShadow ? 1u : 0u;
-    g.shadowMapStartIndex = UINT_MAX;
-    g.shadowMapLength = 0;
-    g.padding0 = 0;
+    g.lightMask = mLightMask;
+    g.volumetricStrength = mVolumetricStrength;
+    g.shadowMapStartIndex = mShadowMapStartIndex;
+    g.shadowMapLength = mShadowMapLength;
+
     return g;
 }
 
+void LightComponent::SetDirection(const XMFLOAT3& dir)
+{
+    XMVECTOR v = XMVector3Normalize(XMLoadFloat3(&dir));
+    XMStoreFloat3(&mDirection, v);
+}
 
 void LightComponent::Update()
 {

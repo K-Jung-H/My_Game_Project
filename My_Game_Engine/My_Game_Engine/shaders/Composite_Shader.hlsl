@@ -60,18 +60,20 @@ float3 ComputeLight(
             }
 
         //式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
-        case 2: // Spot
+        case 2:
         {
                 float3 toLight = light.position - pixel_view_pos;
                 float dist = length(toLight);
                 L = normalize(toLight);
 
                 float attenuation = pow(saturate(1.0 - dist / light.range), 2.0);
-                float3 dir = normalize(-light.direction);
-                float spotFactor = saturate(dot(L, dir));
-                float spotPower = pow(spotFactor, 8.0);
+    
+                float3 lightDir = normalize(-light.direction);
+                float cosTheta = dot(L, lightDir);
+    
+                float spotFalloff = saturate((cosTheta - light.spotOuterCosAngle) / (light.spotInnerCosAngle - light.spotOuterCosAngle + 0.0001f));
 
-                radiance = light.color * light.intensity * attenuation * spotPower;
+                radiance = light.color * light.intensity * attenuation * spotFalloff;
                 result = PBR_Lighting(L, V, normal_view, radiance, Albedo, Metallic, Roughness);
                 break;
             }
@@ -95,6 +97,8 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 {
     float3 Albedo = gGBuffer_Albedo.Sample(gLinearSampler, input.uv).rgb;
     float3 Normal = gGBuffer_Normal.Sample(gLinearSampler, input.uv).rgb;
+    float3 world_normal = normalize(Normal * 2.0f - 1.0f);
+    float3 normal_view = normalize(mul(world_normal, (float3x3) gView));
     float3 Material = gGBuffer_Material.Sample(gLinearSampler, input.uv).rgb;
     float Roughness = Material.r;
     float Metallic = Material.g;
@@ -115,7 +119,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     if (gRenderFlags & RENDER_DEBUG_ALBEDO)
         finalColor = Albedo;
     else if (gRenderFlags & RENDER_DEBUG_NORMAL)
-        finalColor = Normal * 0.5f + 0.5f;
+        finalColor = normal_view * 0.5f + 0.5f;
     else if (gRenderFlags & RENDER_DEBUG_ROUGHNESS)
         finalColor = Roughness.xxx;
     else if (gRenderFlags & RENDER_DEBUG_METALLIC)
@@ -149,7 +153,6 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     {
         float3 pixel_world_pos = ReconstructWorldPos(input.uv, Depth);
         float3 pixel_view_pos = mul(float4(pixel_world_pos, 1.0f), gView).xyz;
-        float3 normal_view = normalize(mul(Normal, (float3x3) gView));
         float3 V = normalize(-pixel_view_pos);
 
         ClusterLightMeta meta = ClusterLightMetaSRV[clusterIndex];

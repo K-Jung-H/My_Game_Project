@@ -2005,6 +2005,18 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
                 light->SetIntensity(intensity);
 
+            if (type == LightType::Directional || type == LightType::Spot)
+            {
+                XMFLOAT3 direction = light->GetDirection();
+                if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
+                {
+                    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f) 
+                        direction.y = -1.0f; 
+                    
+                    light->SetDirection(direction);
+                }
+            }
+
             if (type == LightType::Point || type == LightType::Spot)
             {
                 float range = light->GetRange();

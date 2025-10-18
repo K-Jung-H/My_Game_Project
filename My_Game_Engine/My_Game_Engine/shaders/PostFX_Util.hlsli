@@ -70,10 +70,15 @@ struct LightInfo
     float3 color;
     uint type;
 
+    float spotOuterCosAngle;
+    float spotInnerCosAngle;
     uint castsShadow;
+    uint lightMask;
+    
+    float volumetricStrength;
     uint shadowMapStartIndex;
     uint shadowMapLength;
-    uint padding0;
+    uint padding;
 };
 
 struct ClusterLightMeta

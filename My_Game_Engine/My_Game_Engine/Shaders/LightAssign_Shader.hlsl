@@ -11,14 +11,22 @@ struct LightInfo
 {
     float3 position;
     float range;
+
     float3 direction;
     float intensity;
+
     float3 color;
     uint type;
+
+    float spotOuterCosAngle;
+    float spotInnerCosAngle;
     uint castsShadow;
+    uint lightMask;
+    
+    float volumetricStrength;
     uint shadowMapStartIndex;
     uint shadowMapLength;
-    uint padding0;
+    uint padding;
 };
 
 struct ClusterLightMeta
@@ -226,28 +234,51 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
             // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
             case 1: // Point Light (Sphere vs AABB)
             {
-                    float3 closest = clamp(light.position, boxMin, boxMax);
-                    float3 delta = light.position - closest;
-                    float dist2 = dot(delta, delta);
-                    intersects = (dist2 <= light.range * light.range);
+                    float3 closestPoint = clamp(light.position, boxMin, boxMax);
+                    float3 delta = light.position - closestPoint;
+                    float distSq = dot(delta, delta);
+                    intersects = (distSq <= light.range * light.range);
                     break;
                 }
 
             // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
             case 2: // Spot Light (Cone vs AABB)
             {
-                    float3 closest = clamp(light.position, boxMin, boxMax);
-                    float3 delta = closest - light.position;
-                    float dist = length(delta);
-                    if (dist > light.range)
+                    float3 center = (boxMin + boxMax) * 0.5f;
+                    float3 extents = center - boxMin;
+
+                    float3 closestPoint = clamp(light.position, boxMin, boxMax);
+                    if (dot(light.position - closestPoint, light.position - closestPoint) > light.range * light.range)
+                    {
+                        intersects = false;
                         break;
+                    }
+            
+                    float projRadius = dot(extents, abs(light.direction));
+                    float centerDist = dot(light.direction, center - light.position);
+                    if (centerDist < -projRadius || centerDist > light.range + projRadius)
+                    {
+                        intersects = false;
+                        break;
+                    }
 
-                    float3 dir = normalize(light.direction);
-                    float3 toBox = normalize(closest - light.position);
-                    float cosTheta = dot(dir, toBox);
+                    float cosOuter = light.spotOuterCosAngle;
+                    float sinOuter = sqrt(1.0f - cosOuter * cosOuter);
+                    float angle = acos(dot(normalize(closestPoint - light.position), light.direction));
+                    if (angle > acos(cosOuter))
+                    {
+                        float3 v = center - light.position;
+                        float c = dot(light.direction, v);
+                        float d = dot(v, v) - c * c;
 
-                    float cutoff = 0.7f; 
-                    intersects = (cosTheta >= cutoff);
+                        if (d > (projRadius * projRadius) && (c * sinOuter - projRadius * cosOuter) > 0)
+                        {
+                            intersects = false;
+                            break;
+                        }
+                    }
+
+                    intersects = true;
                     break;
                 }
 

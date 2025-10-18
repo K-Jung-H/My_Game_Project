@@ -19,11 +19,15 @@ struct GPULight
     XMFLOAT3 color;
     UINT type;
 
-    bool castsShadow;
+    float spotOuterCosAngle;
+    float spotInnerCosAngle;
+    UINT castsShadow;
+    UINT lightMask;
+
+    float volumetricStrength;
     UINT shadowMapStartIndex;
     UINT shadowMapLength;
-    UINT padding0;
-
+    UINT padding;
 };
 
 class TransformComponent;
@@ -50,6 +54,9 @@ public:
     void SetColor(const XMFLOAT3& color) { mColor = color; }
     const XMFLOAT3& GetColor() const { return mColor; }
 
+    void SetDirection(const XMFLOAT3& dir);
+    const XMFLOAT3& GetDirection() const { return mDirection; }
+
     void SetIntensity(float intensity) { mIntensity = intensity; }
     float GetIntensity() const { return mIntensity; }
 
@@ -64,6 +71,18 @@ public:
 
     void SetCastShadow(bool bUseShadow) { mCastsShadow = bUseShadow; }
     bool CastsShadow() const { return mCastsShadow; }
+
+    void SetLightMask(UINT mask) { mLightMask = mask; }
+    UINT GetLightMask() const { return mLightMask; }
+
+    void SetVolumetricStrength(float strength) { mVolumetricStrength = strength; }
+    float GetVolumetricStrength() const { return mVolumetricStrength; }
+
+    void SetShadowMapStartIndex(UINT index) { mShadowMapStartIndex = index; }
+    UINT GetShadowMapStartIndex() const { return mShadowMapStartIndex; }
+
+    void SetShadowMapLength(UINT length) { mShadowMapLength = length; }
+    UINT GetShadowMapLength() const { return mShadowMapLength; }
 
     virtual void Update();
 
@@ -82,4 +101,10 @@ protected:
 
     XMFLOAT3 mPosition = { 0, 0, 0 };
     XMFLOAT3 mDirection = { 0, -1, 0 };
+
+    UINT mLightMask = 0xFFFFFFFF;
+    float mVolumetricStrength = 1.0f;
+
+    UINT mShadowMapStartIndex = 0;
+    UINT mShadowMapLength = 0;
 };
