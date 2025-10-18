@@ -47,10 +47,21 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 Point, Directional Light의 Cluster Lighting 연산 
 
 
-할 일:
-- Point, Directional Light는 제대로 연산 되고 있음 // Spot 조명이 적용 안되는 중 - 방향 문제일 수도 있음
-- LightComponent에 MainDirection 속성을 추가하고, Imgui에 연결하기 + 해당 내용을 기반으로 Spot 조명 디버깅하기
-- Point Light 결과가 카메라 회전에 따라 달라지고 있음 // 오류일 가능성 높음, 검토 할 것
+문제점: 
+- Point/Spot Light 결과가 카메라 회전에 따라 달라지고 있음
+	- 카메라의 상/하 회전에 따라, 조명의 결과가 변화하는 중 + 카메라의 상/하 움직임에 따라 조명의 결과가 변화 하는 중 // 좌/우 움직임, 회전에는 영향 없음
+
+- 문제가 발생하는 시점은 [ 카메라 -> 사물 <- 빛 ] 구도일 때 발생, 카메라에서 빛을 등진 사물을 바라보는 각도에서만 해당 문제가 발생하는 중
+
+
+의심 포인트:
+- 카메라 뷰 행렬 생성시, Up Vector 문제 -> Up Vector을 고정하였지만, 문제가 지속됨
+- PBR의 Specular 연산의 결과 오해 -> Specular 값을 고정하였지만, 문제가 지속됨
+- Normal의 View 좌표계 변환 중복 -> 검토하고, 수정하였지만, 문제가 지속됨
+
+다음 시도할 테스트:
+- Cluster Include Light 에서 사용하던 디버깅 방식 "Light의 View 좌표계 위치를 실제 화면에 출력" 을 사용하여, 실제 Light의 문제인지 검토하기
+
 
 
 
