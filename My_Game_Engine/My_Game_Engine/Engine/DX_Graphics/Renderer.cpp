@@ -1104,6 +1104,7 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
 
         XMVECTOR world_dir = XMLoadFloat3(&world_light.direction);
         XMVECTOR view_dir = XMVector3TransformNormal(world_dir, view_matrix);
+        view_dir = XMVector3Normalize(view_dir);
         XMStoreFloat3(&view_light.direction, view_dir);
 
         view_space_lights.push_back(view_light);

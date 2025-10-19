@@ -27,6 +27,7 @@ cbuffer CameraCB : register(b1)
 {
     float4x4 gView;
     float4x4 gProj;
+    float4x4 gInvView;
     float4x4 gInvProj;
     float4x4 gInvViewProj;
     float3 gCameraPos;
@@ -131,11 +132,16 @@ float LinearizeDepth(float depth, float nearZ, float farZ)
     return (2.0f * nearZ * farZ) / (farZ + nearZ - z * (farZ - nearZ));
 }
 
-// === 월드 좌표 복원 ===
-float3 ReconstructWorldPos(float2 uv, float depth)
+float3 ReconstructWorldPos(float2 uv, float linearViewZ)
 {
-    float4 ndc = float4(uv * 2.0f - 1.0f, depth, 1.0f);
-    float4 world = mul(ndc, gInvViewProj);
-    world /= world.w;
-    return world.xyz;
+    float2 ndcXY = uv * 2.0f - 1.0f;
+    ndcXY.y = -ndcXY.y;
+    float viewSpaceX = ndcXY.x * gInvProj._11 * linearViewZ;
+    float viewSpaceY = ndcXY.y * gInvProj._22 * linearViewZ;
+
+    float4 viewSpacePos = float4(viewSpaceX, viewSpaceY, linearViewZ, 1.0f);
+
+    float4 worldPos = mul(viewSpacePos, gInvView);
+
+    return worldPos.xyz / worldPos.w;
 }

@@ -49,5 +49,6 @@ float3 PBR_Lighting(
     float3 kD = (1.0 - kS) * (1.0 - Metallic);
     float3 diffuse = kD * Albedo / PI;
 
+
     return (diffuse + specular) * radiance * NdotL;
 }

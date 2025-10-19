@@ -50,6 +50,7 @@ cbuffer CameraCB : register(b1)
 {
     float4x4 gView;
     float4x4 gProj;
+    float4x4 gInvView;
     float4x4 gInvProj;
     float4x4 gInvViewProj;
     float3 gCameraPos;
@@ -244,41 +245,16 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
             // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
             case 2: // Spot Light (Cone vs AABB)
             {
-                    float3 center = (boxMin + boxMax) * 0.5f;
-                    float3 extents = center - boxMin;
+                    float coneRadius = light.range * tan(acos(light.spotOuterCosAngle));
+                    float3 coneEnd = light.position + light.direction * light.range;
 
-                    float3 closestPoint = clamp(light.position, boxMin, boxMax);
-                    if (dot(light.position - closestPoint, light.position - closestPoint) > light.range * light.range)
-                    {
-                        intersects = false;
-                        break;
-                    }
-            
-                    float projRadius = dot(extents, abs(light.direction));
-                    float centerDist = dot(light.direction, center - light.position);
-                    if (centerDist < -projRadius || centerDist > light.range + projRadius)
-                    {
-                        intersects = false;
-                        break;
-                    }
+                    float3 sphereCenter = (light.position + coneEnd) * 0.5f;
+                    float sphereRadius = length(coneEnd - light.position) * 0.5f + coneRadius * 0.5f;
 
-                    float cosOuter = light.spotOuterCosAngle;
-                    float sinOuter = sqrt(1.0f - cosOuter * cosOuter);
-                    float angle = acos(dot(normalize(closestPoint - light.position), light.direction));
-                    if (angle > acos(cosOuter))
-                    {
-                        float3 v = center - light.position;
-                        float c = dot(light.direction, v);
-                        float d = dot(v, v) - c * c;
-
-                        if (d > (projRadius * projRadius) && (c * sinOuter - projRadius * cosOuter) > 0)
-                        {
-                            intersects = false;
-                            break;
-                        }
-                    }
-
-                    intersects = true;
+                    float3 closestPoint = clamp(sphereCenter, boxMin, boxMax);
+                    float3 delta = sphereCenter - closestPoint;
+                    float distSq = dot(delta, delta);
+                    intersects = (distSq <= sphereRadius * sphereRadius);
                     break;
                 }
 

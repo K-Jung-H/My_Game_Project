@@ -9,6 +9,7 @@ struct CameraCB
 {
     XMFLOAT4X4 View;
     XMFLOAT4X4 Proj;
+    XMFLOAT4X4 InvView;
     XMFLOAT4X4 InvProj;
     XMFLOAT4X4 InvViewProj;
     XMFLOAT3   CameraPos;

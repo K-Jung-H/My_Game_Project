@@ -70,13 +70,17 @@ void CameraComponent::UpdateCBV()
 
     XMMATRIX view = GetViewMatrix();
     XMMATRIX proj = GetProjectionMatrix();
+
     XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 
+    XMMATRIX invView = XMMatrixInverse(nullptr, view);
     XMMATRIX invProj = XMMatrixInverse(nullptr, proj);
     XMMATRIX invViewProj = XMMatrixInverse(nullptr, viewProj);
 
     XMStoreFloat4x4(&cb.View, XMMatrixTranspose(view));
     XMStoreFloat4x4(&cb.Proj, XMMatrixTranspose(proj));
+
+    XMStoreFloat4x4(&cb.InvView, XMMatrixTranspose(invView));
     XMStoreFloat4x4(&cb.InvProj, XMMatrixTranspose(invProj));
     XMStoreFloat4x4(&cb.InvViewProj, XMMatrixTranspose(invViewProj));
 
@@ -171,8 +175,8 @@ void CameraComponent::Update()
             {
                 XMMATRIX rotMat = XMMatrixRotationQuaternion(rotQ);
                 XMVECTOR look = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), rotMat);
-//                XMVECTOR upV = XMVector3TransformNormal(XMVectorSet(0, 1, 0, 0), rotMat);
-                XMVECTOR up = XMVectorSet(0, 1, 0, 0);
+                XMVECTOR upV = XMVector3TransformNormal(XMVectorSet(0, 1, 0, 0), rotMat);
+
                 view = XMMatrixLookToLH(pos, look, up);
             }
 
