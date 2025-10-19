@@ -28,13 +28,18 @@ void Scene::Build()
 	RegisterObject(camera_obj);
 
 	//--------------------------------------------------------------------------------
-
-	std::shared_ptr<Object> light_obj = om->CreateObject(shared_from_this(), "Main_Light");
-	auto light_component = light_obj->AddComponent<LightComponent>();
-	light_component->SetTransform(light_obj->GetTransform());
-	RegisterObject(light_obj);
-	
-
+	{
+		std::shared_ptr<Object> light_obj = om->CreateObject(shared_from_this(), "Main_Light");
+		auto light_component = light_obj->AddComponent<LightComponent>();
+		light_component->SetTransform(light_obj->GetTransform());
+		RegisterObject(light_obj);
+	}
+	{
+		std::shared_ptr<Object> sub_light_obj = om->CreateObject(shared_from_this(), "Sub_Light");
+		auto light_component = sub_light_obj->AddComponent<LightComponent>();
+		light_component->SetTransform(sub_light_obj->GetTransform());
+		RegisterObject(sub_light_obj);
+	}
 	//--------------------------------------------------------------------------------
 	
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";

@@ -26,11 +26,15 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 
 무조건 ObjectManager를 통해 Object를 생성하도록 권한 설정 // ID 기반 관리 및 동시 생성 및 접근 대응
 
-조명 Component 및 연산 추가
+조명 Component 및 연산 추가 - 다중 조명 테스트 완료
+- Cluster Light 연산을 이용한 조명 연산 최적화
 
 
 
 할 일:
+- imgui 에서 Light의 Color 를 변경할 때마다, FenceEvent에서 경고 발생 중, 원인 파악 및 해결하기
+- Scene Save 시 Light Component에 대한 저장 내용 구성 작성 및 Scene Load 에서 내용 복원 기능 추가하기
+
 - 그림자 추가하기
 	- Test Scene에 환경 객체를 추가하여, 그림자가 명확하게 나타나도록 환경을 조성하기
 	- 택스쳐를 리소스 힙 주소영역 기반으로 바인딩 하는 방식을 활용하여, 기존 리소스 힙에 ShadowMap을 저장하는 고정 영역을 할당하고, 해당 영역을 바인딩 하기
