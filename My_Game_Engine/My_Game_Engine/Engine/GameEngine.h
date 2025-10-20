@@ -1,6 +1,5 @@
 #pragma once
 #include "DX_Graphics/Renderer.h"
-#include "Managers/RendererManager.h"
 #include "Resource/ResourceSystem.h"
 #include "InputManager.h"
 #include "GameTimer.h"
@@ -34,7 +33,7 @@ public:
     void Update_Inputs(float dt);
     void Update_Fixed(float dt);
     void Update_Scene(float dt);
-    void Update_Late(float dt);
+    void Update_Late();
 
     void Tick(float rate) { mTimer->Tick(rate); }
 

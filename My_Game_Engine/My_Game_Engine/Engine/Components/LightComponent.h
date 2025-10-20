@@ -1,6 +1,6 @@
+#pragma once
 #include "Core/Component.h"
-
-enum class LightType
+enum class Light_Type
 {
     Directional = 0,
     Point,
@@ -31,6 +31,7 @@ struct GPULight
 };
 
 class TransformComponent;
+class Object;
 
 class LightComponent : public Component
 {
@@ -48,8 +49,12 @@ public:
     void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
     std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 
-    void SetLightType(LightType t) { lightType = t; }
-    LightType GetLightType() const { return lightType; }
+    const XMFLOAT3& GetPosition();
+    void SetPosition(const XMFLOAT3& pos);
+
+
+    void SetLightType(Light_Type t) { lightType = t; }
+    Light_Type GetLightType() const { return lightType; }
 
     void SetColor(const XMFLOAT3& color) { mColor = color; }
     const XMFLOAT3& GetColor() const { return mColor; }
@@ -90,7 +95,7 @@ public:
 
 protected:
     std::weak_ptr<TransformComponent> mTransform;
-	LightType lightType = LightType::Point;
+	Light_Type lightType = Light_Type::Point;
 
     XMFLOAT3 mColor = { 1.0f, 1.0f, 1.0f };
     float mIntensity = 10.0f;

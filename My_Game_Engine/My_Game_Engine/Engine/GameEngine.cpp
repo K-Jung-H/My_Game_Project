@@ -74,9 +74,9 @@ void GameEngine::Update_Scene(float dt)
 	active_scene->Update_Scene(dt);
 }
 
-void GameEngine::Update_Late(float dt)
+void GameEngine::Update_Late()
 {
-	active_scene->Update_Late(dt);
+	active_scene->Update_Late();
 }
 
 
@@ -92,7 +92,7 @@ void GameEngine::FrameAdvance()
 	Update_Inputs(deltaTime);
 	Update_Fixed(deltaTime);
 	Update_Scene(deltaTime);
-	Update_Late(deltaTime);
+	Update_Late();
 
 	scene_data.deltaTime = deltaTime;
 	scene_data.totalTime = runTime;

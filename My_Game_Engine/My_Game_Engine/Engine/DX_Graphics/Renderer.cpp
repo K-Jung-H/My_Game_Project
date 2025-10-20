@@ -1991,12 +1991,12 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Indent();
 
             // Light Type ¼±ÅÃ
-            LightType type = light->GetLightType();
+            Light_Type type = light->GetLightType();
             const char* typeNames[] = { "Directional", "Point", "Spot" };
             int currentType = static_cast<int>(type);
 
             if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
-                light->SetLightType(static_cast<LightType>(currentType));
+                light->SetLightType(static_cast<Light_Type>(currentType));
 
             XMFLOAT3 color = light->GetColor();
             float intensity = light->GetIntensity();
@@ -2006,7 +2006,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
                 light->SetIntensity(intensity);
 
-            if (type == LightType::Directional || type == LightType::Spot)
+            if (type == Light_Type::Directional || type == Light_Type::Spot)
             {
                 XMFLOAT3 direction = light->GetDirection();
                 if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
@@ -2018,14 +2018,14 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 }
             }
 
-            if (type == LightType::Point || type == LightType::Spot)
+            if (type == Light_Type::Point || type == Light_Type::Spot)
             {
                 float range = light->GetRange();
                 if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 1000.0f))
                     light->SetRange(range);
             }
 
-            if (type == LightType::Spot)
+            if (type == Light_Type::Spot)
             {
                 float inner = XMConvertToDegrees(light->GetInnerAngle());
                 float outer = XMConvertToDegrees(light->GetOuterAngle());

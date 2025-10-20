@@ -162,7 +162,7 @@ void Scene::Update_Scene(float dt)
 	}
 }
 
-void Scene::Update_Late(float dt)
+void Scene::Update_Late()
 {
 	for (auto camera_ptr : camera_list)
 	{

@@ -38,7 +38,7 @@ public:
     virtual void Update_Inputs(float dt);
     virtual void Update_Fixed(float dt);
     virtual void Update_Scene(float dt);
-    virtual void Update_Late(float dt);
+    virtual void Update_Late();
 
    
 
