@@ -44,26 +44,6 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 				- 조명이 사용하는 ShadowMap의 SRV 인덱스는 몇번인지 등등
 
 
-2):
----------------------
-Object 생성, 소멸 관리하기
-	- 소멸 동작이 제대로 구현되지 않은 상태
-	- Scene마다 ObjectManager를 할당하기
-		- ObjectManager 리팩토링
-			- Scene과 서로 연결관계를 맺고, Scene에서 사용하는 Object를 RootList로 관리 - 컨테이너 // 캐시 구조 구현 필요
-			- Object의 Create 및 Destroy 동작 담당하기 - 매니저
-	
-	- 기존 Object에서 Scene_ptr를 저장하고, AddComponent시, scene에 전달하는 구조를 개선해야 함
-		- Object는 weak_ptr 로 자신을 관리하는 ObjectManager을 저장 -> ObjectManager는 Scene과 연결관계이므로, Scene에서의 AddComponent를 호출
-		- 기존 ObjectManager에서 사용하던 Create 함수를 구조 통일하기 // Create, Register_Object, Register_Components 동작 분리
-
-
-문제점:
-- 즉흥적으로 객체 관리를 위한 테스트 코드와, 구조 변경 시도로 스마트 포인터 사용을 남발하여, 리팩토링에 실패하였음
-
-해결 방법:
-- 현재 엔진 구조를 재정리하고, 이를 기반으로 구조를 이론적으로 작성 후, 구현 할 것
-
 -------------------------------------
 
 장기적 목표
