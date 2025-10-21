@@ -45,15 +45,14 @@ public:
     GameTimer* GetTimer() { return mTimer.get(); }
     PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
     ResourceSystem* GetResourceSystem() { return m_ResourceSystem.get(); }
-    ObjectManager* GetObjectManager() { return mObjectmanager.get(); }
 
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
     RendererContext Get_UploadContext() const { return mRenderer->Get_UploadContext(); };
 
-    std::shared_ptr<Object> GetSelectedObject() { return mSelectedObject; }
     std::shared_ptr<Scene> GetActiveScene() { return active_scene; }
 
-    void SelectObject(std::shared_ptr<Object> obj) { mSelectedObject = obj; }
+    void SelectObject(Object* obj) { mSelectedObject = obj; }
+    Object* GetSelectedObject() { return mSelectedObject; }
 
 
 private:
@@ -67,10 +66,9 @@ private:
     std::unique_ptr<GameTimer> mTimer;
     std::unique_ptr<DX12_Renderer>   mRenderer;
 
-    std::unique_ptr<ObjectManager> mObjectmanager;
 
     std::shared_ptr<Scene> active_scene;
-    std::shared_ptr<Object> mSelectedObject;
+    Object* mSelectedObject;
 
     float mFrame = 0.0f; 
 

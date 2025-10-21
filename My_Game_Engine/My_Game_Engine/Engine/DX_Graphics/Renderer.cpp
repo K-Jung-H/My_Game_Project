@@ -1,10 +1,11 @@
 #include "Renderer.h"
 #include "GameEngine.h"
-#include "ResourceUtils.h"
+#include "Core/Object.h"
 #include "DXMathUtils.h"
-#include "Components/RigidbodyComponent.h"
+#include "ResourceUtils.h"
 #include "Resource/Mesh.h"
 #include "Resource/Material.h"
+#include "Components/RigidbodyComponent.h"
 #include <stdexcept>
 
 
@@ -1566,7 +1567,7 @@ void DX12_Renderer::ImguiPass()
         if (scene)
         {
             ImGui::Begin("Scene Hierarchy");
-            std::vector<std::shared_ptr<Object>> root_obj_list = scene->GetRootObjectList();
+            std::vector<Object*> root_obj_list = scene->GetRootObjectList();
 
             for (auto& root : root_obj_list)
                 DrawObjectNode(root);
@@ -1774,7 +1775,7 @@ ImGui_ImplDX12_InitInfo DX12_Renderer::GetImGuiInitInfo() const
 }
 
 
-void DrawObjectNode(const std::shared_ptr<Object>& obj)
+void DrawObjectNode(Object* obj)
 {
     if (!obj) return;
 
@@ -1796,7 +1797,7 @@ void DrawObjectNode(const std::shared_ptr<Object>& obj)
     }
 }
 
-void DrawInspector(std::shared_ptr<Object> obj)
+void DrawInspector(Object* obj)
 {
     if (!obj)
     {
@@ -1826,7 +1827,7 @@ void DrawInspector(std::shared_ptr<Object> obj)
     ImGui::Separator();
     ImGui::Text("Components:");
 
-    std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>> component_list = obj->GetComponents();
+    std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>> component_list = obj->GetAllComponents();
 
     for (auto& [type, comps] : component_list)
     {

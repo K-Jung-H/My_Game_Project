@@ -24,8 +24,8 @@ public:
 
     virtual ~Component() = default;
 
-    void SetOwner(const std::shared_ptr<Object>& owner) { mOwner = owner; }
-    std::shared_ptr<Object> GetOwner() const { return mOwner.lock(); }
+    void SetOwner(Object* owner) { mOwner = owner; }
+    Object* GetOwner() const { return mOwner; }
 
     virtual Component_Type GetType() const = 0;
 
@@ -35,6 +35,6 @@ public:
     bool GetActive() { return Active; }
 
 protected:
-    std::weak_ptr<Object> mOwner;
+    Object* mOwner;
     bool Active = true;
 };

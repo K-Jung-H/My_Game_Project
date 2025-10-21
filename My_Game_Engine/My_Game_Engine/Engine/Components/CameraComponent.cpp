@@ -1,7 +1,7 @@
 #include "CameraComponent.h"
 #include "TransformComponent.h"
 #include "GameEngine.h"
-#include "DX_Graphics/Renderer.h"
+#include "Core/Object.h"
 
 CameraComponent::CameraComponent()
     : mFovY(XM_PIDIV4), mNearZ(0.1f), mFarZ(1000.0f)
@@ -212,8 +212,8 @@ const XMFLOAT3& CameraComponent::GetPosition()
         return tf->GetPosition();
     else
     {
-        if (auto obj = mOwner.lock())
-            mTransform = obj->GetTransform();
+        if (mOwner)
+            mTransform = mOwner->GetTransform();
 
         if (auto tf = mTransform.lock())
             return tf->GetPosition();

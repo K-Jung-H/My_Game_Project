@@ -39,7 +39,6 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
 	m_ResourceSystem = std::make_unique<ResourceSystem>();
 	m_ResourceSystem->Initialize("Assets");
-	mObjectmanager = std::make_unique<ObjectManager>();
 
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();

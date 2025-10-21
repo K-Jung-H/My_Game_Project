@@ -1,10 +1,12 @@
 #include "Scene.h"
 #include "GameEngine.h"
+#include "Object.h"
 #include "Components/RigidbodyComponent.h"
 
 Scene::Scene() 
 { 
 	scene_id = Engine::INVALID_ID; 
+	m_pObjectManager = std::make_unique<ObjectManager>(this);
 }
 
 Scene::~Scene()
@@ -14,39 +16,34 @@ Scene::~Scene()
 
 void Scene::Build()
 {
-	auto om = GameEngine::Get().GetObjectManager();
 	auto rsm = GameEngine::Get().GetResourceSystem();
 	const RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
 	//--------------------------------------------------------------------------------
-	std::shared_ptr<Object> camera_obj = om->CreateObject(shared_from_this(), "Main_Camera");
+	Object* camera_obj = m_pObjectManager->CreateObject("Main_Camera");
 	auto camera_component = camera_obj->AddComponent<CameraComponent>();
 	camera_component->SetTransform(camera_obj->GetTransform());
 	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
 
 	SetActiveCamera(camera_component);
-	RegisterObject(camera_obj);
 
 	//--------------------------------------------------------------------------------
 	{
-		std::shared_ptr<Object> light_obj = om->CreateObject(shared_from_this(), "Main_Light");
+		Object* light_obj = m_pObjectManager->CreateObject("Main_Light");
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
-		RegisterObject(light_obj);
 	}
 	{
-		std::shared_ptr<Object> sub_light_obj = om->CreateObject(shared_from_this(), "Sub_Light");
+		Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
 		auto light_component = sub_light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(sub_light_obj->GetTransform());
-		RegisterObject(sub_light_obj);
 	}
 	//--------------------------------------------------------------------------------
 	
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
-	Model::loadAndExport(path_0, "test_assimp_export.txt");
-
 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
+
 
 	{
 		LoadResult result;
@@ -60,15 +57,13 @@ void Scene::Build()
 		}
 
 
-		std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
-		test_obj->SetName("Test_Object_0");
+		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
+		m_pObjectManager->SetObjectName(test_obj, "Test_Object_0");
 		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
 		test_obj->GetTransform()->SetPosition({ 0, 0, 0 });
 
 		auto rb = test_obj->AddComponent<RigidbodyComponent>();
 		rb->SetUseGravity(false);
-
-		RegisterObject(test_obj);
 	}
 
 	{
@@ -78,22 +73,28 @@ void Scene::Build()
 		auto model_ptr = rsm->GetById<Model>(result.modelId);
 		for (int i = 0; i < 3; ++i)
 		{
-			std::shared_ptr<Object> test_obj = om->CreateFromModel(shared_from_this(), model_ptr);
-			test_obj->SetName("Test_Object_" + std::to_string(1+i));
+			Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
+			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
 			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
 			test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
 			auto rb = test_obj->AddComponent<RigidbodyComponent>();
 			rb->SetUseGravity(false);
 
-			RegisterObject(test_obj);
 		}
 	}
 
 
 //	// For Debug
-//	UINT model_node_num = Model::CountNodes(model_ptr_1);
-//	UINT node_num = Object::CountNodes(test_obj_1);
-//	Object::DumpHierarchy(test_obj_1, "test_model_tree.txt");
+	bool is_debugging = false;
+	if (is_debugging)
+	{
+		std::shared_ptr<Model> model_ptr;
+		Object* test_obj;
+		UINT model_node_num = Model::CountNodes(model_ptr);
+		UINT node_num = Object::CountNodes(test_obj);
+		Model::loadAndExport(path_0, "test_assimp_export.txt");
+		Object::DumpHierarchy(test_obj, "test_model_tree.txt");
+	}
 }
 
 
@@ -102,9 +103,9 @@ void Scene::Update_Inputs(float dt)
 	if (auto cam = activeCamera.lock())
 	{
 		float moveSpeed = 50.0f * dt;
-		float rotateSpeed = 0.001f; 
+		float rotateSpeed = 0.001f;
 
-		if (InputManager::Get().IsKeyDown(VK_RBUTTON)) 
+		if (InputManager::Get().IsKeyDown(VK_RBUTTON))
 		{
 			POINT delta = InputManager::Get().GetMouseDelta();
 
@@ -147,6 +148,13 @@ void Scene::Update_Inputs(float dt)
 			}
 		}
 	}
+
+	if (InputManager::Get().IsKeyDown('T'))
+	{
+		auto obj = m_pObjectManager->FindObject("Test_Object_1");
+		if(obj)
+			m_pObjectManager->DestroyObject(obj->GetId());
+	}
 }
 
 void Scene::Update_Fixed(float dt) 
@@ -156,10 +164,7 @@ void Scene::Update_Fixed(float dt)
 
 void Scene::Update_Scene(float dt)
 {
-	for (auto obj_ptr : obj_root_list)
-	{
-		obj_ptr->Update_Animate(dt);
-	}
+	m_pObjectManager->Update_Animate_All(dt);
 }
 
 void Scene::Update_Late()
@@ -169,12 +174,8 @@ void Scene::Update_Late()
 		if (auto cp = camera_ptr.lock())
 			cp->Update();
 	}
-
 	
-	for (auto obj_ptr : obj_root_list)
-	{
-		obj_ptr->UpdateTransform_All();
-	}
+	m_pObjectManager->UpdateTransform_All();
 
 	for (auto lightComponent : light_list)
 	{
@@ -183,77 +184,88 @@ void Scene::Update_Late()
 	}
 }
 
-void Scene::RegisterObject(const std::shared_ptr<Object>& obj, bool includeComponents)
+void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 {
-	if (!obj) return;
+	if (!comp) return;
 
-	if (obj->GetParent().expired())
-		obj_root_list.push_back(obj);
 
-	obj_map[obj->GetId()] = obj;
-
-	obj->SetScene(weak_from_this());
-
-	if (includeComponents)
+	switch (comp->GetType())
 	{
-		for (auto& [type, comps] : obj->GetComponents())
+	case Component_Type::Mesh_Renderer:
+	{
+		if (auto mr = std::dynamic_pointer_cast<MeshRendererComponent>(comp))
 		{
-			for (auto& c : comps)
-				RegisterComponent(c);
+			RegisterRenderable(mr);
 		}
+	}
+	break;
 
-		for (auto& child : obj->GetChildren())
+	case Component_Type::Camera:
+	{
+		if (auto cam = std::dynamic_pointer_cast<CameraComponent>(comp))
 		{
-			if (child)
-				RegisterObject(child);
+			RegisterCamera(cam);
 		}
+	}
+	break;
+
+	case Component_Type::Light:
+	{
+		if (auto light = std::dynamic_pointer_cast<LightComponent>(comp))
+		{
+			light_list.push_back(light);
+		}
+		break;
+	}
+
+	case Component_Type::Rigidbody:
+	case Component_Type::Collider:
+	{
+		if (Object* owner = comp->GetOwner())
+			GameEngine::Get().GetPhysicsSystem()->Register(scene_id, owner);
+	}
+	break;
+
+	default:
+		break;
 	}
 }
 
-
-void Scene::RegisterComponent(std::weak_ptr<Component> comp)
+void Scene::UnregisterAllComponents(Object* pObject) 
 {
-	if (auto c = comp.lock())
+	if (!pObject) return;
+
+	auto& componentMap = pObject->GetAllComponents();
+	for (auto const& [type, compVec] : componentMap)
 	{
-		switch (c->GetType())
+		for (const auto& comp : compVec)
 		{
-		case Component_Type::Mesh_Renderer:
-		{
-			if (auto mr = std::dynamic_pointer_cast<MeshRendererComponent>(c))
+			switch (type)
 			{
-				RegisterRenderable(mr);
-			}
-		}
-		break;
-
-		case Component_Type::Camera:
-		{
-			if (auto cam = std::dynamic_pointer_cast<CameraComponent>(c))
+			case Component_Type::Mesh_Renderer:
 			{
-				RegisterCamera(cam);
+				auto it = std::remove_if(renderData_list.begin(), renderData_list.end(),
+					[&](const RenderData& rd) {return !rd.meshRenderer.expired() && rd.meshRenderer.lock() == comp; });
+				renderData_list.erase(it, renderData_list.end());
+				break;
 			}
-		}
-		break;
-
-		case Component_Type::Light:
-		{
-			if (auto light = std::dynamic_pointer_cast<LightComponent>(c))
+			case Component_Type::Light:
 			{
-				light_list.push_back(light);
+				auto it = std::remove_if(light_list.begin(), light_list.end(),
+					[&](const std::weak_ptr<LightComponent>& light) {return !light.expired() && light.lock() == comp; });
+				light_list.erase(it, light_list.end());
+				break;
 			}
-			break;
-		}
-
-		case Component_Type::Rigidbody:
-		case Component_Type::Collider:
-		{
-			if (auto owner = c->GetOwner())
-				GameEngine::Get().GetPhysicsSystem()->Register(scene_id, owner);
-		}
-		break;
-
-		default:
-			break;
+			case Component_Type::Camera:
+			{
+				auto it = std::remove_if(camera_list.begin(), camera_list.end(),
+					[&](const std::weak_ptr<CameraComponent>& cam) {return !cam.expired() && cam.lock() == comp; });
+				camera_list.erase(it, camera_list.end());
+				break;
+			}
+			default:
+				break;
+			}
 		}
 	}
 }
@@ -284,6 +296,12 @@ void Scene::RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp)
 		}
 	}
 }
+
+std::vector<Object*> Scene::GetRootObjectList() const
+{
+	return m_pObjectManager->GetRootObjects(); 
+}
+
 
 std::vector<RenderData> Scene::GetRenderable() const
 {

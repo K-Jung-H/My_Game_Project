@@ -4,10 +4,10 @@
 #include "Components/RigidbodyComponent.h"
 #include "Components/ColliderComponent.h"
 
-void PhysicsSystem::Register(SceneID id, std::shared_ptr<Object> obj)
+void PhysicsSystem::Register(SceneID id, Object* obj)
 {
-    auto rb = obj->GetComponent<RigidbodyComponent>(Component_Type::Rigidbody);
-    auto col = obj->GetComponent<ColliderComponent>(Component_Type::Collider);
+    auto rb = obj->GetComponent<RigidbodyComponent>();
+    auto col = obj->GetComponent<ColliderComponent>();
     auto tf = obj->GetTransform();
 
     if (rb) 
@@ -27,10 +27,10 @@ void PhysicsSystem::Register(SceneID id, std::shared_ptr<Object> obj)
     }
 }
 
-void PhysicsSystem::Unregister(SceneID id, std::shared_ptr<Object> obj)
+void PhysicsSystem::Unregister(SceneID id, Object* obj)
 {
-    auto rb = obj->GetComponent<RigidbodyComponent>(Component_Type::Rigidbody);
-    auto col = obj->GetComponent<ColliderComponent>(Component_Type::Collider);
+    auto rb = obj->GetComponent<RigidbodyComponent>();
+    auto col = obj->GetComponent<ColliderComponent>();
 
     auto& world = worlds[id];
 

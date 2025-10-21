@@ -301,6 +301,6 @@ private:
 };
 
 
-void DrawObjectNode(const std::shared_ptr<Object>& obj);
-void DrawInspector(std::shared_ptr<Object> obj);
+void DrawObjectNode(Object* obj);
+void DrawInspector(Object* obj);
 void DrawComponentInspector(const std::shared_ptr<Component>& comp);

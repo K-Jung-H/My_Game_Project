@@ -29,8 +29,8 @@ public:
     void Update(SceneID id, float dt);
 
 
-    void Register(SceneID id, std::shared_ptr<Object> obj);
-    void Unregister(SceneID id, std::shared_ptr<Object> obj);
+    void Register(SceneID id, Object* obj);
+    void Unregister(SceneID id, Object* obj);
     void Clear(SceneID id);
 
 private:

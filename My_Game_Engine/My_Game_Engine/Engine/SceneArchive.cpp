@@ -1,5 +1,6 @@
 #include "SceneArchive.h"
 #include "Core/Scene.h"
+#include "Core/Object.h"
 #include "GameEngine.h"
 
 using namespace rapidjson;
@@ -24,7 +25,6 @@ std::shared_ptr<Scene> SceneArchive::Load(const std::string& file_name, SceneFil
     }
 }
 
-
 bool SceneArchive::SaveJSON(const std::shared_ptr<Scene>& scene, const std::string& file_name)
 {
     using namespace rapidjson;
@@ -34,13 +34,13 @@ bool SceneArchive::SaveJSON(const std::shared_ptr<Scene>& scene, const std::stri
     auto& alloc = doc.GetAllocator();
 
     doc.AddMember("scene_id", scene->GetId(), alloc);
-    doc.AddMember("alias", Value(scene->GetAlias().data(), alloc), alloc);
+    doc.AddMember("alias", Value(scene->GetAlias().c_str(), alloc), alloc);
 
     Value objs(kArrayType);
-    for (auto& root : scene->GetRootObjectList())
+    for (auto& pRootObj : scene->GetRootObjectList())
     {
-        if (root)
-            objs.PushBack(root->ToJSON(alloc), alloc);
+        if (pRootObj)
+            objs.PushBack(pRootObj->ToJSON(alloc), alloc);
     }
     doc.AddMember("objects", objs, alloc);
 
@@ -58,22 +58,26 @@ bool SceneArchive::SaveJSON(const std::shared_ptr<Scene>& scene, const std::stri
     return true;
 }
 
-std::shared_ptr<Object> SceneArchive::LoadObjectRecursive(const std::shared_ptr<Scene> scene, const rapidjson::Value& val)
+Object* SceneArchive::LoadObjectRecursive(Scene* scene, const rapidjson::Value& val)
 {
-
-    auto om = GameEngine::Get().GetObjectManager();
+    auto om = scene->GetObjectManager();
 
     std::string name = val["name"].GetString();
-    auto obj = om->CreateObject(scene, name);
-    obj->SetId(val["id"].GetUint());
+    UINT id = val["id"].GetUint();
+
+    Object* obj = om->CreateObjectWithId(name, id);
+    if (!obj) return nullptr;
+
     obj->FromJSON(val);
 
     if (val.HasMember("children"))
     {
         for (auto& childVal : val["children"].GetArray())
         {
-            auto childObj = LoadObjectRecursive(scene, childVal);
-            obj->SetChild(childObj);
+            Object* childObj = LoadObjectRecursive(scene, childVal);
+            if (childObj) {
+                om->SetParent(childObj, obj);
+            }
         }
     }
 
@@ -109,8 +113,7 @@ std::shared_ptr<Scene> SceneArchive::LoadJSON(const std::string& file_name)
     {
         for (auto& rootVal : doc["objects"].GetArray())
         {
-            auto rootObj = LoadObjectRecursive(scene, rootVal);
-            scene->RegisterObject(rootObj);
+            LoadObjectRecursive(scene.get(), rootVal);
         }
     }
 

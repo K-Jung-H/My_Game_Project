@@ -113,8 +113,8 @@ const XMFLOAT3& LightComponent::GetPosition()
         return tf->GetPosition();
     else
     {
-        if (auto obj = mOwner.lock())
-            mTransform = obj->GetTransform();
+        if (mOwner)
+            mTransform = mOwner->GetTransform();
 
         if (auto tf = mTransform.lock())
             return tf->GetPosition();
@@ -146,8 +146,8 @@ void LightComponent::Update()
     }
     else
     {
-        if (auto obj = mOwner.lock())
-            mTransform = obj->GetTransform();
+        if (mOwner)
+            mTransform = mOwner->GetTransform();
         else
             throw std::runtime_error("Failed to Find Light's Transform");
     }

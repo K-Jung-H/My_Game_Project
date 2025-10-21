@@ -28,7 +28,7 @@ rapidjson::Value Object::ToJSON(rapidjson::Document::AllocatorType& alloc) const
     val.AddMember("components", comps, alloc);
 
     Value childrenArr(kArrayType);
-    for (auto& ch : children)
+    for (auto& ch : m_pChildren)
     {
         if (ch)
             childrenArr.PushBack(ch->ToJSON(alloc), alloc); 
@@ -61,42 +61,16 @@ void Object::FromJSON(const rapidjson::Value& val)
 }
 
 
-static std::shared_ptr<Object> ConvertNode(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model>& model, const std::shared_ptr<Model::Node>& node, std::shared_ptr<Object> parent)
+UINT Object::CountNodes(Object* root)
 {
-    auto om = GameEngine::Get().GetObjectManager();
-    const Skeleton& skeleton = model->GetSkeleton();
+    std::unordered_set<Object*> visited;
 
-    auto obj = om->CreateObject(scene, node->name);
-    if (parent)
-        obj->SetParent(parent);
-
-    if (auto transform = obj->GetTransform())
-        transform->SetFromMatrix(node->localTransform);
-
-    for (auto& mesh : node->meshes)
-    {
-        if (!mesh) continue;
-        auto mr = obj->AddComponent<MeshRendererComponent>();
-        mr->SetMesh(mesh->GetId());
-    }
-
-    for (auto& child : node->children)
-        ConvertNode(scene, model, child, obj);
-
-
-    return obj;
-}
-
-UINT Object::CountNodes(const std::shared_ptr<Object>& root)
-{
-    std::unordered_set<const Object*> visited;
-
-    std::function<UINT(const std::shared_ptr<Object>&)> dfs;
-    dfs = [&](const std::shared_ptr<Object>& obj) -> UINT
+    std::function<UINT(Object*)> dfs;
+    dfs = [&](Object* obj) -> UINT
         {
             if (!obj) return 0;
-            if (visited.count(obj.get())) return 0;
-            visited.insert(obj.get());
+            if (visited.count(obj)) return 0;
+            visited.insert(obj);
 
             UINT count = 1;
             for (auto& child : obj->GetChildren())
@@ -111,14 +85,14 @@ UINT Object::CountNodes(const std::shared_ptr<Object>& root)
 }
 
 
-void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::string& filename)
+void Object::DumpHierarchy(Object* root, const std::string& filename)
 {
     std::ofstream ofs(filename);
     if (!ofs.is_open())
         return;
 
-    std::function<void(const std::shared_ptr<Object>&, int)> recurse;
-    recurse = [&](const std::shared_ptr<Object>& obj, int depth)
+    std::function<void(Object*, int)> recurse;
+    recurse = [&](Object* obj, int depth)
         {
             if (!obj) return;
 
@@ -126,7 +100,7 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 
             ofs << "- Object: " << obj->GetId() << " (" << obj->GetName() << ")";
 
-            auto renderers = obj->GetComponents<MeshRendererComponent>(MeshRendererComponent::Type);
+            auto renderers = obj->GetComponents<MeshRendererComponent>();
             if (!renderers.empty())
             {
                 ofs << " [MeshRenderers: " << renderers.size() << "]";
@@ -147,7 +121,7 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 
             ofs << "\n";
 
-            for (auto& Child : obj->GetChildren())
+            for (auto Child : obj->GetChildren())
             {
                 if (Child)
                     recurse(Child, depth + 1);
@@ -158,31 +132,11 @@ void Object::DumpHierarchy(const std::shared_ptr<Object>& root, const std::strin
 }
 
 
-static std::shared_ptr<Object> ConvertModelToObjects(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model>& model)
+Object::Object(const std::string& name) : mName(name) 
 {
-    if (!model || !model->GetRoot())
-        return nullptr;
-
-    return ConvertNode(scene, model, model->GetRoot(), nullptr);
-}
-
-std::shared_ptr<Object> Object::Create(const std::shared_ptr<Scene> scene, const std::shared_ptr<Model> model)
-{
-    return ConvertModelToObjects(scene, model);
-}
-
-std::shared_ptr<Object> Object::Create(const std::shared_ptr<Scene> scene, const std::string& name)
-{
-    std::shared_ptr<Object> obj(new Object(name)); 
-    obj->Initialize(scene);
-
-    return obj;
-}
-
-void Object::Initialize(const std::shared_ptr<Scene>& scene)
-{
-    mScene = scene;
-    transform = AddComponent<TransformComponent>();
+    transform = std::make_shared<TransformComponent>();
+    transform->SetOwner(this);
+    map_Components[TransformComponent::Type].push_back(transform);
 }
 
 Object::~Object()
@@ -190,79 +144,29 @@ Object::~Object()
 
 }
 
-void Object::SetScene(std::weak_ptr<Scene> s)
+void Object::SetParent(Object* new_parent)
 {
-    mScene = s;
-    for (auto& child : children)
-    {
-        if (child)
-            child->SetScene(s);
-    }
-}
-
-void Object::SetParent(std::shared_ptr<Object> new_parent)
-{
-    parent = new_parent;
-
-    if (new_parent)
-    {
-        new_parent->children.push_back(shared_from_this());
-
-        if (auto scenePtr = new_parent->GetScene().lock())
-            SetScene(scenePtr);
-
-    }
+    if (m_pObjectManager) 
+        m_pObjectManager->SetParent(this, new_parent);
     else
-        mScene.reset();
+    	throw std::logic_error("Object's ObjectManager is NULL");
 }
 
-void Object::SetChild(std::shared_ptr<Object> new_child)
+void Object::SetChild(Object* new_child) 
 {
-    if (!new_child) return;
-
-    new_child->parent = shared_from_this();
-    children.push_back(new_child);
-
-    if (auto scenePtr = GetScene().lock())
-        new_child->SetScene(scenePtr);
-
+    if (m_pObjectManager) 
+        m_pObjectManager->SetChild(this, new_child); 
+    else
+        throw std::logic_error("Object's ObjectManager is NULL");
 }
 
-void Object::SetSibling(std::shared_ptr<Object> new_sibling)
+void Object::SetSibling(Object* new_sibling) 
 {
-    if (!new_sibling) return;
-    if (auto p = parent.lock())
-    {
-        new_sibling->parent = p;
-        p->children.push_back(new_sibling);
-    }
+    if (m_pObjectManager) 
+        m_pObjectManager->SetSibling(this, new_sibling);
+    else
+        throw std::logic_error("Object's ObjectManager is NULL");
 }
-
-
-std::weak_ptr<Object> Object::GetParent()
-{
-    return parent;
-}
-
-const std::vector<std::shared_ptr<Object>>& Object::GetChildren()
-{
-    return children;
-}
-
-std::vector<std::shared_ptr<Object>> Object::GetSiblings()
-{
-    std::vector<std::shared_ptr<Object>> result;
-    if (auto p = parent.lock())
-    {
-        for (auto& s : p->children) 
-        {
-            if (s.get() != this)    
-                result.push_back(s); 
-        }
-    }
-    return result;
-}
-
 
 void Object::Update_Animate(float dt)
 {
@@ -289,7 +193,7 @@ void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDir
         worldForChildren = &transform->GetWorldMatrix();
     }
 
-    for (auto& child : children) 
+    for (auto& child : m_pChildren) 
     {
         if (!child) continue;
         child->Update_Transform(worldForChildren, myWorldDirty);

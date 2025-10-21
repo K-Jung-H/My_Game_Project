@@ -1,7 +1,8 @@
 #pragma once
 #include "DX_Graphics/RenderData.h"
+#include "Managers/ObjectManager.h"
 
-
+//class ObjectManager;
 class SceneManager;
 class Object;
 
@@ -10,6 +11,7 @@ class Scene : public std::enable_shared_from_this<Scene>
 {
     friend class SceneManager;
     friend class SceneArchive;
+
 public:
     Scene();
     virtual ~Scene();
@@ -19,28 +21,27 @@ public:
     std::string GetAlias() const { return alias; }
 
 
-    void RegisterObject(const std::shared_ptr<Object>& obj, bool includeComponents = false);
-    void RegisterComponent(std::weak_ptr<Component> comp);
-    void RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp);
-    std::vector<RenderData> GetRenderable() const;
+    void OnComponentRegistered(std::shared_ptr<Component> comp);
+    void UnregisterAllComponents(Object* pObject);
 
+    void RegisterRenderable(std::weak_ptr<MeshRendererComponent> comp);
+    
+    std::vector<Object*> GetRootObjectList() const;
+    std::vector<RenderData> GetRenderable() const;
     std::vector<GPULight> GetLightList() const;
 
     void RegisterCamera(std::weak_ptr<CameraComponent> cam);
     void SetActiveCamera(const std::shared_ptr<CameraComponent>& cam) { activeCamera = cam; }
 
+    ObjectManager* GetObjectManager() { return m_pObjectManager.get(); }
     const std::shared_ptr<CameraComponent> GetActiveCamera() { return activeCamera.lock(); }
     const std::vector<std::weak_ptr<CameraComponent>>& GetCamera_list() const { return camera_list; }
     
-    std::unordered_map<uint64_t, std::shared_ptr<Object>> GetObjectMap() { return obj_map; }
-    std::vector<std::shared_ptr<Object>> GetRootObjectList() { return obj_root_list; }
 
     virtual void Update_Inputs(float dt);
     virtual void Update_Fixed(float dt);
     virtual void Update_Scene(float dt);
     virtual void Update_Late();
-
-   
 
 
 protected:
@@ -53,17 +54,13 @@ protected:
 private:
     UINT scene_id;
     std::string alias;
+    
+    std::unique_ptr<ObjectManager> m_pObjectManager;
 
     std::vector<RenderData> renderData_list;
+    std::vector<std::weak_ptr<LightComponent>> light_list;
 
     std::vector<std::weak_ptr<CameraComponent>> camera_list;
     std::weak_ptr<CameraComponent> activeCamera;
-
-    std::vector<std::weak_ptr<LightComponent>> light_list;
-
-
-    std::unordered_map<uint64_t, std::shared_ptr<Object>> obj_map;
-    std::vector<std::shared_ptr<Object>> obj_root_list;
-
 
 };
