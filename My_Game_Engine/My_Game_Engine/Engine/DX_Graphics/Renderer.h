@@ -52,6 +52,11 @@ struct ClusterLightMeta
     XMFLOAT2 padding0;;
 };
 
+struct ShadowCBData
+{
+    XMFLOAT4X4 ViewProj;
+};
+
 struct LightResource
 {
     ComPtr<ID3D12Resource> ClusterBuffer;
@@ -93,6 +98,7 @@ struct LightResource
 };
 
 
+
 //=================================================================
 
 enum RenderFlags : UINT
@@ -123,10 +129,6 @@ struct SceneData
     float padding1;
 };
 
-struct ShadowCBData
-{
-    XMFLOAT4X4 ViewProj;
-};
 
 //=================================================================
 
@@ -317,7 +319,9 @@ private:
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
-	void UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<GPULight>& lights);
+
+    void UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
+    void UpdateShadowResources(const std::vector<LightComponent*>& light_comp_list);
 
     void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);
 

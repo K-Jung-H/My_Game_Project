@@ -320,15 +320,14 @@ std::vector<RenderData> Scene::GetRenderable() const
 	return result;
 }
 
-std::vector<GPULight> Scene::GetLightList() const
+std::vector<LightComponent*> Scene::GetLightList() const
 {
-	std::vector<GPULight> list;
+	std::vector<LightComponent*> list;
 	for (const auto& light_comp : light_list)
 	{
 		if (auto light = light_comp.lock())
 		{ 
-			GPULight light_data = light->ToGPUData();
-			list.push_back(light_data);
+			list.push_back(light.get());
 		}
 	}
 	return list;

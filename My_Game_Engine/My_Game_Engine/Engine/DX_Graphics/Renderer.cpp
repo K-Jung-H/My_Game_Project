@@ -1401,7 +1401,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     }
 }
 
-void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<GPULight>& lights)
+void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     LightResource& lr = fr.light_resource;
@@ -1409,17 +1409,17 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
     XMMATRIX view_matrix = render_camera->GetViewMatrix();
 
     std::vector<GPULight> view_space_lights;
-    view_space_lights.reserve(lights.size());
+    view_space_lights.reserve(light_comp_list.size());
 
-    for (const auto& world_light : lights)
+    for (const auto& world_light : light_comp_list)
     {
-        GPULight view_light = world_light;
+        GPULight view_light = world_light->ToGPUData();
 
-        XMVECTOR world_pos = XMLoadFloat3(&world_light.position);
+        XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
         XMVECTOR view_pos = XMVector3TransformCoord(world_pos, view_matrix);
         XMStoreFloat3(&view_light.position, view_pos);
 
-        XMVECTOR world_dir = XMLoadFloat3(&world_light.direction);
+        XMVECTOR world_dir = XMLoadFloat3(&world_light->GetDirection());
         XMVECTOR view_dir = XMVector3TransformNormal(world_dir, view_matrix);
         view_dir = XMVector3Normalize(view_dir);
         XMStoreFloat3(&view_light.direction, view_dir);
@@ -1435,6 +1435,12 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
 
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
+
+void DX12_Renderer::UpdateShadowResources(const std::vector<LightComponent*>& light_comp_list)
+{
+
+}
+
 
 void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
 {
@@ -1570,7 +1576,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 {
     std::shared_ptr<CameraComponent> mainCam = render_scene->GetActiveCamera();
     std::vector<RenderData> renderData_list = render_scene->GetRenderable();
-    std::vector<GPULight > light_data_list = render_scene->GetLightList();
+    std::vector<LightComponent*> light_comp_list = render_scene->GetLightList();
 
     if (!mainCam)
         return;
@@ -1591,7 +1597,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     UpdateObjectCBs(renderData_list);
     GeometryPass(mainCam);
     //------------------------------------------
-    UpdateLightResources(mainCam, light_data_list);
+    UpdateLightResources(mainCam, light_comp_list);
+    UpdateShadowResources(light_comp_list);
     LightPass(mainCam);
     //------------------------------------------
     ShadowPass();
