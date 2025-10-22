@@ -1,5 +1,6 @@
 #pragma once
 #include "Core/Component.h"
+
 enum class Light_Type
 {
     Directional = 0,
@@ -83,12 +84,6 @@ public:
     void SetVolumetricStrength(float strength) { mVolumetricStrength = strength; }
     float GetVolumetricStrength() const { return mVolumetricStrength; }
 
-    void SetShadowMapStartIndex(UINT index) { mShadowMapStartIndex = index; }
-    UINT GetShadowMapStartIndex() const { return mShadowMapStartIndex; }
-
-    void SetShadowMapLength(UINT length) { mShadowMapLength = length; }
-    UINT GetShadowMapLength() const { return mShadowMapLength; }
-
     virtual void Update();
 
     GPULight ToGPUData() const;
@@ -109,7 +104,4 @@ protected:
 
     UINT mLightMask = 0xFFFFFFFF;
     float mVolumetricStrength = 1.0f;
-
-    UINT mShadowMapStartIndex = 0;
-    UINT mShadowMapLength = 0;
 };

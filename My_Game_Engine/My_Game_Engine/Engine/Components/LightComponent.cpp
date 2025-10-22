@@ -101,8 +101,8 @@ GPULight LightComponent::ToGPUData() const
     g.castsShadow = mCastsShadow ? 1u : 0u;
     g.lightMask = mLightMask;
     g.volumetricStrength = mVolumetricStrength;
-    g.shadowMapStartIndex = mShadowMapStartIndex;
-    g.shadowMapLength = mShadowMapLength;
+    g.shadowMapStartIndex = Engine::INVALID_ID;
+    g.shadowMapLength = Engine::INVALID_ID;
 
     return g;
 }

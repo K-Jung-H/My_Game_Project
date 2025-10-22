@@ -76,6 +76,20 @@ struct LightResource
 	UINT GlobalOffsetCounterBuffer_UAV_Index;
 
     UINT NumLights = 0;
+
+    //-----------------------------------------------
+
+    ComPtr<ID3D12Resource> SpotShadowArray;   // Texture2DArray
+    ComPtr<ID3D12Resource> CsmShadowArray;    // Texture2DArray
+    ComPtr<ID3D12Resource> PointShadowCubeArray; // TextureCubeArray
+
+    UINT SpotShadowArray_SRV = UINT_MAX;
+    UINT CsmShadowArray_SRV = UINT_MAX;
+    UINT PointShadowCubeArray_SRV = UINT_MAX;
+
+    std::vector<UINT> SpotShadow_DSVs;
+    std::vector<UINT> CsmShadow_DSVs;
+    std::vector<UINT> PointShadow_DSVs;
 };
 
 
@@ -109,7 +123,10 @@ struct SceneData
     float padding1;
 };
 
-
+struct ShadowCBData
+{
+    XMFLOAT4X4 ViewProj;
+};
 
 //=================================================================
 
@@ -224,6 +241,11 @@ private:
     ComPtr<ID3D12Resource> mSceneData_CB;
     SceneData* mappedSceneDataCB;
 
+	//==== Shdow Constant Buffer
+    // 조명의 뷰프로젝션 행렬 저장
+	ComPtr<ID3D12Resource> mShadowCB; 
+    ShadowCBData* mMappedShadowCB = nullptr;
+
     //==== Render DrawCall Target
     std::vector<DrawItem> mDrawItems;
 
@@ -238,27 +260,32 @@ private:
 
     bool Create_Shader();
     bool Create_SceneCBV();
+    bool Create_ShadowCBV();
     bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
     bool Create_LightResources(FrameResource& fr, UINT maxLights);
+    bool Create_ShadowResources(FrameResource& fr, UINT maxLights);
 
 
     // Frame resource creation
     bool CreateFrameResources();
+    bool CreateSingleFrameResource(FrameResource& fr, UINT frameIndex);
+    void DestroyFrameResources();
+    void DestroySingleFrameResource(FrameResource& fr);
     bool CreateBackBufferRTV(UINT frameIndex, FrameResource& fr);
     bool CreateCommandAllocator(FrameResource& fr);
 
-    bool CreateGBufferRTVs(UINT frameIndex, FrameResource& fr);
-    bool CreateGBufferSRVs(UINT frameIndex, FrameResource& fr);
-    bool CreateDSV(UINT frameIndex, FrameResource& fr);
+    bool CreateGBufferRTVs(FrameResource& fr);
+    bool CreateGBufferSRVs(FrameResource& fr);
+    bool CreateDSV(FrameResource& fr);
 
     // Helpers (리소스 생성)
     bool CreateRTVHeap();
     bool CreateDSVHeap();
     bool CreateResourceHeap();
 
-    bool CreateGBuffer(UINT frameIndex, FrameResource& fr);
+    bool CreateGBuffer(FrameResource& fr);
     bool CreateDepthStencil(FrameResource& fr, UINT width, UINT height);    
-    bool Create_Merge_RenderTargets(UINT frameIndex, FrameResource& fr);
+    bool Create_Merge_RenderTargets(FrameResource& fr);
 
     bool CreateCommandList();
     bool CreateFenceObjects();
@@ -280,6 +307,7 @@ private:
 
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
+    void ShadowPass();
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);
     void PostProcessPass(std::shared_ptr<CameraComponent> render_camera);
     void Blit_BackBufferPass();

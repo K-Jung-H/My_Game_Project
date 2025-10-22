@@ -62,6 +62,9 @@ namespace RootParameter_PostFX
         LightBufferSRV = 6,
         ClusterLightMetaSRV = 7,
         ClusterLightIndicesSRV = 8,
+        ShadowMapCSMTable = 9,
+        ShadowMapSpotTable = 10,
+        ShadowMapPointTable = 11,
         Count
     };
 }

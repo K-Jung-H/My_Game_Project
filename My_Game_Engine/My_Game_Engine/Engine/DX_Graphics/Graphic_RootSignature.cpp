@@ -149,6 +149,30 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
     clusterLightRange[3].RegisterSpace = 0;
     clusterLightRange[3].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
+    D3D12_DESCRIPTOR_RANGE shadowRanges[3] = {};
+
+    // CSM Lights (tN+6)
+    shadowRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    shadowRanges[0].NumDescriptors = 1; // Texture2DArray[]
+    shadowRanges[0].BaseShaderRegister = (UINT)GBufferType::Count + 6;
+    shadowRanges[0].RegisterSpace = 0;
+    shadowRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    // Point Lights (tN+7)
+    shadowRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    shadowRanges[1].NumDescriptors = 1; // TextureCube[]
+    shadowRanges[1].BaseShaderRegister = (UINT)GBufferType::Count + 7;
+    shadowRanges[1].RegisterSpace = 0;
+    shadowRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    // Spot Lights (tN+8)
+    shadowRanges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    shadowRanges[2].NumDescriptors = 1; // Texture2D[]
+    shadowRanges[2].BaseShaderRegister = (UINT)GBufferType::Count + 8;
+    shadowRanges[2].RegisterSpace = 0;
+    shadowRanges[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    
     // === Root Parameters ===
     D3D12_ROOT_PARAMETER params[(UINT)Count] = {};
 
@@ -206,10 +230,36 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
     params[ClusterLightIndicesSRV].DescriptorTable.pDescriptorRanges = &clusterLightRange[3];
     params[ClusterLightIndicesSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    D3D12_STATIC_SAMPLER_DESC samplers[2] = {};
+    // tN+6 : ShadowMapCSMTable
+    params[ShadowMapCSMTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ShadowMapCSMTable].DescriptorTable.NumDescriptorRanges = 1;
+    params[ShadowMapCSMTable].DescriptorTable.pDescriptorRanges = &shadowRanges[0];
+    params[ShadowMapCSMTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    // tN+7 : ShadowMapPointTable
+    params[ShadowMapPointTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ShadowMapPointTable].DescriptorTable.NumDescriptorRanges = 1;
+    params[ShadowMapPointTable].DescriptorTable.pDescriptorRanges = &shadowRanges[1];
+    params[ShadowMapPointTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    // tN+8 : ShadowMapSpotTable
+    params[ShadowMapSpotTable].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ShadowMapSpotTable].DescriptorTable.NumDescriptorRanges = 1;
+    params[ShadowMapSpotTable].DescriptorTable.pDescriptorRanges = &shadowRanges[2];
+    params[ShadowMapSpotTable].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+    D3D12_STATIC_SAMPLER_DESC samplers[3] = {};
     samplers[0] = CD3DX12_STATIC_SAMPLER_DESC(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR);
     samplers[1] = CD3DX12_STATIC_SAMPLER_DESC(1, D3D12_FILTER_MIN_MAG_MIP_POINT);
-
+    samplers[2] = CD3DX12_STATIC_SAMPLER_DESC(2, D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        D3D12_TEXTURE_ADDRESS_MODE_BORDER,
+        0.0f,
+        16,
+        D3D12_COMPARISON_FUNC_LESS_EQUAL,
+        D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE
+    );
 
     D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
     rsDesc.NumParameters = _countof(params);

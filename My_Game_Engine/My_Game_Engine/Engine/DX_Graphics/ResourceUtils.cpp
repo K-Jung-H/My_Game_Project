@@ -131,6 +131,18 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateTextureResource(const RendererContex
     return CreateResource(ctx, pData, rowPitchBytes, D3D12_RESOURCE_DIMENSION_TEXTURE2D, width, height, arraySize, mipLevels, flags, format, heapType, finalState, uploadBuffer);
 }
 
+ComPtr<ID3D12Resource> ResourceUtils::CreateTexture2DArray(const RendererContext& ctx, UINT width, UINT height, DXGI_FORMAT format, UINT arraySize, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState)
+{
+    ComPtr<ID3D12Resource> dummyUpload;
+	return CreateTextureResource(ctx, nullptr, 0, width, height, arraySize, 1, flags, format, D3D12_HEAP_TYPE_DEFAULT, initialState, dummyUpload);
+}
+
+ComPtr<ID3D12Resource> ResourceUtils::CreateTextureCubeArray(const RendererContext& ctx, UINT width, UINT height, DXGI_FORMAT format, UINT numCubes, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState)
+{
+	ComPtr<ID3D12Resource> dummyUpload;
+	return CreateTextureResource(ctx, nullptr, 0, width, height, numCubes * 6, 1, flags, format, D3D12_HEAP_TYPE_DEFAULT, initialState, dummyUpload);
+}
+
 
 
 ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx, void* pData, UINT64 nBytes, D3D12_RESOURCE_DIMENSION dimension, UINT width, UINT height, UINT depthOrArraySize, UINT mipLevels,
