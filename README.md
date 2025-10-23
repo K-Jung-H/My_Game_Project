@@ -56,7 +56,13 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 	// 타입별 ShadowMap 전용 버퍼를 프레임 리소스에 맞게 생성 == 버퍼링 개수만큼 생성 
  
 
--> 현재 Shadow연산에 사용될 정보를 CBV에 저장하고, 조명과 ShadowMap 인덱스 매핑을 동작하는 함수를 구현하는 중 // UpdateShadowResources()
+-> 그림자 셰도우맵 생성 및 바인딩 작성 완료. 
+	- 오류 메시지 출력은 없는 상태
+	- 일부 셰도우 맵이 제대로 생성 됬는지 출력하여 확인할 필요 있음
+	- LightComponent Update 호출 시기를 TransformComponent와 순서를 정리할 필요가 있음 // Dirty Flag 순서 문제
+
+
+
 
 
 장기적 목표
