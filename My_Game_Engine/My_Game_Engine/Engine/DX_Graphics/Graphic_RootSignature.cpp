@@ -9,6 +9,7 @@ void RootSignatureFactory::Init(ID3D12Device* device)
     //cache[(int)RootSignature_Type::Terrain] = CreateTerrain(device);
     //cache[(int)RootSignature_Type::Skinned] = CreateSkinned(device);
     //cache[(int)RootSignature_Type::UI] = CreateUI(device);
+    cache[(int)RootSignature_Type::ShadowPass] = CreateShadowPass(device);
     cache[(int)RootSignature_Type::LightPass] = CreateLightPass(device);
 
     initialized = true;
@@ -598,6 +599,72 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateLightPass(ID3D12Device* 
     if (FAILED(hr))
     {
         OutputDebugStringA("Failed to create LightPass root signature.\n");
+        return nullptr;
+    }
+
+    return rootSig;
+}
+
+ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateShadowPass(ID3D12Device* pd3dDevice)
+{
+    using namespace RootParameter_Shadow;
+
+    // t0: ShadowMatrix_SRV (StructuredBuffer)
+    D3D12_DESCRIPTOR_RANGE srvRange = {};
+    srvRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRange.NumDescriptors = 1;
+    srvRange.BaseShaderRegister = 0; // t0
+    srvRange.RegisterSpace = 0;
+    srvRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER params[Count] = {};
+
+    // b0: IndexConstant
+    params[ShadowMatrix_Index].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    params[ShadowMatrix_Index].Constants.Num32BitValues = 1;
+    params[ShadowMatrix_Index].Constants.ShaderRegister = 0; // b0
+    params[ShadowMatrix_Index].Constants.RegisterSpace = 0;
+    params[ShadowMatrix_Index].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    // b1 : ObjectCBV
+    params[ObjectCBV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+    params[ObjectCBV].Descriptor.ShaderRegister = 1; // b1
+    params[ObjectCBV].Descriptor.RegisterSpace = 0;
+    params[ObjectCBV].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    // t0 : ShadowMatrix_SRV
+    params[ShadowMatrix_SRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[ShadowMatrix_SRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[ShadowMatrix_SRV].DescriptorTable.pDescriptorRanges = &srvRange;
+    params[ShadowMatrix_SRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+    D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
+    rsDesc.NumParameters = _countof(params);
+    rsDesc.pParameters = params;
+    rsDesc.NumStaticSamplers = 0;
+    rsDesc.pStaticSamplers = nullptr;
+    rsDesc.Flags =
+        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+        | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
+        | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
+        | D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS
+        | D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
+
+    ComPtr<ID3DBlob> sigBlob, errorBlob;
+    HRESULT hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+        sigBlob.GetAddressOf(), errorBlob.GetAddressOf());
+    if (FAILED(hr))
+    {
+        if (errorBlob) OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+        return nullptr;
+    }
+
+    ComPtr<ID3D12RootSignature> rootSig;
+    hr = pd3dDevice->CreateRootSignature(0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(),
+        IID_PPV_ARGS(&rootSig));
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to create Shadow root signature.\n");
         return nullptr;
     }
 

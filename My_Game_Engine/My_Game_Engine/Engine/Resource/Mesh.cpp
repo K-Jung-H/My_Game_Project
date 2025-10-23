@@ -191,7 +191,6 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
     UploadToGPU();
 }
 
-
 void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
 {
     std::vector<D3D12_VERTEX_BUFFER_VIEW> views;
@@ -209,6 +208,66 @@ void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
 
     cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
+
+Plane_Mesh::Plane_Mesh(float width, float height)
+{
+    GeneratePlane(width, height);
+    UploadToGPU();
+}
+
+void Plane_Mesh::GeneratePlane(float width, float depth) 
+{
+    float halfWidth = width / 2.0f;
+    float halfDepth = depth / 2.0f; 
+
+    positions = {
+        { -halfWidth, 0.0f, -halfDepth }, 
+        { -halfWidth, 0.0f,  halfDepth }, 
+        {  halfWidth, 0.0f,  halfDepth }, 
+        {  halfWidth, 0.0f, -halfDepth } 
+    };
+
+    normals = {
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f }
+    };
+
+    tangents = {
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f }
+    };
+
+        uvs = {
+        { 0.0f, 1.0f },
+        { 0.0f, 0.0f },
+        { 1.0f, 0.0f },
+        { 1.0f, 1.0f } 
+    };
+
+    colors = {
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f }
+    };
+
+    indices = {
+        0, 1, 2, 
+        0, 2, 3  
+    };
+
+    Submesh submesh;
+    submesh.indexCount = static_cast<UINT>(indices.size());
+    submesh.startIndexLocation = 0;
+    submesh.baseVertexLocation = 0;
+    submesh.materialId = Engine::INVALID_ID;
+    submeshes.push_back(submesh);
+}
+
 
 void SkinnedMesh::FromAssimp(const aiMesh* mesh)
 {

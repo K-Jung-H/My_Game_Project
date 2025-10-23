@@ -31,7 +31,7 @@ public:
 
     void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 
-private:
+protected:
     void UploadToGPU();
 
 public:
@@ -70,8 +70,16 @@ private:
     ComPtr<ID3D12Resource> indexUpload;
 };
 
+class Plane_Mesh : public Mesh
+{
+public:
+    Plane_Mesh(float width = 1.0f, float height = 1.0f);
 
+    virtual ~Plane_Mesh() = default;
 
+private:
+    void GeneratePlane(float width, float height);
+};
 
 
 class SkinnedMesh : public Mesh

@@ -1,6 +1,20 @@
 #pragma once
 #include "Core/Component.h"
 
+constexpr UINT SPOT_SHADOW_RESOLUTION = 1024;
+constexpr UINT CSM_SHADOW_RESOLUTION = 2048;
+constexpr UINT POINT_SHADOW_RESOLUTION = 512;
+
+constexpr UINT NUM_CSM_CASCADES = 4;
+constexpr UINT NUM_CUBE_FACES = 6;
+
+constexpr UINT MAX_SHADOW_SPOT = 16;
+constexpr UINT MAX_SHADOW_CSM = 4;
+constexpr UINT MAX_SHADOW_POINT = 20;
+
+constexpr UINT MAX_SHADOW_VIEWS = MAX_SHADOW_SPOT + (MAX_SHADOW_POINT * 6) + (MAX_SHADOW_CSM * NUM_CSM_CASCADES);
+
+
 enum class Light_Type
 {
     Directional = 0,
@@ -29,9 +43,12 @@ struct GPULight
     UINT shadowMapStartIndex;
     UINT shadowMapLength;
     UINT padding;
+
+    XMFLOAT4X4 LightViewProj[NUM_CUBE_FACES];
 };
 
 class TransformComponent;
+class CameraComponent;
 class Object;
 
 class LightComponent : public Component
@@ -39,6 +56,9 @@ class LightComponent : public Component
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
     virtual void FromJSON(const rapidjson::Value& val);
+
+    static D3D12_VIEWPORT Get_ShadowMapViewport(Light_Type type);
+    static D3D12_RECT Get_ShadowMapScissorRect(Light_Type type);
 
 public:
     LightComponent();
@@ -50,11 +70,13 @@ public:
     void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
     std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 
-    const XMFLOAT3& GetPosition();
+    const XMFLOAT4X4& GetShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index = 0);
+
     void SetPosition(const XMFLOAT3& pos);
+    const XMFLOAT3& GetPosition();
 
 
-    void SetLightType(Light_Type t) { lightType = t; }
+    void SetLightType(Light_Type t) { lightType = t; mShadowMatrixDirty = true; }
     Light_Type GetLightType() const { return lightType; }
 
     void SetColor(const XMFLOAT3& color) { mColor = color; }
@@ -66,13 +88,13 @@ public:
     void SetIntensity(float intensity) { mIntensity = intensity; }
     float GetIntensity() const { return mIntensity; }
 
-    void SetRange(float range) { mRange = range; }
+    void SetRange(float range) { mRange = range; mShadowMatrixDirty = true; }
     float GetRange() const { return mRange; }
 
-    void SetInnerAngle(float inner_angle) { mInnerAngle = inner_angle; }
+    void SetInnerAngle(float inner_angle) { mInnerAngle = inner_angle; mShadowMatrixDirty = true; }
     float GetInnerAngle() const { return mInnerAngle; }
 
-    void SetOuterAngle(float out_angle) { mOuterAngle = out_angle; }
+    void SetOuterAngle(float out_angle) { mOuterAngle = out_angle; mShadowMatrixDirty = true; }
     float GetOuterAngle() const { return mOuterAngle; }
 
     void SetCastShadow(bool bUseShadow) { mCastsShadow = bUseShadow; }
@@ -104,4 +126,8 @@ protected:
 
     UINT mLightMask = 0xFFFFFFFF;
     float mVolumetricStrength = 1.0f;
+
+    bool mShadowMatrixDirty = true;
+    XMFLOAT4X4 mCachedLightViewProj[NUM_CUBE_FACES];
+    bool mCsmMatrixDirty = true;
 };

@@ -23,21 +23,34 @@ void Scene::Build()
 	Object* camera_obj = m_pObjectManager->CreateObject("Main_Camera");
 	auto camera_component = camera_obj->AddComponent<CameraComponent>();
 	camera_component->SetTransform(camera_obj->GetTransform());
-	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
-
+	camera_component->SetPosition({ 0.0f, 10.0f, -30.0f });
 	SetActiveCamera(camera_component);
 
 	//--------------------------------------------------------------------------------
 	{
 		Object* light_obj = m_pObjectManager->CreateObject("Main_Light");
+		light_obj->GetTransform()->SetPosition({ 0.0f, 100.0f, 0.0f });
+
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
 	}
 	{
-		Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
-		auto light_component = sub_light_obj->AddComponent<LightComponent>();
-		light_component->SetTransform(sub_light_obj->GetTransform());
+		//Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
+		//auto light_component = sub_light_obj->AddComponent<LightComponent>();
+		//light_component->SetTransform(sub_light_obj->GetTransform());
 	}
+	{
+		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
+		plane_mesh->SetAlias("Plane_Mesh");
+		rsm->RegisterResource(plane_mesh);
+		UINT plane_id = plane_mesh->GetId();
+
+		Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
+		plane_obj->GetTransform()->SetPosition({ 0.0f, -10.0f, 0.0f });
+		auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
+		mesh_component->SetMesh(plane_id);
+	}
+	
 	//--------------------------------------------------------------------------------
 	
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";

@@ -60,6 +60,8 @@ struct ClusterBound
     float pad1;
 };
 
+#define NUM_CUBE_FACES 6
+
 struct LightInfo
 {
     float3 position;
@@ -80,6 +82,8 @@ struct LightInfo
     uint shadowMapStartIndex;
     uint shadowMapLength;
     uint padding;
+    
+    float4x4 LightViewProj[NUM_CUBE_FACES];
 };
 
 struct ClusterLightMeta
@@ -100,9 +104,13 @@ StructuredBuffer<LightInfo> LightInput : register(t6);
 StructuredBuffer<ClusterLightMeta> ClusterLightMetaSRV : register(t7);
 StructuredBuffer<uint> ClusterLightIndicesSRV : register(t8);
 
+Texture2DArray gShadowMapCSM : register(t9);
+Texture2DArray gShadowMapSpot : register(t10);
+TextureCubeArray gShadowMapPoint : register(t11);
+
 SamplerState gLinearSampler : register(s0);
 SamplerState gClampSampler : register(s1);
-
+SamplerComparisonState gShadowSampler : register(s2);
 
 struct VS_SCREEN_OUT
 {
@@ -144,4 +152,24 @@ float3 ReconstructWorldPos(float2 uv, float linearViewZ)
     float4 worldPos = mul(viewSpacePos, gInvView);
 
     return worldPos.xyz / worldPos.w;
+}
+
+float3 Heatmap(float value)
+{
+    value = saturate(value);
+    float4 colors[5] =
+    {
+        float4(0, 0, 0, 0),
+        float4(0, 0, 1, 0.25f),
+        float4(0, 1, 0, 0.5f),
+        float4(1, 1, 0, 0.75f),
+        float4(1, 0, 0, 1.0f)
+    };
+
+    float3 finalColor = colors[0].rgb;
+    for (int i = 1; i < 5; ++i)
+    {
+        finalColor = lerp(finalColor, colors[i].rgb, saturate((value - colors[i - 1].w) / (colors[i].w - colors[i - 1].w)));
+    }
+    return finalColor;
 }

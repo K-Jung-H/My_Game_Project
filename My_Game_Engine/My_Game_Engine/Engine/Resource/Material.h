@@ -5,6 +5,8 @@
 class Material : public Game_Resource
 {
 public:
+    static Material Get_Default();
+
     Material();
     virtual ~Material() = default;
     virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
@@ -31,3 +33,4 @@ public:
 
     std::string shaderName; // 임시 구조
 };
+

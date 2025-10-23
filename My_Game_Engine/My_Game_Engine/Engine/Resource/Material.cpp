@@ -2,6 +2,27 @@
 #include "MetaIO.h"
 #include "GameEngine.h"
 
+Material Material::Get_Default()
+{
+    Material defaultMaterial;
+
+    defaultMaterial.albedoColor = { 0.8f, 0.8f, 0.8f };
+    defaultMaterial.roughness = 0.5f;
+    defaultMaterial.metallic = 0.0f;
+
+    defaultMaterial.diffuseTexId = Engine::INVALID_ID;
+    defaultMaterial.normalTexId = Engine::INVALID_ID;
+    defaultMaterial.roughnessTexId = Engine::INVALID_ID;
+    defaultMaterial.metallicTexId = Engine::INVALID_ID;
+
+    defaultMaterial.diffuseTexSlot = UINT_MAX;
+    defaultMaterial.normalTexSlot = UINT_MAX;
+    defaultMaterial.roughnessTexSlot = UINT_MAX;
+    defaultMaterial.metallicTexSlot = UINT_MAX;
+
+    return defaultMaterial;
+}
+
 Material::Material() : Game_Resource(ResourceType::Material)
 {
     diffuseTexId = Engine::INVALID_ID;

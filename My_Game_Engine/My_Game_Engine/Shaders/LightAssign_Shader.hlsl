@@ -7,6 +7,9 @@ struct ClusterBound
     float pad1;
 };
 
+
+#define NUM_CUBE_FACES 6
+
 struct LightInfo
 {
     float3 position;
@@ -27,7 +30,10 @@ struct LightInfo
     uint shadowMapStartIndex;
     uint shadowMapLength;
     uint padding;
+    
+    float4x4 LightViewProj[NUM_CUBE_FACES];
 };
+
 
 struct ClusterLightMeta
 {

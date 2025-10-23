@@ -52,7 +52,7 @@ struct ClusterLightMeta
     XMFLOAT2 padding0;;
 };
 
-struct ShadowCBData
+struct ShadowMatrixData
 {
     XMFLOAT4X4 ViewProj;
 };
@@ -95,6 +95,15 @@ struct LightResource
     std::vector<UINT> SpotShadow_DSVs;
     std::vector<UINT> CsmShadow_DSVs;
     std::vector<UINT> PointShadow_DSVs;
+
+    ComPtr<ID3D12Resource> ShadowMatrixBuffer;
+    ShadowMatrixData* MappedShadowMatrixBuffer = nullptr;
+    UINT ShadowMatrixBuffer_SRV_Index = UINT_MAX; 
+
+    std::unordered_map<LightComponent*, UINT> mLightShadowIndexMap;
+    std::vector<LightComponent*> mFrameShadowCastingCSM;
+    std::vector<LightComponent*> mFrameShadowCastingSpot;
+    std::vector<LightComponent*> mFrameShadowCastingPoint;
 };
 
 
@@ -243,10 +252,6 @@ private:
     ComPtr<ID3D12Resource> mSceneData_CB;
     SceneData* mappedSceneDataCB;
 
-	//==== Shdow Constant Buffer
-    // 조명의 뷰프로젝션 행렬 저장
-	ComPtr<ID3D12Resource> mShadowCB; 
-    ShadowCBData* mMappedShadowCB = nullptr;
 
     //==== Render DrawCall Target
     std::vector<DrawItem> mDrawItems;
@@ -262,11 +267,10 @@ private:
 
     bool Create_Shader();
     bool Create_SceneCBV();
-    bool Create_ShadowCBV();
     bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
     bool Create_LightResources(FrameResource& fr, UINT maxLights);
-    bool Create_ShadowResources(FrameResource& fr, UINT maxLights);
-
+    bool Create_ShadowResources(FrameResource& fr);
+    bool CreateShadowMatrixBuffer(FrameResource& fr);
 
     // Frame resource creation
     bool CreateFrameResources();
@@ -315,13 +319,12 @@ private:
     void Blit_BackBufferPass();
     void ImguiPass();
 
-    void SortByRenderType(std::vector<RenderData> renderData_list);
-    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
+    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
 
     void UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
-    void UpdateShadowResources(const std::vector<LightComponent*>& light_comp_list);
+    void UpdateShadowResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
 
     void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);
 

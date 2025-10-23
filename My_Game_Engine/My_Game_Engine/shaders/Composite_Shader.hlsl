@@ -1,29 +1,142 @@
 #include "PostFX_Util.hlsli"
 #include "Lights.hlsli"
 
-float3 Heatmap(float value)
-{
-    value = saturate(value);
-    float4 colors[5] =
-    {
-        float4(0, 0, 0, 0),
-        float4(0, 0, 1, 0.25f),
-        float4(0, 1, 0, 0.5f),
-        float4(1, 1, 0, 0.75f),
-        float4(1, 0, 0, 1.0f)
-    };
 
-    float3 finalColor = colors[0].rgb;
-    for (int i = 1; i < 5; ++i)
+float3 GetCubeMapVector(float3 L_world, out uint faceIndex, out uint sliceOffset)
+{
+    float3 absL = abs(L_world);
+    float maxComp = max(absL.x, max(absL.y, absL.z));
+    float3 projVec = 0;
+    faceIndex = 0;
+    sliceOffset = 0;
+
+    if (maxComp == absL.x)
     {
-        finalColor = lerp(finalColor, colors[i].rgb, saturate((value - colors[i - 1].w) / (colors[i].w - colors[i - 1].w)));
+        if (L_world.x > 0)
+        {
+            faceIndex = 0;
+            sliceOffset = 0;
+            projVec = float3(-L_world.z, -L_world.y, L_world.x);
+        }
+        else
+        {
+            faceIndex = 1;
+            sliceOffset = 1;
+            projVec = float3(L_world.z, -L_world.y, -L_world.x);
+        }
     }
-    return finalColor;
+    else if (maxComp == absL.y)
+    {
+        if (L_world.y > 0)
+        {
+            faceIndex = 2;
+            sliceOffset = 2;
+            projVec = float3(L_world.x, L_world.z, L_world.y);
+        }
+        else
+        {
+            faceIndex = 3;
+            sliceOffset = 3;
+            projVec = float3(L_world.x, -L_world.z, -L_world.y);
+        }
+    }
+    else // Z major axis
+    {
+        if (L_world.z > 0)
+        {
+            faceIndex = 4;
+            sliceOffset = 4;
+            projVec = float3(L_world.x, -L_world.y, L_world.z);
+        }
+        else
+        {
+            faceIndex = 5;
+            sliceOffset = 5;
+            projVec = float3(-L_world.x, -L_world.y, -L_world.z);
+        }
+    }
+    return projVec / maxComp;
+}
+
+
+float ComputeShadow(LightInfo light, float3 world_pos)
+{
+    float shadowFactor = 1.0f;
+
+    if (light.castsShadow == 0)
+    {
+        return 1.0f;
+    }
+
+    float4 shadowPosH = float4(0, 0, 0, 0);
+    float2 shadowUV = float2(0, 0);
+    float pixelDepth = 0;
+    uint sliceIndex = 0;
+
+    switch (light.type)
+    {
+        case 0: 
+        {
+            
+                uint cascadeIndex = 0; 
+
+                shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[cascadeIndex]);
+                shadowPosH.xyz /= shadowPosH.w;
+
+                shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
+                pixelDepth = shadowPosH.z;
+                sliceIndex = light.shadowMapStartIndex + cascadeIndex;
+
+                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
+                break;
+            }
+        case 1: 
+        {
+                float3 light_pos_world = mul(float4(light.position, 1.0f), gInvView).xyz;
+                float3 L_world = world_pos - light_pos_world; 
+
+                uint faceIndex;
+                uint faceSliceOffset;
+                float3 projVec = GetCubeMapVector(L_world, faceIndex, faceSliceOffset);
+
+
+                float dist = length(L_world);
+                pixelDepth = saturate(dist / light.range); 
+
+
+                sliceIndex = light.shadowMapStartIndex + faceSliceOffset;
+
+                shadowFactor = gShadowMapPoint.SampleCmpLevelZero(gShadowSampler, float4(L_world, sliceIndex), pixelDepth);
+                break;
+            }
+        case 2: // Spot
+        {
+                shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[0]);
+                shadowPosH.xyz /= shadowPosH.w;
+
+                shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
+                pixelDepth = shadowPosH.z;
+                sliceIndex = light.shadowMapStartIndex;
+
+                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
+                break;
+            }
+    }
+
+    if (light.type != 1) 
+    {
+        if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
+        {
+            shadowFactor = 1.0f; 
+        }
+    }
+
+    return shadowFactor;
 }
 
 float3 ComputeLight(
     LightInfo light,
-    float3 view_pos,
+    float3 world_pos,
     float3 view_normal,
     float3 V,
     float3 Albedo,
@@ -34,6 +147,8 @@ float3 ComputeLight(
     float3 radiance = 0;
     float3 result = 0;
 
+    float3 view_pos = mul(float4(world_pos, 1.0f), gView).xyz;
+    
     switch (light.type)
     {
         case 0:
@@ -70,7 +185,10 @@ float3 ComputeLight(
             break;
     }
 
-    return result;
+    float shadow = ComputeShadow(light, world_pos);
+
+    return result * shadow;
+
 }
 
 VS_SCREEN_OUT Default_VS(uint nVertexID : SV_VertexID)
@@ -108,10 +226,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 
     if (gRenderFlags & RENDER_DEBUG_ALBEDO)
     {
-        float3 world_pos = ReconstructWorldPos(input.uv, viewDepth);
-        float3 dir = normalize(world_pos);
-        float3 color = dir * 0.5f + 0.5f;
-        return float4(color, 1.0f);
+        return float4(Albedo, 1.0f);
     }
     else if (gRenderFlags & RENDER_DEBUG_NORMAL)
         finalColor = view_normal * 0.5f + 0.5f;
@@ -145,8 +260,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     {
         float3 world_pos = ReconstructWorldPos(input.uv, viewDepth);
         float3 view_pos = mul(float4(world_pos, 1.0f), gView).xyz;
-        float3 V = normalize(-view_pos);
-
+        float3 V = normalize(mul(float4(gCameraPos, 1.0f), gInvView).xyz - world_pos);
         ClusterLightMeta meta = ClusterLightMetaSRV[clusterIndex];
         uint lightCount = meta.count;
         uint lightOffset = meta.offset;
@@ -156,7 +270,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         {
             uint lightIndex = ClusterLightIndicesSRV[lightOffset + i];
             LightInfo light = LightInput[lightIndex];
-            finalColor += ComputeLight(light, view_pos, view_normal, V, Albedo, 0, 1);
+            finalColor += ComputeLight(light, world_pos, view_normal, V, Albedo, 0, 1);
         }
     }
 

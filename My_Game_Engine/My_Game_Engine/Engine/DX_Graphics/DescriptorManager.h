@@ -4,10 +4,6 @@ constexpr UINT MAX_UAV = 128;
 
 constexpr UINT MAX_SRV_FRAME = 512;
 constexpr UINT MAX_SRV_TEXTURE = 2000;
-constexpr UINT MAX_SHADOW_SPOT = 16;
-constexpr UINT MAX_SHADOW_CSM = 4;
-constexpr UINT NUM_CSM_CASCADES = 4;
-constexpr UINT MAX_SHADOW_POINT = 20;
 
 
 enum class HeapRegion

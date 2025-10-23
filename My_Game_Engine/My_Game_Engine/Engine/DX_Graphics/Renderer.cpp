@@ -241,7 +241,8 @@ bool DX12_Renderer::CreateSingleFrameResource(FrameResource& fr, UINT frameIndex
     success &= Create_Merge_RenderTargets(fr); 
     success &= CreateObjectCB(fr, 5000);
     success &= Create_LightResources(fr, 500);
-    success &= Create_ShadowResources(fr, 500); 
+    success &= Create_ShadowResources(fr);
+	success &= CreateShadowMatrixBuffer(fr);
 
     return success;
 }
@@ -352,6 +353,19 @@ void DX12_Renderer::DestroySingleFrameResource(FrameResource& fr)
     {
         mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_ShadowMap_Point, fr.light_resource.PointShadowCubeArray_SRV);
         fr.light_resource.PointShadowCubeArray_SRV = UINT_MAX;
+    }
+
+    if (fr.light_resource.MappedShadowMatrixBuffer)
+    {
+        fr.light_resource.ShadowMatrixBuffer->Unmap(0, nullptr);
+        fr.light_resource.MappedShadowMatrixBuffer = nullptr;
+    }
+    fr.light_resource.ShadowMatrixBuffer.Reset();
+
+    if (fr.light_resource.ShadowMatrixBuffer_SRV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ShadowMatrixBuffer_SRV_Index);
+        fr.light_resource.ShadowMatrixBuffer_SRV_Index = UINT_MAX;
     }
 
     for (UINT dsvIndex : fr.light_resource.SpotShadow_DSVs)
@@ -712,7 +726,32 @@ bool DX12_Renderer::Create_Shader()
     );
 
     //==================================
+
+    ShaderSetting shadow_ss;
+    shadow_ss.vs.file = L"Shaders/Shadow_Shader.hlsl";
+    shadow_ss.vs.entry = "Shadow_VS";
+    shadow_ss.vs.target = "vs_5_1";
+
+    PipelinePreset shadow_pp;
+    shadow_pp.inputlayout = InputLayoutPreset::Default;
+    shadow_pp.rasterizer = RasterizerPreset::Shadow;
+    shadow_pp.blend = BlendPreset::Opaque;
+    shadow_pp.depth = DepthPreset::Default;
+    shadow_pp.RenderTarget = RenderTargetPreset::ShadowMap; 
+
+    std::vector<VariantConfig> shadow_configs =
+    {
+        { ShaderVariant::Shadow, shadow_ss, shadow_pp },
+    };
+
+    auto shadow_shader = pso_manager.RegisterShader(
+        "ShadowMap_Pass",
+        RootSignature_Type::ShadowPass,
+        shadow_configs,
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
     
+    //==================================
 
     ShaderSetting light_cluster_clear_ss;
     light_cluster_clear_ss.cs.file = L"Shaders/LightAssign_Shader.hlsl";
@@ -853,21 +892,6 @@ bool DX12_Renderer::Create_SceneCBV()
         return false;
 
     return true;
-}
-
-bool DX12_Renderer::Create_ShadowCBV()
-{
-    UINT bufferSize = (sizeof(ShadowCBData) + 255) & ~255;
-    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
-
-    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&mShadowCB));
-
-    if (FAILED(hr)) return false;
-
-    hr = mShadowCB->Map(0, nullptr, reinterpret_cast<void**>(&mMappedShadowCB));
-    return SUCCEEDED(hr);
 }
 
 bool DX12_Renderer::CreateObjectCB(FrameResource& fr, UINT maxObjects)
@@ -1172,20 +1196,17 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
 
 }
 
-bool DX12_Renderer::Create_ShadowResources(FrameResource& fr, UINT maxLights)
+bool DX12_Renderer::Create_ShadowResources(FrameResource& fr)
 {
     const RendererContext ctx = Get_UploadContext();
     LightResource& lr = fr.light_resource;
 
-    const UINT SPOT_SHADOW_RESOLUTION = 1024;
-    const UINT CSM_SHADOW_RESOLUTION = 2048;
-    const UINT POINT_SHADOW_RESOLUTION = 512;
     const DXGI_FORMAT SHADOW_MAP_FORMAT = DXGI_FORMAT_R32_TYPELESS;
     const DXGI_FORMAT SHADOW_MAP_DSV_FORMAT = DXGI_FORMAT_D32_FLOAT;
     const DXGI_FORMAT SHADOW_MAP_SRV_FORMAT = DXGI_FORMAT_R32_FLOAT;
     const D3D12_RESOURCE_STATES SHADOW_MAP_DEFAULT_STATE = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
     const D3D12_RESOURCE_FLAGS SHADOW_MAP_FLAGS = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
+    //------------------------------------------------------------------
     // 1. Directional CSM Shadow Array
     {
         UINT totalCsmSlices = MAX_SHADOW_CSM * NUM_CSM_CASCADES;
@@ -1226,8 +1247,8 @@ bool DX12_Renderer::Create_ShadowResources(FrameResource& fr, UINT maxLights)
             mDevice->CreateDepthStencilView(lr.CsmShadowArray.Get(), &dsvDesc, mDsvManager->GetCpuHandle(lr.CsmShadow_DSVs[i]));
         }
     }
-
-    // 2. Point Shadow Array 생성
+    //------------------------------------------------------------------
+    // 2. Point Shadow Array 
     {
         lr.PointShadowCubeArray = ResourceUtils::CreateTextureCubeArray(
             ctx,
@@ -1268,8 +1289,8 @@ bool DX12_Renderer::Create_ShadowResources(FrameResource& fr, UINT maxLights)
             }
         }
     }
-
-    // 3. Spot Shadow Array 생성
+    //------------------------------------------------------------------
+    // 3. Spot Shadow Array 
     {
         lr.SpotShadowArray = ResourceUtils::CreateTexture2DArray(
             ctx,
@@ -1306,9 +1327,53 @@ bool DX12_Renderer::Create_ShadowResources(FrameResource& fr, UINT maxLights)
         }
     }
 
+
     return true;
 }
 
+bool DX12_Renderer::CreateShadowMatrixBuffer(FrameResource& fr)
+{
+    LightResource& lr = fr.light_resource;
+
+    UINT bufferSize = (sizeof(ShadowMatrixData) * MAX_SHADOW_VIEWS);
+    bufferSize = (bufferSize + 255) & ~255;
+
+    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&lr.ShadowMatrixBuffer));
+
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to create ShadowMatrixBuffer.\n");
+        return false;
+    }
+
+    hr = lr.ShadowMatrixBuffer->Map(0, nullptr, reinterpret_cast<void**>(&lr.MappedShadowMatrixBuffer));
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to map ShadowMatrixBuffer.\n");
+        return false;
+    }
+
+    lr.ShadowMatrixBuffer_SRV_Index = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Buffer.FirstElement = 0;
+
+    srvDesc.Buffer.NumElements = MAX_SHADOW_VIEWS;
+    srvDesc.Buffer.StructureByteStride = sizeof(ShadowMatrixData);
+    srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+    mDevice->CreateShaderResourceView(lr.ShadowMatrixBuffer.Get(), &srvDesc, 
+        mResource_Heap_Manager->GetCpuHandle(lr.ShadowMatrixBuffer_SRV_Index));
+
+    return true;
+}
 
 // ------------------- Rendering Steps -------------------
 
@@ -1350,6 +1415,8 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 
     ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
 
+    Material defaultMaterial = Material::Get_Default();
+
     for (auto& rd : renderables)
     {
         auto transform = rd.transform.lock();
@@ -1364,28 +1431,28 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         const size_t submeshCount = mesh->submeshes.size();
         for (size_t i = 0; i < submeshCount; ++i)
         {
-            if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects)
-                break;
-
             UINT matId = renderer->GetMaterial(i);
             if (matId == Engine::INVALID_ID)
                 matId = mesh->submeshes[i].materialId;
 
             auto material = rsm->GetById<Material>(matId);
-            if (!material) continue;
+
+            // 재질 포인터가 유효하지 않으면 기본 재질 사용
+            const Material* matToUse = material ? material.get() : &defaultMaterial;
 
             ObjectCBData cb{};
             cb.World = worldT;
-            cb.Albedo = XMFLOAT4(material->albedoColor.x, material->albedoColor.y, material->albedoColor.z, 1.0f);
-            cb.Roughness = material->roughness;
-            cb.Metallic = material->metallic;
             cb.Emissive = 0.0f;
 
+            cb.Albedo = XMFLOAT4(matToUse->albedoColor.x, matToUse->albedoColor.y, matToUse->albedoColor.z, 1.0f);
+            cb.Roughness = matToUse->roughness;
+            cb.Metallic = matToUse->metallic;
+
             auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); };
-            cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
-            cb.NormalTexIdx = toIdx(material->normalTexSlot);
-            cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
-            cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
+            cb.DiffuseTexIdx = toIdx(matToUse->diffuseTexSlot);
+            cb.NormalTexIdx = toIdx(matToUse->normalTexSlot);
+            cb.RoughnessTexIdx = toIdx(matToUse->roughnessTexSlot);
+            cb.MetallicTexIdx = toIdx(matToUse->metallicTexSlot);
 
             const UINT cbIndex = fr.ObjectCB.HeadOffset++;
             fr.ObjectCB.MappedObjectCB[cbIndex] = cb;
@@ -1394,7 +1461,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             di.mesh = mesh.get();
             di.sub = mesh->submeshes[i];
             di.cbIndex = cbIndex;
-            di.materialId = matId;
+            di.materialId = (material) ? matId : Engine::INVALID_ID;
 
             mDrawItems.emplace_back(std::move(di));
         }
@@ -1424,6 +1491,31 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
         view_dir = XMVector3Normalize(view_dir);
         XMStoreFloat3(&view_light.direction, view_dir);
 
+        auto it = lr.mLightShadowIndexMap.find(world_light);
+        if (it != lr.mLightShadowIndexMap.end())
+        {
+            UINT baseIndex = it->second;
+            UINT numMatrices = 0;
+            Light_Type type = world_light->GetLightType();
+
+            if (type == Light_Type::Directional)
+                numMatrices = NUM_CSM_CASCADES;
+            else if (type == Light_Type::Point)
+                numMatrices = 6;
+            else if (type == Light_Type::Spot)
+                numMatrices = 1;
+
+            view_light.shadowMapStartIndex = baseIndex;
+            view_light.shadowMapLength = numMatrices;
+
+            memcpy(view_light.LightViewProj, &lr.MappedShadowMatrixBuffer[baseIndex].ViewProj, sizeof(XMFLOAT4X4) * numMatrices);
+        }
+        else
+        {
+            view_light.shadowMapStartIndex = Engine::INVALID_ID;
+            view_light.shadowMapLength = 0;
+        }
+
         view_space_lights.push_back(view_light);
     }
 
@@ -1436,18 +1528,68 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
 
-void DX12_Renderer::UpdateShadowResources(const std::vector<LightComponent*>& light_comp_list)
+void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
+    FrameResource& fr = mFrameResources[mFrameIndex];
+    LightResource& lr = fr.light_resource;
 
+    lr.mFrameShadowCastingCSM.clear();
+    lr.mFrameShadowCastingSpot.clear();
+    lr.mFrameShadowCastingPoint.clear();
+    lr.mLightShadowIndexMap.clear();
+
+    UINT csmShadowCount = 0;
+    UINT spotShadowCount = 0;
+    UINT pointShadowCount = 0;
+
+    const UINT pointBaseOffset = 0;
+    const UINT csmBaseOffset = pointBaseOffset + (MAX_SHADOW_POINT * 6);
+    const UINT spotBaseOffset = csmBaseOffset + (MAX_SHADOW_CSM * NUM_CSM_CASCADES);
+
+    for (const auto& light : light_comp_list)
+    {
+        if (!light->CastsShadow())
+            continue;
+
+        Light_Type type = light->GetLightType();
+
+        if (type == Light_Type::Point && pointShadowCount < MAX_SHADOW_POINT)
+        {
+            UINT baseIndex = pointBaseOffset + (pointShadowCount * 6);
+            lr.mLightShadowIndexMap[light] = baseIndex;
+            lr.mFrameShadowCastingPoint.push_back(light);
+            pointShadowCount++;
+
+            for (UINT i = 0; i < 6; ++i)
+            {
+                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->GetShadowViewProj(nullptr, i);
+            }
+        }
+        else if (type == Light_Type::Directional && csmShadowCount < MAX_SHADOW_CSM)
+        {
+            UINT baseIndex = csmBaseOffset + (csmShadowCount * NUM_CSM_CASCADES);
+            lr.mLightShadowIndexMap[light] = baseIndex;
+            lr.mFrameShadowCastingCSM.push_back(light);
+            csmShadowCount++;
+
+            for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+            {
+                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->GetShadowViewProj(render_camera, i);
+            }
+        }
+        else if (type == Light_Type::Spot && spotShadowCount < MAX_SHADOW_SPOT)
+        {
+            UINT finalIndex = spotBaseOffset + spotShadowCount;
+            lr.mLightShadowIndexMap[light] = finalIndex;
+            lr.mFrameShadowCastingSpot.push_back(light);
+            spotShadowCount++;
+
+            lr.MappedShadowMatrixBuffer[finalIndex].ViewProj = light->GetShadowViewProj(nullptr, 0);
+        }
+    }
 }
 
-
-void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
-{
-
-}
-
-void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList)
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
 
@@ -1456,7 +1598,7 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList)
         if (!di.mesh) continue;
 
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + di.cbIndex * sizeof(ObjectCBData);
-        cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
+        cmdList->SetGraphicsRootConstantBufferView(objectCBVRootParamIndex, gpuAddr);
 
         di.mesh->Bind(cmdList);
 
@@ -1597,12 +1739,16 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     UpdateObjectCBs(renderData_list);
     GeometryPass(mainCam);
     //------------------------------------------
+    UpdateShadowResources(mainCam, light_comp_list);
     UpdateLightResources(mainCam, light_comp_list);
-    UpdateShadowResources(light_comp_list);
     LightPass(mainCam);
     //------------------------------------------
     ShadowPass();
+
 	//------------------------------------------
+
+    mainCam->SetViewportsAndScissorRects(mCommandList);
+
     CompositePass(mainCam);
 
     PostProcessPass(mainCam);
@@ -1636,7 +1782,7 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
-    Render_Objects(mCommandList);
+    Render_Objects(mCommandList, RootParameter_Default::ObjectCBV);
 }
 
 void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
@@ -1728,19 +1874,110 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 void DX12_Renderer::ShadowPass()
 {
     FrameResource& fr = GetCurrentFrameResource();
-    LightResource& lr = fr.light_resource; 
+    LightResource& lr = fr.light_resource;
 
-    ID3D12RootSignature* default_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Default);
-    mCommandList->SetGraphicsRootSignature(default_rootsignature);
+    ID3D12RootSignature* shadow_rs = RootSignatureFactory::Get(RootSignature_Type::ShadowPass);
+    mCommandList->SetGraphicsRootSignature(shadow_rs);
+
+    PSO_Manager::Instance().BindShader(mCommandList, "ShadowMap_Pass", ShaderVariant::Shadow);
 
     //============================================
+    // A. Point (Cube)
+    D3D12_VIEWPORT pointViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Point);
+    D3D12_RECT pointScissor = LightComponent::Get_ShadowMapScissorRect(Light_Type::Point);
 
-    PSO_Manager::Instance().BindShader(mCommandList, "Geometry", ShaderVariant::Shadow);
+    mCommandList->RSSetViewports(1, &pointViewport);
+    mCommandList->RSSetScissorRects(1, &pointScissor);
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.PointShadowCubeArray.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    for (UINT i = 0; i < lr.mFrameShadowCastingPoint.size(); ++i)
+    {
+        LightComponent* light = lr.mFrameShadowCastingPoint[i];
+        UINT baseMatrixIndex = lr.mLightShadowIndexMap[light];
+        UINT baseDsvIndex = i * 6;
+
+        for (UINT faceIndex = 0; faceIndex < 6; ++faceIndex)
+        {
+            UINT matrixIndex = baseMatrixIndex + faceIndex;
+            UINT dsvIndex = baseDsvIndex + faceIndex;
+
+            auto dsv = mDsvManager->GetCpuHandle(lr.PointShadow_DSVs[dsvIndex]);
+            mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+            mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
+
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV);
+        }
+    }
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.PointShadowCubeArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    // =======================================================
+    // B. Directional (CSM)
+    D3D12_VIEWPORT csmViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Directional);
+    D3D12_RECT csmScissor = LightComponent::Get_ShadowMapScissorRect(Light_Type::Directional);
+
+    mCommandList->RSSetViewports(1, &csmViewport);
+    mCommandList->RSSetScissorRects(1, &csmScissor);
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.CsmShadowArray.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    for (UINT i = 0; i < lr.mFrameShadowCastingCSM.size(); ++i)
+    {
+        LightComponent* light = lr.mFrameShadowCastingCSM[i];
+        UINT baseMatrixIndex = lr.mLightShadowIndexMap[light];
+        UINT baseDsvIndex = i * NUM_CSM_CASCADES;
+
+        for (UINT cascadeIndex = 0; cascadeIndex < NUM_CSM_CASCADES; ++cascadeIndex)
+        {
+            UINT matrixIndex = baseMatrixIndex + cascadeIndex;
+            UINT dsvIndex = baseDsvIndex + cascadeIndex;
+
+            auto dsv = mDsvManager->GetCpuHandle(lr.CsmShadow_DSVs[dsvIndex]);
+            mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+            mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
+
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV);
+        }
+    }
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.CsmShadowArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    // =======================================================
+    // C. Spot
+    D3D12_VIEWPORT spotViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Spot);
+    D3D12_RECT spotScissor = LightComponent::Get_ShadowMapScissorRect(Light_Type::Spot);
+
+    mCommandList->RSSetViewports(1, &spotViewport);
+    mCommandList->RSSetScissorRects(1, &spotScissor);
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.SpotShadowArray.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    for (UINT i = 0; i < lr.mFrameShadowCastingSpot.size(); ++i)
+    {
+        LightComponent* light = lr.mFrameShadowCastingSpot[i];
+        UINT matrixIndex = lr.mLightShadowIndexMap[light];
+
+        auto dsv = mDsvManager->GetCpuHandle(lr.SpotShadow_DSVs[i]);
+        mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+        mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+        mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
+
+        Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV);
+    }
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.SpotShadowArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 }
 
 void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
+    LightResource& lr = fr.light_resource;
 
     ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
     mCommandList->SetGraphicsRootSignature(rs);
@@ -1760,19 +1997,19 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_PostFX::CameraCBV);
 
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-    auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
+    auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterAreaSRV, ClusterSrv);
 
-    auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
+    auto LightSrv = mResource_Heap_Manager->GetGpuHandle(lr.LightBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::LightBufferSRV, LightSrv);
 
-    auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
+    auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterLightMetaBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightMetaSRV, LightMetaSrv);
 
-    auto LightIndicesSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightIndicesBuffer_SRV_Index);
+    auto LightIndicesSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterLightIndicesBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightIndicesSRV, LightIndicesSrv);
 
 
@@ -1786,6 +2023,17 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     {
         auto depthSrv = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
         mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::DepthTexture, depthSrv);
+    }
+
+    {
+        auto csmSrv = mResource_Heap_Manager->GetGpuHandle(lr.CsmShadowArray_SRV);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapCSMTable, csmSrv);
+
+        auto spotSrv = mResource_Heap_Manager->GetGpuHandle(lr.SpotShadowArray_SRV);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapSpotTable, spotSrv);
+
+        auto pointSrv = mResource_Heap_Manager->GetGpuHandle(lr.PointShadowCubeArray_SRV);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapPointTable, pointSrv);
     }
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
