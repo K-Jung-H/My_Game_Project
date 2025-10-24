@@ -62,6 +62,10 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 	- LightComponent Update 호출 시기를 TransformComponent와 순서를 정리할 필요가 있음 // Dirty Flag 순서 문제
 
 
+셰도우맵에서 깊이를 불러오는 것과 Light의 월드 좌표계 복원에서 오류가 발생하는 듯 함
+
+셰도우맵은 제대로 생성되고 있음
+
 
 
 
