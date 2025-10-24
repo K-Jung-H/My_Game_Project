@@ -119,7 +119,7 @@ protected:
     float mRange = 1000.0f;
     float mInnerAngle = XM_PIDIV4;
     float mOuterAngle = XM_PIDIV2;
-    bool mCastsShadow = false;
+    bool mCastsShadow = true;
 
     XMFLOAT3 mPosition = { 0, 0, 0 };
     XMFLOAT3 mDirection = { 0, -1, 0 };

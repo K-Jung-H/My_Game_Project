@@ -105,8 +105,8 @@ StructuredBuffer<ClusterLightMeta> ClusterLightMetaSRV : register(t7);
 StructuredBuffer<uint> ClusterLightIndicesSRV : register(t8);
 
 Texture2DArray gShadowMapCSM : register(t9);
-Texture2DArray gShadowMapSpot : register(t10);
-TextureCubeArray gShadowMapPoint : register(t11);
+TextureCubeArray gShadowMapPoint : register(t10);
+Texture2DArray gShadowMapSpot : register(t11);
 
 SamplerState gLinearSampler : register(s0);
 SamplerState gClampSampler : register(s1);

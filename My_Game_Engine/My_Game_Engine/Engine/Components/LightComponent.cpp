@@ -229,7 +229,10 @@ const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraCompon
         XMVECTOR pos = XMLoadFloat3(&mPosition);
         XMVECTOR dir = XMLoadFloat3(&mDirection);
         XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
+        if (abs(XMVectorGetY(dir)) > 0.99f)
+        {
+            up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f); 
+        }
         XMMATRIX view = XMMatrixLookToLH(pos, dir, up);
         XMMATRIX proj = XMMatrixPerspectiveFovLH(mOuterAngle, 1.0f, 0.1f, mRange);
         XMStoreFloat4x4(&mCachedLightViewProj[0], XMMatrixTranspose(view * proj));
@@ -239,12 +242,7 @@ const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraCompon
     else if (lightType == Light_Type::Point)
     {
         XMVECTOR pos = XMLoadFloat3(&mPosition);
-        XMMATRIX proj = XMMatrixPerspectiveFovLH(
-            XM_PIDIV2,
-            1.0f,
-            0.1f,
-            mRange
-        );
+        XMMATRIX proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, 0.1f, mRange);
 
         XMVECTOR targets[] = {
             XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),

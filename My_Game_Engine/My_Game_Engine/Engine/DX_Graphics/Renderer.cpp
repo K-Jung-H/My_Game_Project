@@ -1437,7 +1437,6 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 
             auto material = rsm->GetById<Material>(matId);
 
-            // 재질 포인터가 유효하지 않으면 기본 재질 사용
             const Material* matToUse = material ? material.get() : &defaultMaterial;
 
             ObjectCBData cb{};
@@ -1881,6 +1880,8 @@ void DX12_Renderer::ShadowPass()
 
     PSO_Manager::Instance().BindShader(mCommandList, "ShadowMap_Pass", ShaderVariant::Shadow);
 
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Shadow::ShadowMatrix_SRV, mResource_Heap_Manager->GetGpuHandle(lr.ShadowMatrixBuffer_SRV_Index));
+
     //============================================
     // A. Point (Cube)
     D3D12_VIEWPORT pointViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Point);
@@ -2035,6 +2036,9 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
         auto pointSrv = mResource_Heap_Manager->GetGpuHandle(lr.PointShadowCubeArray_SRV);
         mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapPointTable, pointSrv);
     }
+
+    auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::MergeTexture, src);
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     mCommandList->DrawInstanced(6, 1, 0, 0);
