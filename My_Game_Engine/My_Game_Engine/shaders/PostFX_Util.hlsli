@@ -60,7 +60,15 @@ struct ClusterBound
     float pad1;
 };
 
-#define NUM_CUBE_FACES 6
+static const uint NUM_CUBE_FACES = 6;
+static const uint MAX_SHADOW_SPOT = 16;
+static const uint MAX_SHADOW_CSM = 4;
+static const uint MAX_SHADOW_POINT = 20;
+static const uint NUM_CSM_CASCADES = 4;
+
+static const uint gPointShadowBaseOffset = 0;
+static const uint gCsmShadowBaseOffset = gPointShadowBaseOffset + (MAX_SHADOW_POINT* NUM_CUBE_FACES);
+static const uint gSpotShadowBaseOffset = gCsmShadowBaseOffset + (MAX_SHADOW_CSM* NUM_CSM_CASCADES);
 
 struct LightInfo
 {

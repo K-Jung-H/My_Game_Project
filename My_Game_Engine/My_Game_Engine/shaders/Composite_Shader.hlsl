@@ -153,22 +153,20 @@ float ComputeShadow(LightInfo light, float3 world_pos)
         case 1: // Point
         {
                 float3 light_pos_world = mul(float4(light.position, 1.0f), gInvView).xyz;
-
-
-                float3 L_world = world_pos - light_pos_world;
-                float dist = length(L_world);
-
+                float3 lightToPixelDir = world_pos - light_pos_world;
 
                 float nearZ = 0.1f;
                 float farZ = light.range;
             
-                pixelDepth = (farZ * (dist - nearZ)) / (dist * (farZ - nearZ));
+                float dist = max(abs(lightToPixelDir.x), max(abs(lightToPixelDir.y), abs(lightToPixelDir.z)));
+                float pixelDepth = (farZ * (dist - nearZ)) / (dist * (farZ - nearZ));
                 pixelDepth = saturate(pixelDepth);
 
-
-                sliceIndex = light.shadowMapStartIndex;
+                float bias = 0.001f;
+                uint cubeIndex = (light.shadowMapStartIndex - gPointShadowBaseOffset) / 6;
             
-                shadowFactor = gShadowMapPoint.SampleCmpLevelZero(gShadowSampler, float4(L_world, sliceIndex), pixelDepth);
+                shadowFactor = gShadowMapPoint.SampleCmpLevelZero(gShadowSampler, float4(lightToPixelDir, cubeIndex), pixelDepth - bias);
+                
                 break;
             }
         case 2: // Spot
@@ -178,9 +176,11 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 pixelDepth = shadowPosH.z;
-                sliceIndex = light.shadowMapStartIndex;
+                
+                float bias = 0.001f;
+                sliceIndex = light.shadowMapStartIndex - gSpotShadowBaseOffset;
 
-                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
+                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth - bias);
                 break;
             }
     }
@@ -306,9 +306,8 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 
     else if (gRenderFlags & RENDER_DEBUG_LIGHT_COUNT)
     {
-        //float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
-
-        //finalColor = cubeDepthViz.xxx;
+        float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
+        finalColor = cubeDepthViz.xxx;
 
         //float shadowDepth = gShadowMapCSM.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
         //float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
@@ -320,29 +319,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         //float linDepth = (nearZ * farZ) / (farZ - shadowDepth * (farZ - nearZ));
     
         //return float4((linDepth / farZ).xxx, 1.0f);
-        
-            // world_pos 계산
-    float Depth = gDepthTex.Sample(gLinearSampler, input.uv).r;
-    float viewDepth = LinearizeDepth(Depth, gNearZ, gFarZ);
-    float3 world_pos = ReconstructWorldPos(input.uv, viewDepth);
-
-    // light 정보 가져오기 (테스트용 첫 번째 라이트)
-    LightInfo light = LightInput[0];
-    float3 light_pos_world = mul(float4(light.position, 1.0f), gInvView).xyz;
-    float3 L_world = world_pos - light_pos_world;
-    float dist = length(L_world);
-
-    float nearZ = 0.1f;
-    float farZ  = light.range;
-    uint sliceIndex = light.shadowMapStartIndex;
-
-    // 섀도우맵 깊이 샘플링
-    float shadowDepth = gShadowMapPoint.Sample(gLinearSampler, float4(L_world, sliceIndex)).r;
-    float pixelDepth  = (farZ * (dist - nearZ)) / (dist * (farZ - nearZ));
-
-    // 두 깊이의 차이를 시각화
-    float diff = abs(shadowDepth - pixelDepth);
-    return float4(diff.xxx, 1.0f);
+       
     }
     else
     { 
@@ -362,9 +339,8 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
             LightInfo light = LightInput[lightIndex];
             
             float3 light_value = ComputeLight(light, view_pos, view_normal, V, Albedo, 0, 1);
-            float shadow_value = ComputeShadow(light, world_pos);
-            
-            finalColor += light_value * shadow_value;
+            float shadow_factor = ComputeShadow(light, world_pos);
+            finalColor += light_value * shadow_factor;
         }
     }
 
