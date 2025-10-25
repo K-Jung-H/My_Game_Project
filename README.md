@@ -73,6 +73,10 @@ Scene에 GameObject를 저장하는 컨테이너 역할 추가
 조명과 일정 거리 멀어지면, Range와 관계 없이, 그림자가 생성 안됨
 -> Projection 행렬 문제로 예상 되는 중
 
+Projection 문제라고 생각하는 중
+-> 그림자 구현 파이프라인 처음부터 다시 분석할 것
+	// View, Proj 행렬, ShadowMap, Composite에서 제대로 된 좌표계/연산 방식으로 행렬 사용중인지 검토하기
+
 
 +
 CSC 구현 필요
