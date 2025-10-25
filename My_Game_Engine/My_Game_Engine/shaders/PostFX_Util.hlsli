@@ -73,24 +73,24 @@ static const uint gSpotShadowBaseOffset = gCsmShadowBaseOffset + (MAX_SHADOW_CSM
 struct LightInfo
 {
     float3 position;
-    float range;
+    float nearZ;
 
     float3 direction;
-    float intensity;
+    float farZ;
 
     float3 color;
     uint type;
 
+    float intensity;
     float spotOuterCosAngle;
     float spotInnerCosAngle;
     uint castsShadow;
+
     uint lightMask;
-    
     float volumetricStrength;
     uint shadowMapStartIndex;
     uint shadowMapLength;
-    uint padding;
-    
+
     float4x4 LightViewProj[NUM_CUBE_FACES];
 };
 

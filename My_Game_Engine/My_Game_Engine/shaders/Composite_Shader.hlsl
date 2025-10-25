@@ -122,21 +122,24 @@ float3 GetCubeMapVector(float3 L_world, out uint faceIndex, out uint sliceOffset
 
 float ComputeShadow(LightInfo light, float3 world_pos)
 {
+    // 기본값: 그림자 없음(밝음)
     float shadowFactor = 1.0f;
 
+    // 그림자 비활성 시 바로 리턴
     if (light.castsShadow == 0)
-    {
         return 1.0f;
-    }
 
-    float4 shadowPosH = float4(0, 0, 0, 0);
-    float2 shadowUV = float2(0, 0);
+    float4 shadowPosH = 0;
+    float2 shadowUV = 0;
     float pixelDepth = 0;
     uint sliceIndex = 0;
 
     switch (light.type)
     {
-        case 0: // Directional (CSM)
+        // ───────────────────────────────────────────────
+        // 0. Directional Light (CSM)
+        // ───────────────────────────────────────────────
+        case 0:
         {
                 uint cascadeIndex = 0;
 
@@ -145,52 +148,63 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 pixelDepth = shadowPosH.z;
+
                 sliceIndex = light.shadowMapStartIndex + cascadeIndex;
 
-                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
+                float bias = 0.0005f;
+                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(
+                gShadowSampler,
+                float3(shadowUV, sliceIndex),
+                pixelDepth - bias
+            );
+
                 break;
             }
-        case 1: // Point
+
+        // ───────────────────────────────────────────────
+        // 1. Point Light (Omnidirectional, CubeMap)
+        // ───────────────────────────────────────────────
+        case 1:
         {
-                float3 light_pos_world = mul(float4(light.position, 1.0f), gInvView).xyz;
-                float3 lightToPixelDir = world_pos - light_pos_world;
-
-                float nearZ = 0.1f;
-                float farZ = light.range;
-            
-                float dist = max(abs(lightToPixelDir.x), max(abs(lightToPixelDir.y), abs(lightToPixelDir.z)));
-                float pixelDepth = (farZ * (dist - nearZ)) / (dist * (farZ - nearZ));
-                pixelDepth = saturate(pixelDepth);
-
-                float bias = 0.001f;
-                uint cubeIndex = (light.shadowMapStartIndex - gPointShadowBaseOffset) / 6;
-            
-                shadowFactor = gShadowMapPoint.SampleCmpLevelZero(gShadowSampler, float4(lightToPixelDir, cubeIndex), pixelDepth - bias);
-                
                 break;
             }
-        case 2: // Spot
+
+        // ───────────────────────────────────────────────
+        // 2. Spot Light (Perspective)
+        // ───────────────────────────────────────────────
+        case 2:
         {
                 shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[0]);
                 shadowPosH.xyz /= shadowPosH.w;
 
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 pixelDepth = shadowPosH.z;
-                
+
                 float bias = 0.001f;
                 sliceIndex = light.shadowMapStartIndex - gSpotShadowBaseOffset;
 
-                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth - bias);
+                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(
+                gShadowSampler,
+                float3(shadowUV, sliceIndex),
+                pixelDepth - bias
+            );
+
+            // 클리핑 처리
+                if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
+                    shadowFactor = 1.0f;
+
                 break;
             }
     }
 
+    // ───────────────────────────────────────────────
+    // Directional / Spot 은 UV 범위 체크 필수
+    // Point 는 큐브맵 샘플이라 생략
+    // ───────────────────────────────────────────────
     if (light.type != 1)
     {
         if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
-        {
             shadowFactor = 1.0f;
-        }
     }
 
     return shadowFactor;
@@ -223,7 +237,7 @@ float3 ComputeLight(
                 float3 toLight = light.position - view_pos;
                 float dist = length(toLight);
                 L = normalize(toLight);
-                float attenuation = pow(saturate(1.0 - dist / light.range), 2.0);
+                float attenuation = pow(saturate(1.0 - dist / light.farZ), 2.0);
                 radiance = light.color * light.intensity * attenuation;
                 result = PBR_Lighting(L, V, view_normal, radiance, Albedo, Metallic, Roughness);
                 break;
@@ -233,7 +247,7 @@ float3 ComputeLight(
                 float3 toLight = light.position - view_pos;
                 float dist = length(toLight);
                 L = normalize(toLight);
-                float attenuation = pow(saturate(1.0 - dist / light.range), 2.0);
+                float attenuation = pow(saturate(1.0 - dist / light.farZ), 2.0);
                 float3 lightDir = normalize(-light.direction);
                 float cosTheta = dot(L, lightDir);
                 float spotFalloff = saturate((cosTheta - light.spotOuterCosAngle) / (light.spotInnerCosAngle - light.spotOuterCosAngle + 0.0001f));
@@ -340,6 +354,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
             
             float3 light_value = ComputeLight(light, view_pos, view_normal, V, Albedo, 0, 1);
             float shadow_factor = ComputeShadow(light, world_pos);
+            
             finalColor += light_value * shadow_factor;
         }
     }

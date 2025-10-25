@@ -26,25 +26,25 @@ enum class Light_Type
 struct GPULight
 {
     XMFLOAT3 position;
-    float range;
+    float nearZ;
 
     XMFLOAT3 direction;
-    float intensity;
+    float farZ;
 
     XMFLOAT3 color;
     UINT type;
 
+    float intensity;
     float spotOuterCosAngle;
     float spotInnerCosAngle;
     UINT castsShadow;
-    UINT lightMask;
 
+    UINT lightMask;
     float volumetricStrength;
     UINT shadowMapStartIndex;
     UINT shadowMapLength;
-    UINT padding;
 
-    XMFLOAT4X4 LightViewProj[NUM_CUBE_FACES];
+    XMFLOAT4X4 LightViewProj[6];
 };
 
 class TransformComponent;

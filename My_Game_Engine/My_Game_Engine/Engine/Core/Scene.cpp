@@ -29,7 +29,7 @@ void Scene::Build()
 	//--------------------------------------------------------------------------------
 	{
 		Object* light_obj = m_pObjectManager->CreateObject("Main_Light");
-		light_obj->GetTransform()->SetPosition({ 0.0f, 100.0f, 0.0f });
+		light_obj->GetTransform()->SetPosition({ 0.0f, 30.0f, 50.0f });
 
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
@@ -46,7 +46,7 @@ void Scene::Build()
 		UINT plane_id = plane_mesh->GetId();
 
 		Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
-		plane_obj->GetTransform()->SetPosition({ 0.0f, -10.0f, 0.0f });
+		plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
 		auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
 		mesh_component->SetMesh(plane_id);
 	}
@@ -188,14 +188,16 @@ void Scene::Update_Late()
 			cp->Update();
 	}
 	
+//	m_pObjectManager->UpdateTransform_All();
+
 	for (auto lightComponent : light_list)
 	{
 		if (auto lc = lightComponent.lock())
 			lc->Update();
 	}
 
-	m_pObjectManager->UpdateTransform_All();
 
+	m_pObjectManager->UpdateTransform_All();
 
 }
 

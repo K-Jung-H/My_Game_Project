@@ -141,7 +141,8 @@ GPULight LightComponent::ToGPUData() const
     GPULight g{};
 
     g.position = mPosition;
-    g.range = mRange;
+	g.nearZ = 0.1f;
+    g.farZ = mRange;
     g.direction = mDirection;
     g.intensity = mIntensity;
     g.color = mColor;
@@ -153,6 +154,9 @@ GPULight LightComponent::ToGPUData() const
     g.volumetricStrength = mVolumetricStrength;
     g.shadowMapStartIndex = Engine::INVALID_ID;
     g.shadowMapLength = Engine::INVALID_ID;
+
+    for (int i = 0; i < 6; ++i)
+        g.LightViewProj[i] = mCachedLightViewProj[i];
 
     return g;
 }
@@ -241,34 +245,43 @@ const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraCompon
     }
     else if (lightType == Light_Type::Point)
     {
-        XMVECTOR pos = XMLoadFloat3(&mPosition);
-        XMMATRIX proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, 0.1f, mRange);
+        float nearZ = 0.1f;
+        float farZ = mRange * 1.1f;
+        const float kMaxShadowFar = 2000.0f;
+        if (farZ > kMaxShadowFar)
+            farZ = kMaxShadowFar;
 
-        XMVECTOR targets[] = {
-            XMVectorSet(1.0f, 0.0f, 0.0f, 0.0f),
-            XMVectorSet(-1.0f, 0.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, -1.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
-            XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f)
-        };
-        XMVECTOR ups[] = {
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, 0.0f, -1.0f, 0.0f),
-            XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f),
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f),
-            XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f)
+        static const XMVECTORF32 dirs[6] = {
+            {  1,  0,  0, 0 }, // +X
+            { -1,  0,  0, 0 }, // -X
+            {  0,  1,  0, 0 }, // +Y
+            {  0, -1,  0, 0 }, // -Y
+            {  0,  0,  1, 0 }, // +Z
+            {  0,  0, -1, 0 }  // -Z
         };
 
-        for (UINT i = 0; i < 6; ++i)
+        static const XMVECTORF32 ups[6] = {
+            { 0, 1, 0, 0 }, // +X
+            { 0, 1, 0, 0 }, // -X
+            { 0, 0,-1, 0 }, // +Y
+            { 0, 0, 1, 0 }, // -Y
+            { 0, 1, 0, 0 }, // +Z
+            { 0, 1, 0, 0 }  // -Z
+        };
+
+        XMVECTOR eye = XMLoadFloat3(&mPosition);
+        XMMATRIX proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, nearZ, farZ);
+
+        for (int face = 0; face < 6; ++face)
         {
-            XMMATRIX view = XMMatrixLookToLH(pos, targets[i], ups[i]);
+            XMMATRIX view = XMMatrixLookToLH(eye, dirs[face], ups[face]);
             XMMATRIX viewProj = view * proj;
-            XMStoreFloat4x4(&mCachedLightViewProj[i], XMMatrixTranspose(viewProj));
+            XMMATRIX viewProjT = XMMatrixTranspose(viewProj);
+            XMStoreFloat4x4(&mCachedLightViewProj[face], viewProjT);
         }
 
         mShadowMatrixDirty = false;
+        return mCachedLightViewProj[index];
     }
     else if (lightType == Light_Type::Directional)
     {
