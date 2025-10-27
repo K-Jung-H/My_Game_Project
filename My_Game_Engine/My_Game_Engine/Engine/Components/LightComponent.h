@@ -26,26 +26,27 @@ enum class Light_Type
 struct GPULight
 {
     XMFLOAT3 position;
-    float nearZ;
+    float intensity;
 
     XMFLOAT3 direction;
-    float farZ;
-
-    XMFLOAT3 color;
     UINT type;
 
-    float intensity;
-    float spotOuterCosAngle;
-    float spotInnerCosAngle;
+    XMFLOAT3 color;
     UINT castsShadow;
 
-    UINT lightMask;
+    float range;
+    float spotOuterCosAngle;
+    float spotInnerCosAngle;
     float volumetricStrength;
+
     UINT shadowMapStartIndex;
     UINT shadowMapLength;
+    UINT lightMask;
+    UINT padding;
 
     XMFLOAT4X4 LightViewProj[6];
 };
+
 
 class TransformComponent;
 class CameraComponent;
@@ -88,7 +89,7 @@ public:
     void SetIntensity(float intensity) { mIntensity = intensity; }
     float GetIntensity() const { return mIntensity; }
 
-    void SetRange(float range) { mRange = range; mShadowMatrixDirty = true; }
+    void SetRange(float range);
     float GetRange() const { return mRange; }
 
     void SetInnerAngle(float inner_angle) { mInnerAngle = inner_angle; mShadowMatrixDirty = true; }
@@ -106,6 +107,11 @@ public:
     void SetVolumetricStrength(float strength) { mVolumetricStrength = strength; }
     float GetVolumetricStrength() const { return mVolumetricStrength; }
 
+    void SetShadowMapNear(float nearZ);
+    void SetShadowMapFar(float farZ);
+    float GetShadowMapNear() const { return shadow_nearZ; }
+    float GetShadowMapFar()  const { return shadow_farZ; }
+
     virtual void Update();
 
     GPULight ToGPUData() const;
@@ -114,20 +120,26 @@ protected:
     std::weak_ptr<TransformComponent> mTransform;
 	Light_Type lightType = Light_Type::Point;
 
+    XMFLOAT3 mPosition = { 0, 0, 0 };
+    XMFLOAT3 mDirection = { 0, -1, 0 };
+
+
     XMFLOAT3 mColor = { 1.0f, 1.0f, 1.0f };
     float mIntensity = 10.0f;
     float mRange = 1000.0f;
     float mInnerAngle = XM_PIDIV4;
     float mOuterAngle = XM_PIDIV2;
-    bool mCastsShadow = true;
-
-    XMFLOAT3 mPosition = { 0, 0, 0 };
-    XMFLOAT3 mDirection = { 0, -1, 0 };
 
     UINT mLightMask = 0xFFFFFFFF;
     float mVolumetricStrength = 1.0f;
 
+
+    bool mCastsShadow = true;
+	float shadow_nearZ = 0.1f;
+	float shadow_farZ = 1000.0f;
+
     bool mShadowMatrixDirty = true;
-    XMFLOAT4X4 mCachedLightViewProj[NUM_CUBE_FACES];
     bool mCsmMatrixDirty = true;
+    
+    XMFLOAT4X4 mCachedLightViewProj[NUM_CUBE_FACES];
 };

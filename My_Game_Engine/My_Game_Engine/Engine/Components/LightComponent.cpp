@@ -53,19 +53,26 @@ D3D12_RECT LightComponent::Get_ShadowMapScissorRect(Light_Type type)
 
 
 LightComponent::LightComponent()
+    : lightType(Light_Type::Point)
+    , mPosition(0.0f, 0.0f, 0.0f)
+    , mDirection(0.0f, -1.0f, 0.0f)
+    , mColor(1.0f, 1.0f, 1.0f)
+    , mIntensity(10.0f)
+    , mRange(1000.0f)
+    , mInnerAngle(XM_PIDIV4)
+    , mOuterAngle(XM_PIDIV2)
+    , mLightMask(0xFFFFFFFF)
+    , mVolumetricStrength(1.0f)
+    , mCastsShadow(true)
+    , shadow_nearZ(10.0f)
+    , shadow_farZ(1000.0f)
+    , mShadowMatrixDirty(true)
+    , mCsmMatrixDirty(true)
 {
-    XMFLOAT3 mColor = { 1.0f, 1.0f, 1.0f };
-    float mIntensity = 10.0f;
-    float mRange = 1000.0f;
-    float mInnerAngle = XM_PIDIV4;
-    float mOuterAngle = XM_PIDIV2;
-    bool mCastsShadow = false;
-
-    XMFLOAT3 mPosition = { 0, 0, 0 };
-    XMFLOAT3 mDirection = { 0, -1, 0 };
-
-    UINT mLightMask = 0xFFFFFFFF;
-    float mVolumetricStrength = 1.0f;
+    for (UINT i = 0; i < NUM_CUBE_FACES; ++i)
+    {
+        XMStoreFloat4x4(&mCachedLightViewProj[i], XMMatrixIdentity());
+    }
 }
 
 
@@ -133,33 +140,126 @@ void LightComponent::FromJSON(const rapidjson::Value& val)
     if (val.HasMember("LightMask"))           mLightMask = val["LightMask"].GetUint();
 }
 
-
-
-
 GPULight LightComponent::ToGPUData() const
 {
     GPULight g{};
 
     g.position = mPosition;
-	g.nearZ = 0.1f;
-    g.farZ = mRange;
     g.direction = mDirection;
     g.intensity = mIntensity;
     g.color = mColor;
-    g.spotOuterCosAngle = cosf(mOuterAngle / 2.0f);
-    g.spotInnerCosAngle = cosf(mInnerAngle / 2.0f);
     g.type = static_cast<UINT>(lightType);
     g.castsShadow = mCastsShadow ? 1u : 0u;
-    g.lightMask = mLightMask;
+
+    g.range = mRange;
+    g.spotOuterCosAngle = cosf(mOuterAngle * 0.5f);
+    g.spotInnerCosAngle = cosf(mInnerAngle * 0.5f);
     g.volumetricStrength = mVolumetricStrength;
+
     g.shadowMapStartIndex = Engine::INVALID_ID;
     g.shadowMapLength = Engine::INVALID_ID;
+    g.lightMask = mLightMask;
+    g.padding = 0;
 
     for (int i = 0; i < 6; ++i)
         g.LightViewProj[i] = mCachedLightViewProj[i];
 
     return g;
 }
+
+
+void LightComponent::Update()
+{
+    if (auto tf = mTransform.lock())
+    {
+        mPosition = tf->GetPosition();
+        if (tf->GetUpdateFlag())
+        {
+            mShadowMatrixDirty = true;
+            mCsmMatrixDirty = true;
+        }
+    }
+    else
+    {
+        if (mOwner)
+            mTransform = mOwner->GetTransform();
+        else
+            throw std::runtime_error("Failed to Find Light's Transform");
+    }
+}
+
+const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index)
+{
+    if (lightType != Light_Type::Directional && !mShadowMatrixDirty)
+        return mCachedLightViewProj[index];
+
+    if (lightType == Light_Type::Directional && !mCsmMatrixDirty)
+        return mCachedLightViewProj[index];
+
+    if (lightType == Light_Type::Spot)
+    {
+        XMVECTOR pos = XMLoadFloat3(&mPosition);
+        XMVECTOR dir = XMLoadFloat3(&mDirection);
+        XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+        if (abs(XMVectorGetY(dir)) > 0.99f)
+            up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
+
+        XMMATRIX view = XMMatrixLookToLH(pos, dir, up);
+        XMMATRIX proj = XMMatrixPerspectiveFovLH(mOuterAngle, 1.0f, shadow_farZ, shadow_nearZ);
+
+        XMStoreFloat4x4(&mCachedLightViewProj[0], XMMatrixTranspose(view * proj));
+        mShadowMatrixDirty = false;
+    }
+    else if (lightType == Light_Type::Point)
+    {
+        const float nearZ = shadow_nearZ;
+        float farZ = shadow_farZ;
+
+        static const XMVECTORF32 dirs[6] = {
+            {  1,  0,  0, 0 },
+            { -1,  0,  0, 0 },
+            {  0,  1,  0, 0 },
+            {  0, -1,  0, 0 },
+            {  0,  0,  1, 0 },
+            {  0,  0, -1, 0 }
+        };
+
+        static const XMVECTORF32 ups[6] = {
+            { 0, 1, 0, 0 },
+            { 0, 1, 0, 0 },
+            { 0, 0,-1, 0 },
+            { 0, 0, 1, 0 },
+            { 0, 1, 0, 0 },
+            { 0, 1, 0, 0 }
+        };
+
+        XMVECTOR eye = XMLoadFloat3(&mPosition);
+        XMMATRIX proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, farZ, nearZ);
+
+        for (int face = 0; face < 6; ++face)
+        {
+            XMMATRIX view = XMMatrixLookToLH(eye, dirs[face], ups[face]);
+            XMMATRIX vp = XMMatrixTranspose(view * proj);
+            XMStoreFloat4x4(&mCachedLightViewProj[face], vp);
+        }
+
+        mShadowMatrixDirty = false;
+        return mCachedLightViewProj[index];
+    }
+    else if (lightType == Light_Type::Directional)
+    {
+        if (mainCamera && index < NUM_CSM_CASCADES)
+        {
+            XMMATRIX viewProj = XMMatrixIdentity();
+            XMStoreFloat4x4(&mCachedLightViewProj[index], XMMatrixTranspose(viewProj));
+        }
+        if (index == NUM_CSM_CASCADES - 1)
+            mCsmMatrixDirty = false;
+    }
+
+    return mCachedLightViewProj[index];
+}
+
 
 const XMFLOAT3& LightComponent::GetPosition()
 {
@@ -187,7 +287,6 @@ void LightComponent::SetPosition(const XMFLOAT3& pos)
     mShadowMatrixDirty = true;
 }
 
-
 void LightComponent::SetDirection(const XMFLOAT3& dir)
 {
     XMVECTOR v = XMVector3Normalize(XMLoadFloat3(&dir));
@@ -196,103 +295,26 @@ void LightComponent::SetDirection(const XMFLOAT3& dir)
     mShadowMatrixDirty = true;
 }
 
-void LightComponent::Update()
+void LightComponent::SetShadowMapNear(float nearZ)
 {
-    if (auto tf = mTransform.lock())
-    {
-		mPosition = tf->GetPosition();
-        if (tf->GetUpdateFlag())
-        {
-            mShadowMatrixDirty = true;
-            mCsmMatrixDirty = true;
-        }
-    }
-    else
-    {
-        if (mOwner)
-            mTransform = mOwner->GetTransform();
-        else
-            throw std::runtime_error("Failed to Find Light's Transform");
-    }
+    nearZ = std::max(0.01f, nearZ);
+    if (nearZ >= shadow_farZ - 0.1f)
+        nearZ = shadow_farZ * 0.1f; 
+    shadow_nearZ = nearZ;
+    mShadowMatrixDirty = true;
 }
 
-const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index)
+void LightComponent::SetShadowMapFar(float farZ)
 {
-    if (lightType != Light_Type::Directional && !mShadowMatrixDirty)
-    {
-        return mCachedLightViewProj[index];
-    }
+    farZ = std::max(farZ, shadow_nearZ + 1.0f);
+    if (farZ / shadow_nearZ > 10000.0f)
+        farZ = shadow_nearZ * 10000.0f; 
+    shadow_farZ = farZ;
+    mShadowMatrixDirty = true;
+}
 
-    if (lightType == Light_Type::Directional && !mCsmMatrixDirty)
-    {
-        return mCachedLightViewProj[index];
-    }
-
-    if (lightType == Light_Type::Spot)
-    {
-        XMVECTOR pos = XMLoadFloat3(&mPosition);
-        XMVECTOR dir = XMLoadFloat3(&mDirection);
-        XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-        if (abs(XMVectorGetY(dir)) > 0.99f)
-        {
-            up = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f); 
-        }
-        XMMATRIX view = XMMatrixLookToLH(pos, dir, up);
-        XMMATRIX proj = XMMatrixPerspectiveFovLH(mOuterAngle, 1.0f, 0.1f, mRange);
-        XMStoreFloat4x4(&mCachedLightViewProj[0], XMMatrixTranspose(view * proj));
-
-        mShadowMatrixDirty = false;
-    }
-    else if (lightType == Light_Type::Point)
-    {
-        float nearZ = 0.1f;
-        float farZ = mRange * 1.1f;
-        const float kMaxShadowFar = 2000.0f;
-        if (farZ > kMaxShadowFar)
-            farZ = kMaxShadowFar;
-
-        static const XMVECTORF32 dirs[6] = {
-            {  1,  0,  0, 0 }, // +X
-            { -1,  0,  0, 0 }, // -X
-            {  0,  1,  0, 0 }, // +Y
-            {  0, -1,  0, 0 }, // -Y
-            {  0,  0,  1, 0 }, // +Z
-            {  0,  0, -1, 0 }  // -Z
-        };
-
-        static const XMVECTORF32 ups[6] = {
-            { 0, 1, 0, 0 }, // +X
-            { 0, 1, 0, 0 }, // -X
-            { 0, 0,-1, 0 }, // +Y
-            { 0, 0, 1, 0 }, // -Y
-            { 0, 1, 0, 0 }, // +Z
-            { 0, 1, 0, 0 }  // -Z
-        };
-
-        XMVECTOR eye = XMLoadFloat3(&mPosition);
-        XMMATRIX proj = XMMatrixPerspectiveFovLH(XM_PIDIV2, 1.0f, nearZ, farZ);
-
-        for (int face = 0; face < 6; ++face)
-        {
-            XMMATRIX view = XMMatrixLookToLH(eye, dirs[face], ups[face]);
-            XMMATRIX viewProj = view * proj;
-            XMMATRIX viewProjT = XMMatrixTranspose(viewProj);
-            XMStoreFloat4x4(&mCachedLightViewProj[face], viewProjT);
-        }
-
-        mShadowMatrixDirty = false;
-        return mCachedLightViewProj[index];
-    }
-    else if (lightType == Light_Type::Directional)
-    {
-        if (mainCamera && index < NUM_CSM_CASCADES)
-        {
-            XMMATRIX viewProj = XMMatrixIdentity();
-            XMStoreFloat4x4(&mCachedLightViewProj[index], XMMatrixTranspose(viewProj));
-        }
-        if (index == 4 - 1)
-            mCsmMatrixDirty = false;
-    }
-
-    return mCachedLightViewProj[index];
+void LightComponent::SetRange(float range)
+{
+    mRange = std::max(1.0f, range);
+    mShadowMatrixDirty = true;
 }

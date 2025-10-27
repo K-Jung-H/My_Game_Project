@@ -55,9 +55,10 @@ D3D12_RASTERIZER_DESC PipelineDescFactory::GetRasterizer(RasterizerPreset preset
         desc.CullMode = D3D12_CULL_MODE_NONE;
         break;
     case RasterizerPreset::Shadow:
-        desc.DepthBias = 8000;
-		desc.DepthBiasClamp = 0.0f;
-        desc.SlopeScaledDepthBias = 1.5f;
+		desc.DepthBias = -100; // Reverse-Z
+        desc.DepthBiasClamp = 0.0f; // Reverse-Z
+        desc.SlopeScaledDepthBias = -1.5f; // Reverse-Z
+        break;
         break;
     default: break;
     }
@@ -119,7 +120,8 @@ D3D12_DEPTH_STENCIL_DESC PipelineDescFactory::GetDepth(DepthPreset preset)
     D3D12_DEPTH_STENCIL_DESC desc = {};
     desc.DepthEnable = TRUE;
     desc.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-    desc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	desc.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL; // Use greater equal for reversed Z
+//    desc.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 
     switch (preset)
     {
@@ -144,7 +146,7 @@ RenderTargetDesc PipelineDescFactory::GetRenderTargetDesc(RenderTargetPreset pre
     case RenderTargetPreset::OnePass:
         rt.numRenderTargets = 1;
         rt.rtvFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-        rt.dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        rt.dsvFormat = DXGI_FORMAT_D32_FLOAT;
         rt.sampleDesc = { 1, 0 };
         break;
 
@@ -153,7 +155,7 @@ RenderTargetDesc PipelineDescFactory::GetRenderTargetDesc(RenderTargetPreset pre
         rt.rtvFormats[0] = DXGI_FORMAT_R16G16B16A16_FLOAT; 
         rt.rtvFormats[1] = DXGI_FORMAT_R16G16B16A16_FLOAT; 
         rt.rtvFormats[2] = DXGI_FORMAT_R16G16B16A16_FLOAT;
-        rt.dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        rt.dsvFormat = DXGI_FORMAT_D32_FLOAT;
         rt.sampleDesc = { 1, 0 };
         break;
 

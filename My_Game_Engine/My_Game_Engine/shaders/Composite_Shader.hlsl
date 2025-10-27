@@ -180,13 +180,12 @@ float ComputeShadow(LightInfo light, float3 world_pos)
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 pixelDepth = shadowPosH.z;
 
-                float bias = 0.001f;
                 sliceIndex = light.shadowMapStartIndex - gSpotShadowBaseOffset;
 
                 shadowFactor = gShadowMapSpot.SampleCmpLevelZero(
                 gShadowSampler,
                 float3(shadowUV, sliceIndex),
-                pixelDepth - bias
+                pixelDepth
             );
 
             // 클리핑 처리
@@ -237,7 +236,7 @@ float3 ComputeLight(
                 float3 toLight = light.position - view_pos;
                 float dist = length(toLight);
                 L = normalize(toLight);
-                float attenuation = pow(saturate(1.0 - dist / light.farZ), 2.0);
+                float attenuation = pow(saturate(1.0 - dist / light.range), 2.0);
                 radiance = light.color * light.intensity * attenuation;
                 result = PBR_Lighting(L, V, view_normal, radiance, Albedo, Metallic, Roughness);
                 break;
@@ -247,7 +246,7 @@ float3 ComputeLight(
                 float3 toLight = light.position - view_pos;
                 float dist = length(toLight);
                 L = normalize(toLight);
-                float attenuation = pow(saturate(1.0 - dist / light.farZ), 2.0);
+                float attenuation = pow(saturate(1.0 - dist / light.range), 2.0);
                 float3 lightDir = normalize(-light.direction);
                 float cosTheta = dot(L, lightDir);
                 float spotFalloff = saturate((cosTheta - light.spotOuterCosAngle) / (light.spotInnerCosAngle - light.spotOuterCosAngle + 0.0001f));
@@ -305,11 +304,20 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         finalColor = Roughness.xxx;
     else if (gRenderFlags & RENDER_DEBUG_METALLIC)
         finalColor = Metallic.xxx;
+
+    else if (gRenderFlags & RENDER_DEBUG_DEPTH_SCREEN)
+    {
+        finalColor = (1.0f - Depth).xxx;
+    }
     else if (gRenderFlags & RENDER_DEBUG_DEPTH_VIEW)
     {
-        float vDepth = LinearizeDepth(Depth, gNearZ, gFarZ);
-        finalColor = saturate(vDepth / gFarZ).xxx;
+        finalColor = saturate((1.0f - viewDepth) / gFarZ).xxx;
     }
+    else if (gRenderFlags & RENDER_DEBUG_DEPTH_WORLD)
+    {
+        float3 world_pos = ReconstructWorldPos(input.uv, Depth);
+        finalColor = normalize(world_pos.xyz) * 0.5f + 0.5f;
+    }   
     else if (gRenderFlags & RENDER_DEBUG_CLUSTER_ID)
     {
         finalColor = float3(
@@ -320,24 +328,20 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 
     else if (gRenderFlags & RENDER_DEBUG_LIGHT_COUNT)
     {
-        float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
-        finalColor = cubeDepthViz.xxx;
+        //float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
+        //finalColor = cubeDepthViz.xxx;
 
         //float shadowDepth = gShadowMapCSM.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
-        //float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
-        //float d = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0)).r;
+        float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
         
-        //float nearZ = 0.1f;
-        //float farZ = 1000.0f;
-        //float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
-        //float linDepth = (nearZ * farZ) / (farZ - shadowDepth * (farZ - nearZ));
-    
-        //return float4((linDepth / farZ).xxx, 1.0f);
-       
+        shadowDepth = 1.0f - shadowDepth; // [Reverse-Z]
+        return float4(shadowDepth.xxx, 1.0f);
+        
+
     }
     else
     { 
-        float3 world_pos = ReconstructWorldPos(input.uv, viewDepth);
+        float3 world_pos = ReconstructWorldPos(input.uv, Depth);
         float3 view_pos = mul(float4(world_pos, 1.0f), gView).xyz;
         float3 V = normalize(-view_pos);
         
@@ -352,7 +356,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
             uint lightIndex = ClusterLightIndicesSRV[lightOffset + i];
             LightInfo light = LightInput[lightIndex];
             
-            float3 light_value = ComputeLight(light, view_pos, view_normal, V, Albedo, 0, 1);
+            float3 light_value = ComputeLight(light, view_pos, view_normal, V, Albedo, Metallic, Roughness);
             float shadow_factor = ComputeShadow(light, world_pos);
             
             finalColor += light_value * shadow_factor;

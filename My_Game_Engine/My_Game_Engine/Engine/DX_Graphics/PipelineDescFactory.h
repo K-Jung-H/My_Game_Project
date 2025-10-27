@@ -40,7 +40,7 @@ struct RenderTargetDesc
 {
     UINT numRenderTargets = 1;
     DXGI_FORMAT rtvFormats[8] = { DXGI_FORMAT_R8G8B8A8_UNORM };
-    DXGI_FORMAT dsvFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    DXGI_FORMAT dsvFormat = DXGI_FORMAT_D32_FLOAT;
     DXGI_SAMPLE_DESC sampleDesc = { 1, 0 };
     UINT sampleMask = UINT_MAX;
 };

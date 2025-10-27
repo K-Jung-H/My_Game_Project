@@ -46,4 +46,6 @@ VS_OUT Shadow_VS(VS_IN vin)
     float4 posW = mul(float4(vin.PosL, 1.0f), World);
     vout.PosH = mul(posW, lightViewProj);
     return vout;
+    
+    
 }

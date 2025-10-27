@@ -189,7 +189,7 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
 
         if (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
         {
-            clearValue.DepthStencil.Depth = 1.0f;
+			clearValue.DepthStencil.Depth = 0.0f; // Reverse-Z
             clearValue.DepthStencil.Stencil = 0;
 
             if (desc.Format == DXGI_FORMAT_R32_TYPELESS)

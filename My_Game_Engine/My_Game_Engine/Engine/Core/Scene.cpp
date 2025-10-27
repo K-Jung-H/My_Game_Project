@@ -29,10 +29,11 @@ void Scene::Build()
 	//--------------------------------------------------------------------------------
 	{
 		Object* light_obj = m_pObjectManager->CreateObject("Main_Light");
-		light_obj->GetTransform()->SetPosition({ 0.0f, 30.0f, 50.0f });
+		light_obj->GetTransform()->SetPosition({ 0.0f, 30.0f, 0.0f });
 
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
+		light_component->SetLightType(Light_Type::Spot);
 	}
 	{
 		//Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");

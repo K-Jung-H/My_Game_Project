@@ -13,25 +13,25 @@ struct ClusterBound
 struct LightInfo
 {
     float3 position;
-    float nearZ;
+    float intensity;
 
     float3 direction;
-    float farZ;
-
-    float3 color;
     uint type;
 
-    float intensity;
-    float spotOuterCosAngle;
-    float spotInnerCosAngle;
+    float3 color;
     uint castsShadow;
 
-    uint lightMask;
+    float range;
+    float spotOuterCosAngle;
+    float spotInnerCosAngle;
     float volumetricStrength;
+
     uint shadowMapStartIndex;
     uint shadowMapLength;
+    uint lightMask;
+    uint padding;
 
-    float4x4 LightViewProj[NUM_CUBE_FACES];
+    float4x4 LightViewProj[6];
 };
 
 
@@ -244,15 +244,15 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
                     float3 closestPoint = clamp(light.position, boxMin, boxMax);
                     float3 delta = light.position - closestPoint;
                     float distSq = dot(delta, delta);
-                    intersects = (distSq <= light.farZ * light.farZ);
+                    intersects = (distSq <= light.range * light.range);
                     break;
                 }
 
             // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
             case 2: // Spot Light (Cone vs AABB)
             {
-                    float coneRadius = light.farZ * tan(acos(light.spotOuterCosAngle));
-                    float3 coneEnd = light.position + light.direction * light.farZ;
+                    float coneRadius = light.range * tan(acos(light.spotOuterCosAngle));
+                    float3 coneEnd = light.position + light.direction * light.range;
 
                     float3 sphereCenter = (light.position + coneEnd) * 0.5f;
                     float sphereRadius = length(coneEnd - light.position) * 0.5f + coneRadius * 0.5f;

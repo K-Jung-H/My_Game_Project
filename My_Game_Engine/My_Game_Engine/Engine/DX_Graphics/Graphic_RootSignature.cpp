@@ -258,7 +258,7 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreatePostFX(ID3D12Device* pd3
         D3D12_TEXTURE_ADDRESS_MODE_BORDER,
         0.0f,
         16,
-        D3D12_COMPARISON_FUNC_LESS_EQUAL,
+        D3D12_COMPARISON_FUNC_GREATER_EQUAL,
         D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE
     );
 

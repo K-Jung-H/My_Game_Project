@@ -189,7 +189,7 @@ void CameraComponent::Update()
             if (mViewport.Height > 0)
             {
                 float aspect = mViewport.Width / mViewport.Height;
-                XMMATRIX proj = XMMatrixPerspectiveFovLH(mFovY, aspect, mNearZ, mFarZ);
+                XMMATRIX proj = XMMatrixPerspectiveFovLH(mFovY, aspect, mFarZ, mNearZ);
                 XMStoreFloat4x4(&mf4x4Projection, proj);
                 mProjDirty = false;
             }

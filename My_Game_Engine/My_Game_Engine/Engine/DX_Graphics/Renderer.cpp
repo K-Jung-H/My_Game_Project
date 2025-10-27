@@ -517,7 +517,7 @@ bool DX12_Renderer::CreateGBufferSRVs(FrameResource& fr)
         dSrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         dSrv.Texture2D.MostDetailedMip = 0;
         dSrv.Texture2D.MipLevels = 1;
-        dSrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        dSrv.Format = DXGI_FORMAT_R32_FLOAT;
 
         UINT dslot = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
         fr.DepthBufferSrvSlot_ID = dslot;
@@ -534,13 +534,13 @@ bool DX12_Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT he
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
-    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R24G8_TYPELESS, width, height, 1, 1);
+    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, width, height, 1, 1);
     depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
     // Clear value for depth/stencil
     D3D12_CLEAR_VALUE clearValue = {};
-    clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    clearValue.DepthStencil.Depth = 1.0f;
+    clearValue.Format = DXGI_FORMAT_D32_FLOAT;
+    clearValue.DepthStencil.Depth = 0.0f;
     clearValue.DepthStencil.Stencil = 0;
 
     if (FAILED(mDevice->CreateCommittedResource(
@@ -563,7 +563,7 @@ bool DX12_Renderer::CreateDSV(FrameResource& fr)
     fr.DsvSlot_ID = slot;
 
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+    dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), &dsvDesc, mDsvManager->GetCpuHandle(slot));
 
@@ -1643,7 +1643,7 @@ void DX12_Renderer::ClearGBuffer()
         mCommandList->ClearRenderTargetView(rtvs[g], cfg.clearColor, 0, nullptr);
     }
 
-    mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
 
     for (auto& target : fr.gbuffer.targets)
         fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_COMMON);
@@ -1905,7 +1905,7 @@ void DX12_Renderer::ShadowPass()
 
             auto dsv = mDsvManager->GetCpuHandle(lr.PointShadow_DSVs[dsvIndex]);
             mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
-            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
 
             mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
@@ -1938,7 +1938,7 @@ void DX12_Renderer::ShadowPass()
 
             auto dsv = mDsvManager->GetCpuHandle(lr.CsmShadow_DSVs[dsvIndex]);
             mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
-            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
 
             mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
@@ -1965,7 +1965,7 @@ void DX12_Renderer::ShadowPass()
 
         auto dsv = mDsvManager->GetCpuHandle(lr.SpotShadow_DSVs[i]);
         mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
-        mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+        mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
 
         mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
@@ -2504,7 +2504,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Separator();
             ImGui::Indent();
 
-            // Light Type ¼±ÅÃ
+            // --- Light Type ---
             Light_Type type = light->GetLightType();
             const char* typeNames[] = { "Directional", "Point", "Spot" };
             int currentType = static_cast<int>(type);
@@ -2512,6 +2512,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
                 light->SetLightType(static_cast<Light_Type>(currentType));
 
+            // --- Color & Intensity ---
             XMFLOAT3 color = light->GetColor();
             float intensity = light->GetIntensity();
 
@@ -2520,25 +2521,27 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
                 light->SetIntensity(intensity);
 
+            // --- Direction ---
             if (type == Light_Type::Directional || type == Light_Type::Spot)
             {
                 XMFLOAT3 direction = light->GetDirection();
                 if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
                 {
-                    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f) 
-                        direction.y = -1.0f; 
-                    
+                    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)
+                        direction.y = -1.0f;
                     light->SetDirection(direction);
                 }
             }
 
+            // --- Range ---
             if (type == Light_Type::Point || type == Light_Type::Spot)
             {
                 float range = light->GetRange();
-                if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 1000.0f))
+                if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 10000.0f))
                     light->SetRange(range);
             }
 
+            // --- Spot Angles ---
             if (type == Light_Type::Spot)
             {
                 float inner = XMConvertToDegrees(light->GetInnerAngle());
@@ -2549,14 +2552,28 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     light->SetOuterAngle(XMConvertToRadians(outer));
             }
 
+            // --- Shadow Settings ---
             bool castShadow = light->CastsShadow();
             if (ImGui::Checkbox("Cast Shadow", &castShadow))
                 light->SetCastShadow(castShadow);
+
+            if (castShadow)
+            {
+                float shadowNear = light->GetShadowMapNear();
+                float shadowFar = light->GetShadowMapFar();
+
+                if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, shadowFar - 1.0f))
+                    light->SetShadowMapNear(shadowNear);
+
+                if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, shadowNear + 1.0f, 20000.0f))
+                    light->SetShadowMapFar(shadowFar);
+            }
 
             ImGui::Unindent();
         }
     }
     break;
+
 
 
 

@@ -73,26 +73,27 @@ static const uint gSpotShadowBaseOffset = gCsmShadowBaseOffset + (MAX_SHADOW_CSM
 struct LightInfo
 {
     float3 position;
-    float nearZ;
+    float intensity;
 
     float3 direction;
-    float farZ;
-
-    float3 color;
     uint type;
 
-    float intensity;
-    float spotOuterCosAngle;
-    float spotInnerCosAngle;
+    float3 color;
     uint castsShadow;
 
-    uint lightMask;
+    float range;
+    float spotOuterCosAngle;
+    float spotInnerCosAngle;
     float volumetricStrength;
+
     uint shadowMapStartIndex;
     uint shadowMapLength;
+    uint lightMask;
+    uint padding;
 
-    float4x4 LightViewProj[NUM_CUBE_FACES];
+    float4x4 LightViewProj[6];
 };
+
 
 struct ClusterLightMeta
 {
@@ -144,22 +145,20 @@ VS_SCREEN_OUT FullscreenQuad_VS(uint vid : SV_VertexID)
 // === 선형화 함수 (View-space Depth 복원) ===
 float LinearizeDepth(float depth, float nearZ, float farZ)
 {
-    float z = depth * 2.0f - 1.0f; // [0,1] → [-1,1]
-    return (2.0f * nearZ * farZ) / (farZ + nearZ - z * (farZ - nearZ));
+    return (nearZ * farZ) / (depth * (farZ - nearZ) + nearZ);
 }
 
-float3 ReconstructWorldPos(float2 uv, float linearViewZ)
+
+float3 ReconstructWorldPos(float2 uv, float depth)
 {
-    float2 ndcXY = uv * 2.0f - 1.0f;
-    ndcXY.y = -ndcXY.y;
-    float viewSpaceX = ndcXY.x * gInvProj._11 * linearViewZ;
-    float viewSpaceY = ndcXY.y * gInvProj._22 * linearViewZ;
+    float2 ndc = float2(uv.x * 2.0f - 1.0f, (1.0f - uv.y) * 2.0f - 1.0f);
 
-    float4 viewSpacePos = float4(viewSpaceX, viewSpaceY, linearViewZ, 1.0f);
+    float4 clipPos = float4(ndc, depth, 1.0f);
 
-    float4 worldPos = mul(viewSpacePos, gInvView);
-
-    return worldPos.xyz / worldPos.w;
+    float4 viewPos = mul(clipPos, gInvProj);
+    viewPos /= viewPos.w;
+    float4 worldPos = mul(viewPos, gInvView);
+    return worldPos.xyz;
 }
 
 float3 Heatmap(float value)
