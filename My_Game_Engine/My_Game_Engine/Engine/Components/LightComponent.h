@@ -71,7 +71,11 @@ public:
     void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
     std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 
-    const XMFLOAT4X4& GetShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index = 0);
+    const XMFLOAT4X4& UpdateShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index = 0);
+    XMMATRIX ComputeDirectionalViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT cascadeIndex);
+
+    const XMFLOAT4X4& GetShadowViewProj(UINT index) const;
+
 
     void SetPosition(const XMFLOAT3& pos);
     const XMFLOAT3& GetPosition();
@@ -112,6 +116,9 @@ public:
     float GetShadowMapNear() const { return shadow_nearZ; }
     float GetShadowMapFar()  const { return shadow_farZ; }
 
+	void SetCascadeLambda(float lambda) { cascadeLambda = lambda; }
+	float GetCascadeLambda() const { return cascadeLambda; }
+
     virtual void Update();
 
     GPULight ToGPUData() const;
@@ -137,6 +144,8 @@ protected:
     bool mCastsShadow = true;
 	float shadow_nearZ = 0.1f;
 	float shadow_farZ = 1000.0f;
+
+	float cascadeLambda = 0.5f;
 
     bool mShadowMatrixDirty = true;
     bool mCsmMatrixDirty = true;

@@ -188,7 +188,7 @@ void LightComponent::Update()
     }
 }
 
-const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index)
+const XMFLOAT4X4& LightComponent::UpdateShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index)
 {
     if (lightType != Light_Type::Directional && !mShadowMatrixDirty)
         return mCachedLightViewProj[index];
@@ -196,7 +196,18 @@ const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraCompon
     if (lightType == Light_Type::Directional && !mCsmMatrixDirty)
         return mCachedLightViewProj[index];
 
-    if (lightType == Light_Type::Spot)
+    if (lightType == Light_Type::Directional)
+    {
+        XMMATRIX lightViewProj = ComputeDirectionalViewProj(mainCamera, index);
+
+        XMStoreFloat4x4(&mCachedLightViewProj[index], XMMatrixTranspose(lightViewProj));
+
+        if (index == NUM_CSM_CASCADES - 1)
+            mCsmMatrixDirty = false;
+
+        return mCachedLightViewProj[index];
+    }
+    else if (lightType == Light_Type::Spot)
     {
         XMVECTOR pos = XMLoadFloat3(&mPosition);
         XMVECTOR dir = XMLoadFloat3(&mDirection);
@@ -246,20 +257,105 @@ const XMFLOAT4X4& LightComponent::GetShadowViewProj(std::shared_ptr<CameraCompon
         mShadowMatrixDirty = false;
         return mCachedLightViewProj[index];
     }
-    else if (lightType == Light_Type::Directional)
-    {
-        if (mainCamera && index < NUM_CSM_CASCADES)
-        {
-            XMMATRIX viewProj = XMMatrixIdentity();
-            XMStoreFloat4x4(&mCachedLightViewProj[index], XMMatrixTranspose(viewProj));
-        }
-        if (index == NUM_CSM_CASCADES - 1)
-            mCsmMatrixDirty = false;
-    }
+
 
     return mCachedLightViewProj[index];
 }
 
+XMMATRIX LightComponent::ComputeDirectionalViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT cascadeIndex)
+{
+    float nearZ = mainCamera->GetNearZ();
+    float farZ = mainCamera->GetFarZ();
+    float fovY = mainCamera->GetFovY();
+    float aspect = mainCamera->GetAspectRatio();
+
+    float lambda = cascadeLambda;
+    float splits[NUM_CSM_CASCADES + 1];
+    splits[0] = nearZ;
+
+    for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+    {
+        float p = (i + 1) / float(NUM_CSM_CASCADES);
+        float logSplit = nearZ * powf(farZ / nearZ, p);
+        float uniformSplit = nearZ + (farZ - nearZ) * p;
+        splits[i + 1] = logSplit * lambda + uniformSplit * (1.0f - lambda);
+    }
+
+    float cascadeNear = splits[cascadeIndex];
+    float cascadeFar = splits[cascadeIndex + 1];
+
+
+    XMMATRIX camView = mainCamera->GetViewMatrix();
+	XMMATRIX camProj = XMMatrixPerspectiveFovLH(fovY, aspect, cascadeFar, cascadeNear); // Reverse Z
+    XMMATRIX invCamViewProj = XMMatrixInverse(nullptr, camView * camProj);
+
+    XMVECTOR ndcCorners[8] =
+    {
+        { -1,  1, 0, 1 }, { 1,  1, 0, 1 },
+        {  1, -1, 0, 1 }, { -1, -1, 0, 1 },
+        { -1,  1, 1, 1 }, { 1,  1, 1, 1 },
+        {  1, -1, 1, 1 }, { -1, -1, 1, 1 }
+    };
+
+    XMVECTOR frustumCornersWS[8];
+    for (int i = 0; i < 8; ++i)
+    {
+        XMVECTOR corner = XMVector4Transform(ndcCorners[i], invCamViewProj);
+        frustumCornersWS[i] = corner / XMVectorSplatW(corner);
+    }
+
+    XMVECTOR lightDir = XMVector3Normalize(XMLoadFloat3(&mDirection));
+    XMVECTOR up = fabsf(XMVectorGetY(lightDir)) > 0.99f
+        ? XMVectorSet(0, 0, 1, 0)
+        : XMVectorSet(0, 1, 0, 0);
+
+    XMVECTOR center = XMVectorZero();
+
+    for (int i = 0; i < 8; ++i)
+        center += frustumCornersWS[i];
+    center /= 8.0f;
+
+    XMVECTOR lightPos = center - lightDir * 500.0f;
+    XMMATRIX lightView = XMMatrixLookToLH(center - lightDir * 500.0f, lightDir, up);
+
+
+
+    XMVECTOR minPt = XMVectorSet(+FLT_MAX, +FLT_MAX, +FLT_MAX, 0);
+    XMVECTOR maxPt = XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 0);
+
+    for (int i = 0; i < 8; ++i)
+    {
+        XMVECTOR cornerLS = XMVector3TransformCoord(frustumCornersWS[i], lightView);
+        minPt = XMVectorMin(minPt, cornerLS);
+        maxPt = XMVectorMax(maxPt, cornerLS);
+    }
+
+
+    float padX = (XMVectorGetX(maxPt) - XMVectorGetX(minPt)) * 0.05f;
+    float padY = (XMVectorGetY(maxPt) - XMVectorGetY(minPt)) * 0.05f;
+    float padZ = (XMVectorGetZ(maxPt) - XMVectorGetZ(minPt)) * 0.1f;
+    minPt -= XMVectorSet(padX, padY, padZ, 0);
+    maxPt += XMVectorSet(padX, padY, padZ, 0);
+
+    float minX = XMVectorGetX(minPt);
+    float maxX = XMVectorGetX(maxPt);
+    float minY = XMVectorGetY(minPt);
+    float maxY = XMVectorGetY(maxPt);
+    float minZ = XMVectorGetZ(minPt);
+    float maxZ = XMVectorGetZ(maxPt);
+
+
+    XMMATRIX lightProj = XMMatrixOrthographicOffCenterLH(minX, maxX, minY, maxY, maxZ, minZ);
+
+
+    return lightView * lightProj;
+}
+
+const XMFLOAT4X4& LightComponent::GetShadowViewProj(UINT index) const
+{
+    assert(index < NUM_CSM_CASCADES);
+    return mCachedLightViewProj[index];
+}
 
 const XMFLOAT3& LightComponent::GetPosition()
 {

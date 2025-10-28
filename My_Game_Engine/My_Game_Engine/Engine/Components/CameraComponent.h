@@ -84,7 +84,7 @@ public:
     float GetFovY() { return mFovY; }
     float GetNearZ() { return mNearZ; }
     float GetFarZ() { return mFarZ; }
-
+	float GetAspectRatio() const { return mViewport.Width / mViewport.Height; }
 
     XMMATRIX GetViewMatrix() const { return XMLoadFloat4x4(&mf4x4View); }
     XMMATRIX GetProjectionMatrix() const { return XMLoadFloat4x4(&mf4x4Projection); }

@@ -36,7 +36,6 @@ float3 GetCubeFaceDir(uint faceIndex, float2 localNDC)
     return normalize(dir);
 }
 
-
 float DebugPointShadowCubeFaces(float2 fullUV)
 {
     float2 tileGrid = float2(3.0f, 2.0f);
@@ -63,62 +62,39 @@ float DebugPointShadowCubeFaces(float2 fullUV)
     return (linDepth / farZ);
 }
 
-float3 GetCubeMapVector(float3 L_world, out uint faceIndex, out uint sliceOffset)
+float4 DebugCSMShadowSlices_2x2(float2 fullUV)
 {
-    float3 absL = abs(L_world);
-    float maxComp = max(absL.x, max(absL.y, absL.z));
-    float3 projVec = 0;
-    faceIndex = 0;
-    sliceOffset = 0;
+    const uint cascadeCount = NUM_CSM_CASCADES;
+    const uint lightIndex = 0;
+    const uint sliceBase = lightIndex * cascadeCount;
 
-    if (maxComp == absL.x)
+    const float2 grid = float2(2.0f, 2.0f);
+
+    uint tileX = (uint) floor(fullUV.x * grid.x);
+    uint tileY = (uint) floor(fullUV.y * grid.y);
+
+    uint cascadeIndex = tileY * 2 + tileX;
+    if (cascadeIndex >= cascadeCount)
+        return float4(0, 0, 0, 1); 
+
+    float2 localUV = frac(fullUV * grid);
+
+    uint sliceIndex = sliceBase + cascadeIndex;
+    float depth = gShadowMapCSM.Sample(gLinearSampler, float3(localUV, sliceIndex)).r;
+    depth = 1.0f - depth; // [Reverse-Z º¸Á¤]
+
+    float3 tint[4] =
     {
-        if (L_world.x > 0)
-        {
-            faceIndex = 0;
-            sliceOffset = 0;
-            projVec = float3(-L_world.z, -L_world.y, L_world.x);
-        }
-        else
-        {
-            faceIndex = 1;
-            sliceOffset = 1;
-            projVec = float3(L_world.z, -L_world.y, -L_world.x);
-        }
-    }
-    else if (maxComp == absL.y)
-    {
-        if (L_world.y > 0)
-        {
-            faceIndex = 2;
-            sliceOffset = 2;
-            projVec = float3(L_world.x, L_world.z, L_world.y);
-        }
-        else
-        {
-            faceIndex = 3;
-            sliceOffset = 3;
-            projVec = float3(L_world.x, -L_world.z, -L_world.y);
-        }
-    }
-    else // Z major axis
-    {
-        if (L_world.z > 0)
-        {
-            faceIndex = 4;
-            sliceOffset = 4;
-            projVec = float3(L_world.x, -L_world.y, L_world.z);
-        }
-        else
-        {
-            faceIndex = 5;
-            sliceOffset = 5;
-            projVec = float3(-L_world.x, -L_world.y, -L_world.z);
-        }
-    }
-    return projVec / maxComp;
+        float3(1.0, 0.2, 0.2), // 0: near
+        float3(0.2, 1.0, 0.2), // 1
+        float3(0.2, 0.4, 1.0), // 2
+        float3(1.0, 1.0, 0.2) // 3: far
+    };
+
+
+    float3 color = lerp(tint[cascadeIndex] * 0.5f, tint[cascadeIndex], depth);
+    return float4(color, 1.0f);
 }
-
 
 float ComputeShadow(LightInfo light, float3 world_pos)
 {
@@ -152,11 +128,7 @@ float ComputeShadow(LightInfo light, float3 world_pos)
                 sliceIndex = light.shadowMapStartIndex + cascadeIndex;
 
                 float bias = 0.0005f;
-                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(
-                gShadowSampler,
-                float3(shadowUV, sliceIndex),
-                pixelDepth - bias
-            );
+                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth - bias);
 
                 break;
             }
@@ -331,13 +303,13 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         //float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
         //finalColor = cubeDepthViz.xxx;
 
-        //float shadowDepth = gShadowMapCSM.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
-        float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
+        //float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
         
-        shadowDepth = 1.0f - shadowDepth; // [Reverse-Z]
-        return float4(shadowDepth.xxx, 1.0f);
+        //shadowDepth = 1.0f - shadowDepth; // [Reverse-Z]
+        //return float4(shadowDepth.xxx, 1.0f);
         
-
+        float4 depthVis_color = DebugCSMShadowSlices(input.uv);
+        finalColor = depthVis_color;
     }
     else
     { 

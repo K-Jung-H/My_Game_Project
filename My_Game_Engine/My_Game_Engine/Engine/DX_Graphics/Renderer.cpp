@@ -1561,7 +1561,7 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
 
             for (UINT i = 0; i < 6; ++i)
             {
-                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->GetShadowViewProj(nullptr, i);
+                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(nullptr, i);
             }
         }
         else if (type == Light_Type::Directional && csmShadowCount < MAX_SHADOW_CSM)
@@ -1573,7 +1573,7 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
 
             for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
             {
-                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->GetShadowViewProj(render_camera, i);
+                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(render_camera, i);
             }
         }
         else if (type == Light_Type::Spot && spotShadowCount < MAX_SHADOW_SPOT)
@@ -1583,27 +1583,63 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
             lr.mFrameShadowCastingSpot.push_back(light);
             spotShadowCount++;
 
-            lr.MappedShadowMatrixBuffer[finalIndex].ViewProj = light->GetShadowViewProj(nullptr, 0);
+            lr.MappedShadowMatrixBuffer[finalIndex].ViewProj = light->UpdateShadowViewProj(nullptr, 0);
         }
     }
 }
 
-void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex)
+void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx, std::vector<DrawItem>& outVisibleItems)
 {
+    outVisibleItems.clear();
+
+    const XMFLOAT4X4& cachedTP = light->GetShadowViewProj(cascadeIdx);
+    XMMATRIX lightViewProjT = XMLoadFloat4x4(&cachedTP);
+    XMMATRIX lightViewProj = XMMatrixTranspose(lightViewProjT);
+
+    XMFLOAT3 clipCenter = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    XMFLOAT3 clipExt = XMFLOAT3(1.0f, 1.0f, 1.0f);
+    BoundingBox lightClipAABB(clipCenter, clipExt);
+
     FrameResource& fr = mFrameResources[mFrameIndex];
+    ObjectCBData* objCBArrayCPU = fr.ObjectCB.MappedObjectCB;
 
     for (const auto& di : mDrawItems)
     {
         if (!di.mesh) continue;
 
+        const ObjectCBData& objData = objCBArrayCPU[di.cbIndex];
+        XMMATRIX world = XMLoadFloat4x4(&objData.World);
+
+        const BoundingBox& localAABB = di.sub.localAABB;
+
+        BoundingBox worldAABB;
+        localAABB.Transform(worldAABB, world);
+
+        BoundingBox lightAABB;
+        worldAABB.Transform(lightAABB, lightViewProj);
+
+        if (lightAABB.Intersects(lightClipAABB))
+            outVisibleItems.push_back(di);
+    }
+}
+
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList)
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    for (const auto& di : drawList)
+    {
+        if (!di.mesh) continue;
+
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + di.cbIndex * sizeof(ObjectCBData);
+
         cmdList->SetGraphicsRootConstantBufferView(objectCBVRootParamIndex, gpuAddr);
 
         di.mesh->Bind(cmdList);
-
         cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
     }
 }
+
 
 void DX12_Renderer::PrepareCommandList()
 {
@@ -1781,7 +1817,7 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
-    Render_Objects(mCommandList, RootParameter_Default::ObjectCBV);
+    Render_Objects(mCommandList, RootParameter_Default::ObjectCBV, mDrawItems);
 }
 
 void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
@@ -1909,7 +1945,8 @@ void DX12_Renderer::ShadowPass()
 
             mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
-            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV);
+            std::vector<DrawItem> visibleItems = mDrawItems;
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, visibleItems);
         }
     }
 
@@ -1942,7 +1979,10 @@ void DX12_Renderer::ShadowPass()
 
             mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
-            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV);
+            std::vector<DrawItem> visibleItems;
+            CullObjectsForShadow(light, cascadeIndex, visibleItems);
+
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, visibleItems);
         }
     }
 
@@ -1969,7 +2009,8 @@ void DX12_Renderer::ShadowPass()
 
         mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
-        Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV);
+        std::vector<DrawItem> visibleItems = mDrawItems;
+        Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, visibleItems);
     }
 
     fr.StateTracker.Transition(mCommandList.Get(), lr.SpotShadowArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

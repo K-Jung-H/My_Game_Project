@@ -15,6 +15,7 @@ public:
         UINT startIndexLocation = 0;
         INT  baseVertexLocation = 0;
         UINT materialId = Engine::INVALID_ID;
+        BoundingBox localAABB;
     };
 
 public:
@@ -33,6 +34,7 @@ public:
 
 protected:
     void UploadToGPU();
+    void SetAABB();
 
 public:
     std::vector<Submesh> submeshes;
@@ -47,6 +49,7 @@ public:
 
 
 private:
+    BoundingBox mLocalAABB;
 
     ComPtr<ID3D12Resource> posBuffer;
     ComPtr<ID3D12Resource> normalBuffer;
