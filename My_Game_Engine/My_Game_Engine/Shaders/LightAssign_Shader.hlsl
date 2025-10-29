@@ -31,7 +31,9 @@ struct LightInfo
     uint lightMask;
     uint padding;
 
-    float4x4 LightViewProj[6];
+    float4x4 LightViewProj[6];    
+    float4 cascadeSplits;
+
 };
 
 

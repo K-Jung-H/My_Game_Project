@@ -5,7 +5,7 @@ constexpr UINT SPOT_SHADOW_RESOLUTION = 1024;
 constexpr UINT CSM_SHADOW_RESOLUTION = 2048;
 constexpr UINT POINT_SHADOW_RESOLUTION = 512;
 
-constexpr UINT NUM_CSM_CASCADES = 4;
+constexpr UINT NUM_CSM_CASCADES = 4; // Number with 4N
 constexpr UINT NUM_CUBE_FACES = 6;
 
 constexpr UINT MAX_SHADOW_SPOT = 16;
@@ -14,6 +14,11 @@ constexpr UINT MAX_SHADOW_POINT = 20;
 
 constexpr UINT MAX_SHADOW_VIEWS = MAX_SHADOW_SPOT + (MAX_SHADOW_POINT * 6) + (MAX_SHADOW_CSM * NUM_CSM_CASCADES);
 
+enum class DirectionalShadowMode : UINT
+{
+    DynamicCSM = 0,
+    StaticGlobal = 1
+};
 
 enum class Light_Type
 {
@@ -45,6 +50,7 @@ struct GPULight
     UINT padding;
 
     XMFLOAT4X4 LightViewProj[6];
+    XMFLOAT4 cascadeSplits;
 };
 
 
@@ -119,6 +125,9 @@ public:
 	void SetCascadeLambda(float lambda) { cascadeLambda = lambda; }
 	float GetCascadeLambda() const { return cascadeLambda; }
 
+    //void SetShadowMode(DirectionalShadowMode mode);
+    //DirectionalShadowMode GetShadowMode() const { return mShadowMode; }
+
     virtual void Update();
 
     GPULight ToGPUData() const;
@@ -142,13 +151,21 @@ protected:
 
 
     bool mCastsShadow = true;
+    bool mShadowMatrixDirty = true;
+
 	float shadow_nearZ = 0.1f;
 	float shadow_farZ = 1000.0f;
 
-	float cascadeLambda = 0.5f;
+    DirectionalShadowMode mShadowMode = DirectionalShadowMode::DynamicCSM;
+    XMFLOAT4X4 mStaticShadowViewProj;
 
-    bool mShadowMatrixDirty = true;
+	float cascadeLambda = 0.5f;
+    float cascadeSplits[NUM_CSM_CASCADES];
+
     bool mCsmMatrixDirty = true;
     
+
+
     XMFLOAT4X4 mCachedLightViewProj[NUM_CUBE_FACES];
+
 };

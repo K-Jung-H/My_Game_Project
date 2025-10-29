@@ -2610,6 +2610,15 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     light->SetShadowMapFar(shadowFar);
             }
 
+            if (type == Light_Type::Directional && castShadow)
+            {
+                float lambda = light->GetCascadeLambda();
+                if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
+                    light->SetCascadeLambda(lambda);
+
+                ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
+            }
+
             ImGui::Unindent();
         }
     }

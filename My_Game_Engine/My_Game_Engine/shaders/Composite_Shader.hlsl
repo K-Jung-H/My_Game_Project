@@ -62,7 +62,7 @@ float DebugPointShadowCubeFaces(float2 fullUV)
     return (linDepth / farZ);
 }
 
-float4 DebugCSMShadowSlices_2x2(float2 fullUV)
+float4 DebugCSMShadowSlices(float2 fullUV)
 {
     const uint cascadeCount = NUM_CSM_CASCADES;
     const uint lightIndex = 0;
@@ -117,7 +117,17 @@ float ComputeShadow(LightInfo light, float3 world_pos)
         // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
         case 0:
         {
+                float4 viewPos = mul(float4(world_pos, 1.0f), gView);
+                float viewDepth = abs(viewPos.z);
+
                 uint cascadeIndex = 0;
+                [unroll]
+                for (uint i = 0; i < NUM_CSM_CASCADES - 1; ++i)
+                {
+                    if (viewDepth > light.cascadeSplits[i])
+                        cascadeIndex = i + 1;
+                }
+
 
                 shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[cascadeIndex]);
                 shadowPosH.xyz /= shadowPosH.w;
@@ -125,13 +135,16 @@ float ComputeShadow(LightInfo light, float3 world_pos)
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 pixelDepth = shadowPosH.z;
 
-                sliceIndex = light.shadowMapStartIndex + cascadeIndex;
+                sliceIndex = (light.shadowMapStartIndex - gCsmShadowBaseOffset) + cascadeIndex;
 
-                float bias = 0.0005f;
-                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth - bias);
+                shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
+
+                if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
+                    shadowFactor = 1.0f;
 
                 break;
             }
+
 
         // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
         // 1. Point Light (Omnidirectional, CubeMap)
@@ -332,6 +345,8 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
             float shadow_factor = ComputeShadow(light, world_pos);
             
             finalColor += light_value * shadow_factor;
+//            finalColor = shadow_factor.xxx;
+
         }
     }
 

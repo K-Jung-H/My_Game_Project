@@ -164,6 +164,9 @@ GPULight LightComponent::ToGPUData() const
     for (int i = 0; i < 6; ++i)
         g.LightViewProj[i] = mCachedLightViewProj[i];
 
+    g.cascadeSplits = XMFLOAT4(cascadeSplits[0], cascadeSplits[1], cascadeSplits[2], cascadeSplits[3]);
+
+    
     return g;
 }
 
@@ -193,8 +196,8 @@ const XMFLOAT4X4& LightComponent::UpdateShadowViewProj(std::shared_ptr<CameraCom
     if (lightType != Light_Type::Directional && !mShadowMatrixDirty)
         return mCachedLightViewProj[index];
 
-    if (lightType == Light_Type::Directional && !mCsmMatrixDirty)
-        return mCachedLightViewProj[index];
+    //if (lightType == Light_Type::Directional && !mCsmMatrixDirty)
+    //    return mCachedLightViewProj[index];
 
     if (lightType == Light_Type::Directional)
     {
@@ -284,6 +287,8 @@ XMMATRIX LightComponent::ComputeDirectionalViewProj(std::shared_ptr<CameraCompon
     float cascadeNear = splits[cascadeIndex];
     float cascadeFar = splits[cascadeIndex + 1];
 
+    for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+        cascadeSplits[i] = splits[i + 1];
 
     XMMATRIX camView = mainCamera->GetViewMatrix();
 	XMMATRIX camProj = XMMatrixPerspectiveFovLH(fovY, aspect, cascadeFar, cascadeNear); // Reverse Z
@@ -316,9 +321,7 @@ XMMATRIX LightComponent::ComputeDirectionalViewProj(std::shared_ptr<CameraCompon
     center /= 8.0f;
 
     XMVECTOR lightPos = center - lightDir * 500.0f;
-    XMMATRIX lightView = XMMatrixLookToLH(center - lightDir * 500.0f, lightDir, up);
-
-
+    XMMATRIX lightView = XMMatrixLookAtLH(lightPos, center, up);
 
     XMVECTOR minPt = XMVectorSet(+FLT_MAX, +FLT_MAX, +FLT_MAX, 0);
     XMVECTOR maxPt = XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 0);
