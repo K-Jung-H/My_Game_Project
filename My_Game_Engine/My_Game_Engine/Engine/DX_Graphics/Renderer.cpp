@@ -1531,6 +1531,7 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     LightResource& lr = fr.light_resource;
+    const UINT currentFrameIndex = mFrameIndex;
 
     lr.mFrameShadowCastingCSM.clear();
     lr.mFrameShadowCastingSpot.clear();
@@ -1545,6 +1546,15 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
     const UINT csmBaseOffset = pointBaseOffset + (MAX_SHADOW_POINT * 6);
     const UINT spotBaseOffset = csmBaseOffset + (MAX_SHADOW_CSM * NUM_CSM_CASCADES);
 
+    bool bCameraMoved = render_camera->IsViewMatrixUpdatedThisFrame();
+    if (bCameraMoved)
+    {
+        for (const auto& light : light_comp_list)
+        {
+            light->NotifyCameraMoved();
+        }
+    }
+
     for (const auto& light : light_comp_list)
     {
         if (!light->CastsShadow())
@@ -1556,34 +1566,51 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
         {
             UINT baseIndex = pointBaseOffset + (pointShadowCount * 6);
             lr.mLightShadowIndexMap[light] = baseIndex;
-            lr.mFrameShadowCastingPoint.push_back(light);
             pointShadowCount++;
 
-            for (UINT i = 0; i < 6; ++i)
+            if (light->NeedsShadowUpdate(currentFrameIndex))
             {
-                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(nullptr, i);
+                lr.mFrameShadowCastingPoint.push_back(light);
+                for (UINT i = 0; i < 6; ++i)
+                {
+                    lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(nullptr, i);
+                }
+                light->ClearStaticBakeFlag(currentFrameIndex);
             }
         }
         else if (type == Light_Type::Directional && csmShadowCount < MAX_SHADOW_CSM)
         {
             UINT baseIndex = csmBaseOffset + (csmShadowCount * NUM_CSM_CASCADES);
             lr.mLightShadowIndexMap[light] = baseIndex;
-            lr.mFrameShadowCastingCSM.push_back(light);
             csmShadowCount++;
 
-            for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+            if (light->NeedsShadowUpdate(currentFrameIndex))
             {
-                lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(render_camera, i);
+                lr.mFrameShadowCastingCSM.push_back(light);
+
+                if (light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
+                    for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(render_camera, i);
+
+                else // Default
+                    lr.MappedShadowMatrixBuffer[baseIndex + 0].ViewProj = light->UpdateShadowViewProj(nullptr, 0);
+
+
+                light->ClearStaticBakeFlag(currentFrameIndex);
             }
         }
         else if (type == Light_Type::Spot && spotShadowCount < MAX_SHADOW_SPOT)
         {
             UINT finalIndex = spotBaseOffset + spotShadowCount;
             lr.mLightShadowIndexMap[light] = finalIndex;
-            lr.mFrameShadowCastingSpot.push_back(light);
             spotShadowCount++;
 
-            lr.MappedShadowMatrixBuffer[finalIndex].ViewProj = light->UpdateShadowViewProj(nullptr, 0);
+            if (light->NeedsShadowUpdate(currentFrameIndex))
+            {
+                lr.mFrameShadowCastingSpot.push_back(light);
+                lr.MappedShadowMatrixBuffer[finalIndex].ViewProj = light->UpdateShadowViewProj(nullptr, 0);
+                light->ClearStaticBakeFlag(currentFrameIndex);
+            }
         }
     }
 }
@@ -2545,24 +2572,27 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Separator();
             ImGui::Indent();
 
-            // --- Light Type ---
             Light_Type type = light->GetLightType();
             const char* typeNames[] = { "Directional", "Point", "Spot" };
             int currentType = static_cast<int>(type);
 
+            // ==========================================================
+            // 1. General Light Settings
+            // ==========================================================
+            ImGui::Text("Light Settings");
+            ImGui::Separator();
+
             if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
                 light->SetLightType(static_cast<Light_Type>(currentType));
 
-            // --- Color & Intensity ---
             XMFLOAT3 color = light->GetColor();
-            float intensity = light->GetIntensity();
-
             if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color)))
                 light->SetColor(color);
+
+            float intensity = light->GetIntensity();
             if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
                 light->SetIntensity(intensity);
 
-            // --- Direction ---
             if (type == Light_Type::Directional || type == Light_Type::Spot)
             {
                 XMFLOAT3 direction = light->GetDirection();
@@ -2574,7 +2604,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 }
             }
 
-            // --- Range ---
             if (type == Light_Type::Point || type == Light_Type::Spot)
             {
                 float range = light->GetRange();
@@ -2582,41 +2611,90 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     light->SetRange(range);
             }
 
-            // --- Spot Angles ---
             if (type == Light_Type::Spot)
             {
                 float inner = XMConvertToDegrees(light->GetInnerAngle());
-                float outer = XMConvertToDegrees(light->GetOuterAngle());
                 if (ImGui::DragFloat("Inner Angle", &inner, 0.5f, 0.0f, 90.0f))
                     light->SetInnerAngle(XMConvertToRadians(inner));
+
+                float outer = XMConvertToDegrees(light->GetOuterAngle());
                 if (ImGui::DragFloat("Outer Angle", &outer, 0.5f, 0.0f, 180.0f))
                     light->SetOuterAngle(XMConvertToRadians(outer));
             }
 
-            // --- Shadow Settings ---
+            ImGui::Spacing();
+
+            // ==========================================================
+            // 2. Shadow Settings
+            // ==========================================================
+            ImGui::Text("Shadow Settings");
+            ImGui::Separator();
+
             bool castShadow = light->CastsShadow();
-            if (ImGui::Checkbox("Cast Shadow", &castShadow))
-                light->SetCastShadow(castShadow);
+            ImGui::Checkbox("Cast Shadow", &castShadow);
+            light->SetCastShadow(castShadow);
 
             if (castShadow)
             {
-                float shadowNear = light->GetShadowMapNear();
-                float shadowFar = light->GetShadowMapFar();
+                ShadowMode shadowMode = light->GetShadowMode();
+                const char* modeNames[] = { "Dynamic", "Static" };
+                int currentModeInt = static_cast<int>(shadowMode);
 
-                if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, shadowFar - 1.0f))
+                if (ImGui::Combo("Shadow Mode", &currentModeInt, modeNames, IM_ARRAYSIZE(modeNames)))
+                {
+                    light->SetShadowMode(static_cast<ShadowMode>(currentModeInt));
+                }
+
+                if (static_cast<ShadowMode>(currentModeInt) == ShadowMode::Static)
+                {
+                    if (ImGui::Button("Bake New ShadowMap"))
+                    {
+                        light->ForceShadowMapUpdate();
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(One-time manual bake)");
+                }
+
+                ImGui::Separator();
+
+                if (type == Light_Type::Directional)
+                {
+                    DirectionalShadowMode dirMode = light->GetDirectionalShadowMode();
+                    const char* dirModeNames[] = { "Default (StaticGlobal)", "CSM (Camera Dependent)" };
+                    int currentDirModeInt = static_cast<int>(dirMode);
+
+                    if (ImGui::Combo("Directional Mode", &currentDirModeInt, dirModeNames, IM_ARRAYSIZE(dirModeNames)))
+                    {
+                        light->SetDirectionalShadowMode(static_cast<DirectionalShadowMode>(currentDirModeInt));
+                    }
+
+                    if (static_cast<DirectionalShadowMode>(currentDirModeInt) == DirectionalShadowMode::Default)
+                    {
+                        float orthoSize = light->GetStaticOrthoSize();
+                        if (ImGui::DragFloat("Static Ortho Size", &orthoSize, 1.0f, 1.0f, 10000.0f))
+                        {
+                            light->SetStaticOrthoSize(orthoSize);
+                        }
+                    }
+
+                    ImGui::Separator();
+
+                    float lambda = light->GetCascadeLambda();
+                    if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
+                        light->SetCascadeLambda(lambda);
+
+                    ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
+
+                    ImGui::Separator();
+                }
+
+                float shadowNear = light->GetShadowMapNear();
+                if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, light->GetShadowMapFar() - 1.0f))
                     light->SetShadowMapNear(shadowNear);
 
-                if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, shadowNear + 1.0f, 20000.0f))
+                float shadowFar = light->GetShadowMapFar();
+                if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, light->GetShadowMapNear() + 1.0f, 20000.0f))
                     light->SetShadowMapFar(shadowFar);
-            }
-
-            if (type == Light_Type::Directional && castShadow)
-            {
-                float lambda = light->GetCascadeLambda();
-                if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
-                    light->SetCascadeLambda(lambda);
-
-                ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
             }
 
             ImGui::Unindent();

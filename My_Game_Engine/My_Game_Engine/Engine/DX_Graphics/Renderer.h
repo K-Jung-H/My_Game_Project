@@ -319,7 +319,6 @@ private:
     void Blit_BackBufferPass();
     void ImguiPass();
 
-//    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex);
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);

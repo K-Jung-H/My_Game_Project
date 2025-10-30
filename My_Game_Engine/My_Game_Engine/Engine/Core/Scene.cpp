@@ -189,14 +189,12 @@ void Scene::Update_Late()
 			cp->Update();
 	}
 	
-//	m_pObjectManager->UpdateTransform_All();
 
 	for (auto lightComponent : light_list)
 	{
 		if (auto lc = lightComponent.lock())
 			lc->Update();
 	}
-
 
 	m_pObjectManager->UpdateTransform_All();
 

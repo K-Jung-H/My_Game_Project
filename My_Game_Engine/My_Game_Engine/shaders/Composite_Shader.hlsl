@@ -117,26 +117,35 @@ float ComputeShadow(LightInfo light, float3 world_pos)
         // 式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式式
         case 0:
         {
-                float4 viewPos = mul(float4(world_pos, 1.0f), gView);
-                float viewDepth = abs(viewPos.z);
-
-                uint cascadeIndex = 0;
-                [unroll]
-                for (uint i = 0; i < NUM_CSM_CASCADES - 1; ++i)
+                if (light.directionalShadowMode == 1) // 1 = CSM
                 {
-                    if (viewDepth > light.cascadeSplits[i])
-                        cascadeIndex = i + 1;
+                    float4 viewPos = mul(float4(world_pos, 1.0f), gView);
+                    float viewDepth = abs(viewPos.z);
+
+                    uint cascadeIndex = 0;
+                    [unroll]
+                    for (uint i = 0; i < NUM_CSM_CASCADES - 1; ++i)
+                    {
+                        if (viewDepth > light.cascadeSplits[i])
+                            cascadeIndex = i + 1;
+                    }
+
+                    shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[cascadeIndex]);
+                    pixelDepth = shadowPosH.w;
+                    shadowPosH.xyz /= shadowPosH.w;
+                    pixelDepth = shadowPosH.z;
+                    sliceIndex = (light.shadowMapStartIndex - gCsmShadowBaseOffset) + cascadeIndex;
                 }
-
-
-                shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[cascadeIndex]);
-                shadowPosH.xyz /= shadowPosH.w;
-
+                else // 0 = Default (StaticGlobal)
+                {
+                    shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[0]);
+                    pixelDepth = shadowPosH.w; 
+                    shadowPosH.xyz /= shadowPosH.w;
+                    pixelDepth = shadowPosH.z;
+                    sliceIndex = (light.shadowMapStartIndex - gCsmShadowBaseOffset);
+                }
+            
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
-                pixelDepth = shadowPosH.z;
-
-                sliceIndex = (light.shadowMapStartIndex - gCsmShadowBaseOffset) + cascadeIndex;
-
                 shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
 
                 if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))

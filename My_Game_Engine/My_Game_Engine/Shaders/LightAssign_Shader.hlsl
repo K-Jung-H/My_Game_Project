@@ -29,7 +29,7 @@ struct LightInfo
     uint shadowMapStartIndex;
     uint shadowMapLength;
     uint lightMask;
-    uint padding;
+    uint directionalShadowMode;
 
     float4x4 LightViewProj[6];    
     float4 cascadeSplits;

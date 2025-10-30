@@ -89,6 +89,8 @@ public:
     XMMATRIX GetViewMatrix() const { return XMLoadFloat4x4(&mf4x4View); }
     XMMATRIX GetProjectionMatrix() const { return XMLoadFloat4x4(&mf4x4Projection); }
 
+    bool IsViewMatrixUpdatedThisFrame() const { return mFrameViewMatrixUpdated; }
+
 private:
     float mPitch = 0.0f; 
     float mYaw = 0.0f;
@@ -111,7 +113,7 @@ private:
 
     bool mViewDirty = true;
     bool mProjDirty = true;
-
+	bool mFrameViewMatrixUpdated = false;
 
     ComPtr<ID3D12Resource> mCameraCB;
     CameraCB* mMappedCB = nullptr;

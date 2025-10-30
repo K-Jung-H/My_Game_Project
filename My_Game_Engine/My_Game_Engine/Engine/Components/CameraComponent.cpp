@@ -148,6 +148,8 @@ void CameraComponent::SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandLi
 
 void CameraComponent::Update()
 {
+    mFrameViewMatrixUpdated = false;
+
     if (auto tf = mTransform.lock())
     {
         if (mViewDirty || tf->GetUpdateFlag())
@@ -182,6 +184,8 @@ void CameraComponent::Update()
 
             XMStoreFloat4x4(&mf4x4View, view);
             mViewDirty = false;
+
+            mFrameViewMatrixUpdated = true;
         }
 
         if (mProjDirty)
@@ -192,6 +196,8 @@ void CameraComponent::Update()
                 XMMATRIX proj = XMMatrixPerspectiveFovLH(mFovY, aspect, mFarZ, mNearZ);
                 XMStoreFloat4x4(&mf4x4Projection, proj);
                 mProjDirty = false;
+
+                mFrameViewMatrixUpdated = true;
             }
         }
     }
