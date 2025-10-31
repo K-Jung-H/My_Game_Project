@@ -34,6 +34,9 @@ struct LightInfo
     float4x4 LightViewProj[6];    
     float4 cascadeSplits;
 
+    float shadowNearZ;
+    float shadowFarZ;
+    float2 padding;
 };
 
 

@@ -1,65 +1,63 @@
 #include "PostFX_Util.hlsli"
 #include "Lights.hlsli"
 
+float3 ComputeWorldDirection(float2 uv)
+{
+    float2 ndc = float2(uv.x * 2.0f - 1.0f, (1.0f - uv.y) * 2.0f - 1.0f);
+    float4 clipDir = float4(ndc, 1.0f, 1.0f);
+    float4 viewDirH = mul(clipDir, gInvProj);
+    float3 viewDir = normalize(viewDirH.xyz / viewDirH.w);
+    float3 worldDir = normalize(mul(float4(viewDir, 0.0f), gInvView).xyz);
+    return worldDir;
+}
+
+
+
 float3 GetCubeFaceDir(uint faceIndex, float2 localNDC)
 {
     float3 dir = 0;
-
     switch (faceIndex)
     {
         case 0:
             dir = float3(1.0f, -localNDC.y, -localNDC.x);
-            break;
+            break; // +X
         case 1:
             dir = float3(-1.0f, -localNDC.y, localNDC.x);
-            break;
-
+            break; // -X
         case 2:
             dir = float3(localNDC.x, 1.0f, localNDC.y);
-            break;
-
-
+            break; // +Y
         case 3:
             dir = float3(localNDC.x, -1.0f, -localNDC.y);
-            break;
-
+            break; // -Y
         case 4:
             dir = float3(localNDC.x, -localNDC.y, 1.0f);
-            break;
-
+            break; // +Z
         case 5:
         default:
             dir = float3(-localNDC.x, -localNDC.y, -1.0f);
-            break;
+            break; // -Z
     }
-
     return normalize(dir);
 }
 
 float DebugPointShadowCubeFaces(float2 fullUV)
 {
     float2 tileGrid = float2(3.0f, 2.0f);
-
-    uint tileX = (uint) floor(fullUV.x * tileGrid.x); 
-    uint tileY = (uint) floor(fullUV.y * tileGrid.y); 
-    uint faceIndex = tileY * 3 + tileX; 
+    uint tileX = (uint) floor(fullUV.x * tileGrid.x);
+    uint tileY = (uint) floor(fullUV.y * tileGrid.y);
+    uint faceIndex = tileY * 3 + tileX; // 0~5
 
     float2 localUV = frac(fullUV * tileGrid);
-
     float2 localNDC = localUV * 2.0f - 1.0f;
 
     float3 dir = GetCubeFaceDir(faceIndex, localNDC);
 
-
     const uint cubeIndex = 0;
-
-
-    float nearZ = 0.1f;
-    float farZ = 1000.0f;
-    float d = gShadowMapPoint.Sample(gLinearSampler, float4(dir, cubeIndex)).r;
-    float linDepth = (nearZ * farZ) / (farZ - d * (farZ - nearZ));
+    float depth = gShadowMapPoint.Sample(gLinearSampler, float4(dir, cubeIndex)).r;
+    depth = 1.0f - depth;
     
-    return (linDepth / farZ);
+    return depth;
 }
 
 float4 DebugCSMShadowSlices(float2 fullUV)
@@ -160,6 +158,30 @@ float ComputeShadow(LightInfo light, float3 world_pos)
         // ───────────────────────────────────────────────
         case 1:
         {
+                float3 light_pos_world = mul(float4(light.position, 1.0f), gInvView).xyz;
+                float3 L = world_pos - light_pos_world;
+
+                float3 absL = abs(L);
+                float dist = max(absL.x, max(absL.y, absL.z));
+        
+                if (dist > light.range || dist > light.shadowFarZ)
+                    return 1.0f;
+
+                float nearZ = light.shadowNearZ;
+                float farZ = light.shadowFarZ;
+
+
+                float A = nearZ / (nearZ - farZ);
+                float B = -nearZ * farZ / (nearZ - farZ);
+                float projectedDepth = A + B / dist; 
+                projectedDepth = saturate(projectedDepth);
+
+                uint cubeIndex = (light.shadowMapStartIndex) / 6u;
+
+                float3 dir = normalize(L);
+            
+                shadowFactor = gShadowMapPoint.SampleCmp(gShadowSampler, float4(dir, cubeIndex), projectedDepth);
+            
                 break;
             }
 
@@ -176,11 +198,7 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
                 sliceIndex = light.shadowMapStartIndex - gSpotShadowBaseOffset;
 
-                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(
-                gShadowSampler,
-                float3(shadowUV, sliceIndex),
-                pixelDepth
-            );
+                shadowFactor = gShadowMapSpot.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
 
             // 클리핑 처리
                 if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
@@ -322,6 +340,10 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 
     else if (gRenderFlags & RENDER_DEBUG_LIGHT_COUNT)
     {
+        float3 worldDir = ComputeWorldDirection(input.uv);
+        float depth = gShadowMapPoint.Sample(gLinearSampler, float4(worldDir, 0)).r;
+        finalColor = depth.xxx;
+        
         //float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
         //finalColor = cubeDepthViz.xxx;
 
@@ -330,8 +352,8 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         //shadowDepth = 1.0f - shadowDepth; // [Reverse-Z]
         //return float4(shadowDepth.xxx, 1.0f);
         
-        float4 depthVis_color = DebugCSMShadowSlices(input.uv);
-        finalColor = depthVis_color;
+        //float4 depthVis_color = DebugCSMShadowSlices(input.uv);
+        //finalColor = depthVis_color;
     }
     else
     { 
@@ -354,8 +376,6 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
             float shadow_factor = ComputeShadow(light, world_pos);
             
             finalColor += light_value * shadow_factor;
-//            finalColor = shadow_factor.xxx;
-
         }
     }
 

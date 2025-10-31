@@ -398,6 +398,9 @@ GPULight LightComponent::ToGPUData() const
 
     g.cascadeSplits = XMFLOAT4(cascadeSplits[0], cascadeSplits[1], cascadeSplits[2], cascadeSplits[3]);
 
+    g.shadowNearZ = shadow_nearZ;
+    g.shadowFarZ = shadow_farZ;
+    g.padding = XMFLOAT2(0.0f, 0.0f);
 
     return g;
 }

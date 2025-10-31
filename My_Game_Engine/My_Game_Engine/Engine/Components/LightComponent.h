@@ -57,6 +57,10 @@ struct GPULight
 
     XMFLOAT4X4 LightViewProj[6];
     XMFLOAT4 cascadeSplits;
+
+    float shadowNearZ;
+    float shadowFarZ;
+    XMFLOAT2 padding;
 };
 
 

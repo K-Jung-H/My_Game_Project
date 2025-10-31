@@ -33,7 +33,7 @@ void Scene::Build()
 
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
-		light_component->SetLightType(Light_Type::Directional);
+		light_component->SetLightType(Light_Type::Point);
 	}
 	{
 		//Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
