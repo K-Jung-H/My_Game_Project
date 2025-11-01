@@ -96,10 +96,7 @@ float4 DebugCSMShadowSlices(float2 fullUV)
 
 float ComputeShadow(LightInfo light, float3 world_pos)
 {
-    // 기본값: 그림자 없음(밝음)
     float shadowFactor = 1.0f;
-
-    // 그림자 비활성 시 바로 리턴
     if (light.castsShadow == 0)
         return 1.0f;
 
@@ -110,52 +107,50 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
     switch (light.type)
     {
-        // ───────────────────────────────────────────────
+        // ─────────────────────────────
         // 0. Directional Light (CSM)
-        // ───────────────────────────────────────────────
+        // ─────────────────────────────
         case 0:
         {
-                if (light.directionalShadowMode == 1) // 1 = CSM
+                if (light.directionalShadowMode == 1) // CSM
                 {
                     float4 viewPos = mul(float4(world_pos, 1.0f), gView);
                     float viewDepth = abs(viewPos.z);
 
                     uint cascadeIndex = 0;
-                    [unroll]
+                [unroll]
                     for (uint i = 0; i < NUM_CSM_CASCADES - 1; ++i)
                     {
                         if (viewDepth > light.cascadeSplits[i])
                             cascadeIndex = i + 1;
                     }
 
-                    shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[cascadeIndex]);
-                    pixelDepth = shadowPosH.w;
+                    float4x4 lightVP = ShadowMatrixBuffer[light.shadowMapStartIndex + cascadeIndex].ViewProj;
+                    shadowPosH = mul(float4(world_pos, 1.0f), lightVP);
                     shadowPosH.xyz /= shadowPosH.w;
                     pixelDepth = shadowPosH.z;
+
                     sliceIndex = (light.shadowMapStartIndex - gCsmShadowBaseOffset) + cascadeIndex;
                 }
-                else // 0 = Default (StaticGlobal)
+                else // default single matrix
                 {
-                    shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[0]);
-                    pixelDepth = shadowPosH.w; 
+                    float4x4 lightVP = ShadowMatrixBuffer[light.shadowMapStartIndex].ViewProj;
+                    shadowPosH = mul(float4(world_pos, 1.0f), lightVP);
                     shadowPosH.xyz /= shadowPosH.w;
                     pixelDepth = shadowPosH.z;
+
                     sliceIndex = (light.shadowMapStartIndex - gCsmShadowBaseOffset);
                 }
-            
+
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 shadowFactor = gShadowMapCSM.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
-
-                if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
-                    shadowFactor = 1.0f;
 
                 break;
             }
 
-
-        // ───────────────────────────────────────────────
-        // 1. Point Light (Omnidirectional, CubeMap)
-        // ───────────────────────────────────────────────
+        // ─────────────────────────────
+        // 1. Point Light (CubeMap)
+        // ─────────────────────────────
         case 1:
         {
                 float3 light_pos_world = mul(float4(light.position, 1.0f), gInvView).xyz;
@@ -163,55 +158,42 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
                 float3 absL = abs(L);
                 float dist = max(absL.x, max(absL.y, absL.z));
-        
+
                 if (dist > light.range || dist > light.shadowFarZ)
                     return 1.0f;
 
                 float nearZ = light.shadowNearZ;
                 float farZ = light.shadowFarZ;
 
-
                 float A = nearZ / (nearZ - farZ);
                 float B = -nearZ * farZ / (nearZ - farZ);
-                float projectedDepth = A + B / dist; 
+                float projectedDepth = A + B / dist;
                 projectedDepth = saturate(projectedDepth);
 
-                uint cubeIndex = (light.shadowMapStartIndex) / 6u;
-
+                uint cubeIndex = light.shadowMapStartIndex / 6u;
                 float3 dir = normalize(L);
-            
+
                 shadowFactor = gShadowMapPoint.SampleCmp(gShadowSampler, float4(dir, cubeIndex), projectedDepth);
-            
                 break;
             }
 
-        // ───────────────────────────────────────────────
-        // 2. Spot Light (Perspective)
-        // ───────────────────────────────────────────────
+        // ─────────────────────────────
+        // 2. Spot Light
+        // ─────────────────────────────
         case 2:
         {
-                shadowPosH = mul(float4(world_pos, 1.0f), light.LightViewProj[0]);
+                float4x4 lightVP = ShadowMatrixBuffer[light.shadowMapStartIndex].ViewProj;
+                shadowPosH = mul(float4(world_pos, 1.0f), lightVP);
                 shadowPosH.xyz /= shadowPosH.w;
-
                 shadowUV = shadowPosH.xy * float2(0.5f, -0.5f) + 0.5f;
                 pixelDepth = shadowPosH.z;
-
                 sliceIndex = light.shadowMapStartIndex - gSpotShadowBaseOffset;
 
                 shadowFactor = gShadowMapSpot.SampleCmpLevelZero(gShadowSampler, float3(shadowUV, sliceIndex), pixelDepth);
-
-            // 클리핑 처리
-                if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
-                    shadowFactor = 1.0f;
-
                 break;
             }
     }
 
-    // ───────────────────────────────────────────────
-    // Directional / Spot 은 UV 범위 체크 필수
-    // Point 는 큐브맵 샘플이라 생략
-    // ───────────────────────────────────────────────
     if (light.type != 1)
     {
         if (any(shadowUV < 0.0f) || any(shadowUV > 1.0f))
@@ -220,6 +202,7 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
     return shadowFactor;
 }
+
 
 float3 ComputeLight(
     LightInfo light,

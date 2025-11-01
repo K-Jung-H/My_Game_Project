@@ -393,9 +393,6 @@ GPULight LightComponent::ToGPUData() const
     g.lightMask = mLightMask;
     g.directionalShadowMode = (lightType == Light_Type::Directional) ? static_cast<UINT>(mDirectionalShadowMode) : 0;
 
-    for (int i = 0; i < 6; ++i)
-        g.LightViewProj[i] = mCachedLightViewProj[i];
-
     g.cascadeSplits = XMFLOAT4(cascadeSplits[0], cascadeSplits[1], cascadeSplits[2], cascadeSplits[3]);
 
     g.shadowNearZ = shadow_nearZ;

@@ -322,9 +322,7 @@ private:
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
-
-    void UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
-    void UpdateShadowResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
+    void UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
     void CullObjectsForShadow(LightComponent* light, UINT cascadeIdx, std::vector<DrawItem>& outVisibleItems);
 
     void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);

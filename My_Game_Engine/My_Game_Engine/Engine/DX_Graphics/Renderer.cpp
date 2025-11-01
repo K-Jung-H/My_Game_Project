@@ -1467,67 +1467,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     }
 }
 
-void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
-{
-    FrameResource& fr = mFrameResources[mFrameIndex];
-    LightResource& lr = fr.light_resource;
-
-    XMMATRIX view_matrix = render_camera->GetViewMatrix();
-
-    std::vector<GPULight> view_space_lights;
-    view_space_lights.reserve(light_comp_list.size());
-
-    for (const auto& world_light : light_comp_list)
-    {
-        GPULight view_light = world_light->ToGPUData();
-
-        XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
-        XMVECTOR view_pos = XMVector3TransformCoord(world_pos, view_matrix);
-        XMStoreFloat3(&view_light.position, view_pos);
-
-        XMVECTOR world_dir = XMLoadFloat3(&world_light->GetDirection());
-        XMVECTOR view_dir = XMVector3TransformNormal(world_dir, view_matrix);
-        view_dir = XMVector3Normalize(view_dir);
-        XMStoreFloat3(&view_light.direction, view_dir);
-
-        auto it = lr.mLightShadowIndexMap.find(world_light);
-        if (it != lr.mLightShadowIndexMap.end())
-        {
-            UINT baseIndex = it->second;
-            UINT numMatrices = 0;
-            Light_Type type = world_light->GetLightType();
-
-            if (type == Light_Type::Directional)
-                numMatrices = NUM_CSM_CASCADES;
-            else if (type == Light_Type::Point)
-                numMatrices = 6;
-            else if (type == Light_Type::Spot)
-                numMatrices = 1;
-
-            view_light.shadowMapStartIndex = baseIndex;
-            view_light.shadowMapLength = numMatrices;
-
-            memcpy(view_light.LightViewProj, &lr.MappedShadowMatrixBuffer[baseIndex].ViewProj, sizeof(XMFLOAT4X4) * numMatrices);
-        }
-        else
-        {
-            view_light.shadowMapStartIndex = Engine::INVALID_ID;
-            view_light.shadowMapLength = 0;
-        }
-
-        view_space_lights.push_back(view_light);
-    }
-
-    memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * view_space_lights.size());
-
-    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
-
-    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * view_space_lights.size());
-
-    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
-}
-
-void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
+void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     LightResource& lr = fr.light_resource;
@@ -1546,74 +1486,107 @@ void DX12_Renderer::UpdateShadowResources(std::shared_ptr<CameraComponent> rende
     const UINT csmBaseOffset = pointBaseOffset + (MAX_SHADOW_POINT * 6);
     const UINT spotBaseOffset = csmBaseOffset + (MAX_SHADOW_CSM * NUM_CSM_CASCADES);
 
-    bool bCameraMoved = render_camera->IsViewMatrixUpdatedThisFrame();
-    if (bCameraMoved)
+    if (render_camera->IsViewMatrixUpdatedThisFrame())
+        for (const auto& light : light_comp_list) light->NotifyCameraMoved();
+
+    XMMATRIX view_matrix = render_camera->GetViewMatrix();
+    std::vector<GPULight> view_space_lights;
+    view_space_lights.reserve(light_comp_list.size());
+
+    for (const auto& world_light : light_comp_list)
     {
-        for (const auto& light : light_comp_list)
+        GPULight view_light = world_light->ToGPUData();
+
+        XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
+        XMStoreFloat3(&view_light.position, XMVector3TransformCoord(world_pos, view_matrix));
+
+        XMVECTOR world_dir = XMLoadFloat3(&world_light->GetDirection());
+        XMStoreFloat3(&view_light.direction, XMVector3Normalize(XMVector3TransformNormal(world_dir, view_matrix)));
+
+        if (world_light->CastsShadow())
         {
-            light->NotifyCameraMoved();
-        }
-    }
+            Light_Type type = world_light->GetLightType();
+            UINT baseIndex = 0, matrixCount = 0;
+            bool assigned = false;
 
-    for (const auto& light : light_comp_list)
-    {
-        if (!light->CastsShadow())
-            continue;
-
-        Light_Type type = light->GetLightType();
-
-        if (type == Light_Type::Point && pointShadowCount < MAX_SHADOW_POINT)
-        {
-            UINT baseIndex = pointBaseOffset + (pointShadowCount * 6);
-            lr.mLightShadowIndexMap[light] = baseIndex;
-            pointShadowCount++;
-
-            if (light->NeedsShadowUpdate(currentFrameIndex))
+            if (type == Light_Type::Point && pointShadowCount < MAX_SHADOW_POINT)
             {
-                lr.mFrameShadowCastingPoint.push_back(light);
-                for (UINT i = 0; i < 6; ++i)
+                baseIndex = pointBaseOffset + (pointShadowCount * 6);
+                matrixCount = 6;
+                pointShadowCount++;
+                assigned = true;
+
+                if (world_light->NeedsShadowUpdate(currentFrameIndex))
                 {
-                    lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(nullptr, i);
+                    lr.mFrameShadowCastingPoint.push_back(world_light);
+                    for (UINT i = 0; i < 6; ++i)
+                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(nullptr, i);                    
+                    world_light->ClearStaticBakeFlag(currentFrameIndex);
                 }
-                light->ClearStaticBakeFlag(currentFrameIndex);
             }
-        }
-        else if (type == Light_Type::Directional && csmShadowCount < MAX_SHADOW_CSM)
-        {
-            UINT baseIndex = csmBaseOffset + (csmShadowCount * NUM_CSM_CASCADES);
-            lr.mLightShadowIndexMap[light] = baseIndex;
-            csmShadowCount++;
-
-            if (light->NeedsShadowUpdate(currentFrameIndex))
+            else if (type == Light_Type::Directional && csmShadowCount < MAX_SHADOW_CSM)
             {
-                lr.mFrameShadowCastingCSM.push_back(light);
+                baseIndex = csmBaseOffset + (csmShadowCount * NUM_CSM_CASCADES);
+                matrixCount = NUM_CSM_CASCADES;
+                csmShadowCount++;
+                assigned = true;
 
-                if (light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
-                    for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
-                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = light->UpdateShadowViewProj(render_camera, i);
-
-                else // Default
-                    lr.MappedShadowMatrixBuffer[baseIndex + 0].ViewProj = light->UpdateShadowViewProj(nullptr, 0);
-
-
-                light->ClearStaticBakeFlag(currentFrameIndex);
+                if (world_light->NeedsShadowUpdate(currentFrameIndex))
+                {
+                    lr.mFrameShadowCastingCSM.push_back(world_light);
+                    if (world_light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
+                        for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+                            lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj =
+                            world_light->UpdateShadowViewProj(render_camera, i);
+                    else
+                        lr.MappedShadowMatrixBuffer[baseIndex].ViewProj =
+                        world_light->UpdateShadowViewProj(nullptr, 0);
+                    world_light->ClearStaticBakeFlag(currentFrameIndex);
+                }
             }
-        }
-        else if (type == Light_Type::Spot && spotShadowCount < MAX_SHADOW_SPOT)
-        {
-            UINT finalIndex = spotBaseOffset + spotShadowCount;
-            lr.mLightShadowIndexMap[light] = finalIndex;
-            spotShadowCount++;
-
-            if (light->NeedsShadowUpdate(currentFrameIndex))
+            else if (type == Light_Type::Spot && spotShadowCount < MAX_SHADOW_SPOT)
             {
-                lr.mFrameShadowCastingSpot.push_back(light);
-                lr.MappedShadowMatrixBuffer[finalIndex].ViewProj = light->UpdateShadowViewProj(nullptr, 0);
-                light->ClearStaticBakeFlag(currentFrameIndex);
+                baseIndex = spotBaseOffset + spotShadowCount;
+                matrixCount = 1;
+                spotShadowCount++;
+                assigned = true;
+
+                if (world_light->NeedsShadowUpdate(currentFrameIndex))
+                {
+                    lr.mFrameShadowCastingSpot.push_back(world_light);
+                    lr.MappedShadowMatrixBuffer[baseIndex].ViewProj = world_light->UpdateShadowViewProj(nullptr, 0);
+                    world_light->ClearStaticBakeFlag(currentFrameIndex);
+                }
+            }
+
+            if (assigned)
+            {
+                lr.mLightShadowIndexMap[world_light] = baseIndex;
+                view_light.shadowMapStartIndex = baseIndex;
+                view_light.shadowMapLength = matrixCount;
+            }
+            else
+            {
+                view_light.shadowMapStartIndex = Engine::INVALID_ID;
+                view_light.shadowMapLength = 0;
             }
         }
+        else
+        {
+            view_light.shadowMapStartIndex = Engine::INVALID_ID;
+            view_light.shadowMapLength = 0;
+        }
+
+        view_space_lights.push_back(view_light);
     }
+
+    memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * view_space_lights.size());
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * view_space_lights.size());
+    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
+
 
 void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx, std::vector<DrawItem>& outVisibleItems)
 {
@@ -1801,12 +1774,9 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     UpdateObjectCBs(renderData_list);
     GeometryPass(mainCam);
     //------------------------------------------
-    UpdateShadowResources(mainCam, light_comp_list);
-    UpdateLightResources(mainCam, light_comp_list);
+    UpdateLightAndShadowData(mainCam, light_comp_list);
     LightPass(mainCam);
-    //------------------------------------------
     ShadowPass();
-
 	//------------------------------------------
 
     mainCam->SetViewportsAndScissorRects(mCommandList);
@@ -2059,15 +2029,15 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
     
     Bind_SceneCBV(Shader_Type::Graphics, RootParameter_PostFX::SceneCBV);
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_PostFX::CameraCBV);
-
-    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
     auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterAreaSRV, ClusterSrv);
@@ -2095,6 +2065,9 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     }
 
     {
+        auto ShadowMatrixSrv = mResource_Heap_Manager->GetGpuHandle(lr.ShadowMatrixBuffer_SRV_Index);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMatrix_SRV, ShadowMatrixSrv);
+
         auto csmSrv = mResource_Heap_Manager->GetGpuHandle(lr.CsmShadowArray_SRV);
         mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapCSMTable, csmSrv);
 

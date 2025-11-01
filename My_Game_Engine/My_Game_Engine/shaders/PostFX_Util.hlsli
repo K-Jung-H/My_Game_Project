@@ -74,10 +74,8 @@ struct LightInfo
 {
     float3 position;
     float intensity;
-
     float3 direction;
     uint type;
-
     float3 color;
     uint castsShadow;
 
@@ -91,9 +89,7 @@ struct LightInfo
     uint lightMask;
     uint directionalShadowMode;
 
-    float4x4 LightViewProj[6];
     float4 cascadeSplits;
-
     float shadowNearZ;
     float shadowFarZ;
     float2 padding;
@@ -107,6 +103,11 @@ struct ClusterLightMeta
     float2 padding0;
 };
 
+struct ShadowMatrixData
+{
+    float4x4 ViewProj;
+};
+
 Texture2D gGBuffer_Albedo : register(t0);
 Texture2D gGBuffer_Normal : register(t1);
 Texture2D gGBuffer_Material : register(t2);
@@ -117,10 +118,11 @@ StructuredBuffer<ClusterBound> ClusterListSRV : register(t5);
 StructuredBuffer<LightInfo> LightInput : register(t6);
 StructuredBuffer<ClusterLightMeta> ClusterLightMetaSRV : register(t7);
 StructuredBuffer<uint> ClusterLightIndicesSRV : register(t8);
+StructuredBuffer<ShadowMatrixData> ShadowMatrixBuffer : register(t9);
 
-Texture2DArray gShadowMapCSM : register(t9);
-TextureCubeArray gShadowMapPoint : register(t10);
-Texture2DArray gShadowMapSpot : register(t11);
+Texture2DArray gShadowMapCSM : register(t10);
+TextureCubeArray gShadowMapPoint : register(t11);
+Texture2DArray gShadowMapSpot : register(t12);
 
 SamplerState gLinearSampler : register(s0);
 SamplerState gClampSampler : register(s1);

@@ -36,13 +36,13 @@ enum class Light_Type
 
 struct GPULight
 {
-    XMFLOAT3 position;
+    XMFLOAT3 position; 
     float intensity;
-
-    XMFLOAT3 direction;
+    
+    XMFLOAT3 direction; 
     UINT type;
-
-    XMFLOAT3 color;
+    
+    XMFLOAT3 color; 
     UINT castsShadow;
 
     float range;
@@ -55,9 +55,8 @@ struct GPULight
     UINT lightMask;
     UINT directionalShadowMode;
 
-    XMFLOAT4X4 LightViewProj[6];
     XMFLOAT4 cascadeSplits;
-
+    
     float shadowNearZ;
     float shadowFarZ;
     XMFLOAT2 padding;

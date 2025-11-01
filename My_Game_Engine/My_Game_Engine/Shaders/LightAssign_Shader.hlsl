@@ -14,10 +14,8 @@ struct LightInfo
 {
     float3 position;
     float intensity;
-
     float3 direction;
     uint type;
-
     float3 color;
     uint castsShadow;
 
@@ -31,9 +29,7 @@ struct LightInfo
     uint lightMask;
     uint directionalShadowMode;
 
-    float4x4 LightViewProj[6];    
     float4 cascadeSplits;
-
     float shadowNearZ;
     float shadowFarZ;
     float2 padding;
