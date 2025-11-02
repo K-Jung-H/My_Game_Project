@@ -1588,40 +1588,120 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
 }
 
 
-void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx, std::vector<DrawItem>& outVisibleItems)
+void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
 {
-    outVisibleItems.clear();
-
-    const XMFLOAT4X4& cachedTP = light->GetShadowViewProj(cascadeIdx);
-    XMMATRIX lightViewProjT = XMLoadFloat4x4(&cachedTP);
-    XMMATRIX lightViewProj = XMMatrixTranspose(lightViewProjT);
-
-    XMFLOAT3 clipCenter = XMFLOAT3(0.0f, 0.0f, 0.0f);
-    XMFLOAT3 clipExt = XMFLOAT3(1.0f, 1.0f, 1.0f);
-    BoundingBox lightClipAABB(clipCenter, clipExt);
+    mVisibleItems.clear();
 
     FrameResource& fr = mFrameResources[mFrameIndex];
-    ObjectCBData* objCBArrayCPU = fr.ObjectCB.MappedObjectCB;
+    ObjectCBData* objCBArray = fr.ObjectCB.MappedObjectCB;
+
+    const Light_Type lightType = light->GetLightType();
+    const BoundingBox clipAABB(XMFLOAT3(0, 0, 0), XMFLOAT3(1, 1, 1));
+
+    if (lightType == Light_Type::Directional)
+    {
+        const XMFLOAT4X4& cachedTP = light->GetShadowViewProj(cascadeIdx);
+        XMMATRIX lightViewProjT = XMLoadFloat4x4(&cachedTP);
+        XMMATRIX lightViewProj = XMMatrixTranspose(lightViewProjT);
+
+        for (const auto& di : mDrawItems)
+        {
+            if (!di.mesh) continue;
+
+            const ObjectCBData& objData = objCBArray[di.cbIndex];
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            BoundingBox worldAABB;
+            di.sub.localAABB.Transform(worldAABB, world);
+
+            BoundingBox lightAABB;
+            worldAABB.Transform(lightAABB, lightViewProj);
+
+            if (lightAABB.Intersects(clipAABB))
+                mVisibleItems.push_back(di);
+        }
+    }
+    else if (lightType == Light_Type::Point)
+    {
+        const XMFLOAT3 lightPos = light->GetPosition();
+        float r = std::min(light->GetRange(), light->GetShadowMapFar());
+        BoundingSphere lightSphere(lightPos, r);
+
+        for (const auto& di : mDrawItems)
+        {
+            if (!di.mesh) continue;
+
+            const ObjectCBData& objData = objCBArray[di.cbIndex];
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            BoundingBox worldAABB;
+            di.sub.localAABB.Transform(worldAABB, world);
+
+            if (worldAABB.Intersects(lightSphere))
+                mVisibleItems.push_back(di);
+        }
+    }
+    else if (lightType == Light_Type::Spot)
+    {
+        const XMFLOAT3 pos = light->GetPosition();
+        const XMFLOAT3 dir = light->GetDirection();
+        const float nearZ = light->GetShadowMapNear();
+        const float farZ = light->GetShadowMapFar();
+        const float fov = light->GetOuterAngle();
+
+        XMVECTOR eye = XMLoadFloat3(&pos);
+        XMVECTOR look = XMVector3Normalize(XMLoadFloat3(&dir));
+        XMVECTOR up = (fabsf(XMVectorGetY(look)) > 0.99f) ? XMVectorSet(0, 0, 1, 0) : XMVectorSet(0, 1, 0, 0);
+
+        XMMATRIX view = XMMatrixLookToLH(eye, look, up);
+        XMMATRIX proj = XMMatrixPerspectiveFovLH(fov, 1.0f, nearZ, farZ);
+
+        BoundingFrustum frSpot;
+        BoundingFrustum::CreateFromMatrix(frSpot, proj);
+
+        XMMATRIX invView = XMMatrixInverse(nullptr, view);
+        frSpot.Transform(frSpot, invView);
+
+        for (const auto& di : mDrawItems)
+        {
+            if (!di.mesh) continue;
+
+            const ObjectCBData& objData = objCBArray[di.cbIndex];
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            BoundingBox worldAABB;
+            di.sub.localAABB.Transform(worldAABB, world);
+
+            if (frSpot.Intersects(worldAABB))
+                mVisibleItems.push_back(di);
+        }
+    }
+}
+
+
+void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera)
+{
+    mVisibleItems.clear();
+
+    const BoundingFrustum& frustum = camera->GetFrustumWS();
+    FrameResource& fr = mFrameResources[mFrameIndex];
+    const ObjectCBData* objCBArray = fr.ObjectCB.MappedObjectCB;
 
     for (const auto& di : mDrawItems)
     {
         if (!di.mesh) continue;
 
-        const ObjectCBData& objData = objCBArrayCPU[di.cbIndex];
-        XMMATRIX world = XMLoadFloat4x4(&objData.World);
-
-        const BoundingBox& localAABB = di.sub.localAABB;
+        const ObjectCBData& objData = objCBArray[di.cbIndex];
+        XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
 
         BoundingBox worldAABB;
-        localAABB.Transform(worldAABB, world);
+        di.sub.localAABB.Transform(worldAABB, world);
 
-        BoundingBox lightAABB;
-        worldAABB.Transform(lightAABB, lightViewProj);
-
-        if (lightAABB.Intersects(lightClipAABB))
-            outVisibleItems.push_back(di);
+        if (frustum.Intersects(worldAABB))
+            mVisibleItems.push_back(di);
     }
 }
+
 
 void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList)
 {
@@ -1772,6 +1852,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     //------------------------------------------
     UpdateObjectCBs(renderData_list);
+    CullObjectsForRender(mainCam);
     GeometryPass(mainCam);
     //------------------------------------------
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -1814,7 +1895,7 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
-    Render_Objects(mCommandList, RootParameter_Default::ObjectCBV, mDrawItems);
+    Render_Objects(mCommandList, RootParameter_Default::ObjectCBV, mVisibleItems);
 }
 
 void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
@@ -1942,8 +2023,8 @@ void DX12_Renderer::ShadowPass()
 
             mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
-            std::vector<DrawItem> visibleItems = mDrawItems;
-            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, visibleItems);
+            CullObjectsForShadow(light, 0);
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, mVisibleItems);
         }
     }
 
@@ -1976,10 +2057,8 @@ void DX12_Renderer::ShadowPass()
 
             mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
-            std::vector<DrawItem> visibleItems;
-            CullObjectsForShadow(light, cascadeIndex, visibleItems);
-
-            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, visibleItems);
+            CullObjectsForShadow(light, cascadeIndex);
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, mVisibleItems);
         }
     }
 
@@ -2006,8 +2085,8 @@ void DX12_Renderer::ShadowPass()
 
         mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
 
-        std::vector<DrawItem> visibleItems = mDrawItems;
-        Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, visibleItems);
+        CullObjectsForShadow(light, 0);
+        Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, mVisibleItems);
     }
 
     fr.StateTracker.Transition(mCommandList.Get(), lr.SpotShadowArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

@@ -10,6 +10,7 @@ struct ResourceStateTracker
     void Transition(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource, D3D12_RESOURCE_STATES newState);
     void UAVBarrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource);
 
+	void Clear() { mCurrentStates.clear(); }
 private:
     std::unordered_map<ID3D12Resource*, D3D12_RESOURCE_STATES> mCurrentStates;
 };
@@ -255,7 +256,7 @@ private:
 
     //==== Render DrawCall Target
     std::vector<DrawItem> mDrawItems;
-
+	std::vector<DrawItem> mVisibleItems; // After Culling
 private:
     // === Initialization steps ===
     bool CreateDeviceAndFactory();
@@ -323,7 +324,8 @@ private:
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
     void UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
-    void CullObjectsForShadow(LightComponent* light, UINT cascadeIdx, std::vector<DrawItem>& outVisibleItems);
+    void CullObjectsForShadow(LightComponent* light, UINT cascadeIdx);
+    void CullObjectsForRender(std::shared_ptr<CameraComponent> camera);
 
     void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);
 

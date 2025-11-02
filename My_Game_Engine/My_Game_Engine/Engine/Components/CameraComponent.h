@@ -76,6 +76,8 @@ public:
     void SetScissorRect(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
+    void UpdateFrustum();
+    const BoundingFrustum& GetFrustumWS() const { return mFrustumWS; }
 
     void SetFovY(float fovY) { mFovY = fovY; mProjDirty = true; }
     void SetNearZ(float nearZ) { mNearZ = nearZ; mProjDirty = true; }
@@ -117,4 +119,6 @@ private:
 
     ComPtr<ID3D12Resource> mCameraCB;
     CameraCB* mMappedCB = nullptr;
+
+    BoundingFrustum mFrustumWS;
 };

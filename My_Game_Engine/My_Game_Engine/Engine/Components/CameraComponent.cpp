@@ -146,6 +146,14 @@ void CameraComponent::SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandLi
     cmdList->RSSetScissorRects(1, &mScissorRect);
 }
 
+void CameraComponent::UpdateFrustum()
+{
+    BoundingFrustum fr;
+    BoundingFrustum::CreateFromMatrix(fr, XMMatrixPerspectiveFovLH(mFovY, GetAspectRatio(), mNearZ, mFarZ)); 
+    XMMATRIX invView = XMMatrixInverse(nullptr, GetViewMatrix());
+    fr.Transform(mFrustumWS, invView);
+}
+
 void CameraComponent::Update()
 {
     mFrameViewMatrixUpdated = false;
@@ -201,6 +209,9 @@ void CameraComponent::Update()
             }
         }
     }
+
+    if(mFrameViewMatrixUpdated)
+        UpdateFrustum();
 }
 
 void CameraComponent::SetPosition(const XMFLOAT3& pos)
