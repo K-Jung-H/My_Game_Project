@@ -411,6 +411,8 @@ void DX12_Renderer::DestroySingleFrameResource(FrameResource& fr)
     fr.CommandAllocator.Reset();
 
     fr.FenceValue = 0;
+
+    fr.StateTracker.Clear();
 }
 bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
 {
@@ -1467,6 +1469,7 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     }
 }
 
+
 void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
@@ -1495,13 +1498,14 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
 
     for (const auto& world_light : light_comp_list)
     {
-        GPULight view_light = world_light->ToGPUData();
+        // [수정] ToGPUData() 호출을 루프 후반부로 이동시켰습니다.
 
         XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
-        XMStoreFloat3(&view_light.position, XMVector3TransformCoord(world_pos, view_matrix));
-
         XMVECTOR world_dir = XMLoadFloat3(&world_light->GetDirection());
-        XMStoreFloat3(&view_light.direction, XMVector3Normalize(XMVector3TransformNormal(world_dir, view_matrix)));
+
+        // shadowMapStartIndex와 shadowMapLength를 임시 저장할 변수
+        UINT shadowBaseIndex = Engine::INVALID_ID;
+        UINT shadowMatrixCount = 0;
 
         if (world_light->CastsShadow())
         {
@@ -1520,7 +1524,7 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
                 {
                     lr.mFrameShadowCastingPoint.push_back(world_light);
                     for (UINT i = 0; i < 6; ++i)
-                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(nullptr, i);                    
+                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(nullptr, i);
                     world_light->ClearStaticBakeFlag(currentFrameIndex);
                 }
             }
@@ -1534,6 +1538,7 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
                 if (world_light->NeedsShadowUpdate(currentFrameIndex))
                 {
                     lr.mFrameShadowCastingCSM.push_back(world_light);
+                    // 이 UpdateShadowViewProj 호출이 C++ 멤버(cascadeSplits)를 먼저 업데이트합니다.
                     if (world_light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
                         for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
                             lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj =
@@ -1562,20 +1567,22 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
             if (assigned)
             {
                 lr.mLightShadowIndexMap[world_light] = baseIndex;
-                view_light.shadowMapStartIndex = baseIndex;
-                view_light.shadowMapLength = matrixCount;
-            }
-            else
-            {
-                view_light.shadowMapStartIndex = Engine::INVALID_ID;
-                view_light.shadowMapLength = 0;
+                shadowBaseIndex = baseIndex;   // 임시 변수에 저장
+                shadowMatrixCount = matrixCount; // 임시 변수에 저장
             }
         }
-        else
-        {
-            view_light.shadowMapStartIndex = Engine::INVALID_ID;
-            view_light.shadowMapLength = 0;
-        }
+
+        // [수정] UpdateShadowViewProj()가 호출된 이후에 ToGPUData()를 호출합니다.
+        // 이렇게 하면 cascadeSplits 멤버가 최신 값으로 채워진 GPULight 구조체가 생성됩니다.
+        GPULight view_light = world_light->ToGPUData();
+
+        // View Space 변환 적용
+        XMStoreFloat3(&view_light.position, XMVector3TransformCoord(world_pos, view_matrix));
+        XMStoreFloat3(&view_light.direction, XMVector3Normalize(XMVector3TransformNormal(world_dir, view_matrix)));
+
+        // 임시 저장했던 섀도우 인덱스 정보를 최종 GPU 데이터에 할당
+        view_light.shadowMapStartIndex = shadowBaseIndex;
+        view_light.shadowMapLength = shadowMatrixCount;
 
         view_space_lights.push_back(view_light);
     }
@@ -1586,7 +1593,6 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
     mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * view_space_lights.size());
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
-
 
 void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
 {
@@ -1838,6 +1844,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     if (!mainCam)
         return;
 
+    mainCam->Update();
+
     //--------------------------------------------------------------------------------------
 
     PrepareCommandList();
@@ -1980,6 +1988,7 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         mCommandList->Dispatch(dispatchX, 1, 1);
 
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get());
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
     }
     //============================================
 }

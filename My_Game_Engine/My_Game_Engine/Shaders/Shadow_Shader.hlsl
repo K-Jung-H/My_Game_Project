@@ -42,6 +42,7 @@ VS_OUT Shadow_VS(VS_IN vin)
 {
     VS_OUT vout;
 
+
     float4x4 lightViewProj = ShadowMatrixBuffer[Index].ViewProj;
     float4 posW = mul(float4(vin.PosL, 1.0f), World);
     vout.PosH = mul(posW, lightViewProj);

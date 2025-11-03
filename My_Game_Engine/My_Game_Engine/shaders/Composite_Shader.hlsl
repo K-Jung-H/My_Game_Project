@@ -97,9 +97,12 @@ float4 DebugCSMShadowSlices(float2 fullUV)
 float ComputeShadow(LightInfo light, float3 world_pos)
 {
     float shadowFactor = 1.0f;
+    
     if (light.castsShadow == 0)
         return 1.0f;
-
+    if (light.shadowMapLength == 0 || light.shadowMapStartIndex == 0xFFFFFFFFu)
+        return 1.0f;
+    
     float4 shadowPosH = 0;
     float2 shadowUV = 0;
     float pixelDepth = 0;
@@ -172,7 +175,7 @@ float ComputeShadow(LightInfo light, float3 world_pos)
 
                 uint cubeIndex = light.shadowMapStartIndex / 6u;
                 float3 dir = normalize(L);
-
+            
                 shadowFactor = gShadowMapPoint.SampleCmp(gShadowSampler, float4(dir, cubeIndex), projectedDepth);
                 break;
             }
@@ -323,12 +326,12 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
 
     else if (gRenderFlags & RENDER_DEBUG_LIGHT_COUNT)
     {
-        float3 worldDir = ComputeWorldDirection(input.uv);
-        float depth = gShadowMapPoint.Sample(gLinearSampler, float4(worldDir, 0)).r;
-        finalColor = depth.xxx;
+        //float3 worldDir = ComputeWorldDirection(input.uv);
+        //float depth = gShadowMapPoint.Sample(gLinearSampler, float4(worldDir, 0)).r;
+        //finalColor = depth.xxx;
         
-        //float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
-        //finalColor = cubeDepthViz.xxx;
+        float cubeDepthViz = DebugPointShadowCubeFaces(input.uv);
+        finalColor = cubeDepthViz.xxx;
 
         //float shadowDepth = gShadowMapSpot.Sample(gLinearSampler, float3(input.uv, 0.0f)).r;
         

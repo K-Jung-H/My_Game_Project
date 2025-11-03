@@ -187,7 +187,7 @@ void CameraComponent::Update()
                 XMVECTOR look = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), rotMat);
                 XMVECTOR upV = XMVector3TransformNormal(XMVectorSet(0, 1, 0, 0), rotMat);
 
-                view = XMMatrixLookToLH(pos, look, up);
+                view = XMMatrixLookToLH(pos, look, upV);
             }
 
             XMStoreFloat4x4(&mf4x4View, view);

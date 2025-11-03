@@ -404,27 +404,27 @@ GPULight LightComponent::ToGPUData() const
 
 const XMFLOAT4X4& LightComponent::UpdateShadowViewProj(std::shared_ptr<CameraComponent> mainCamera, UINT index)
 {
-    if (mShadowMode == ShadowMode::Static)
-    {
-        if (lightType == Light_Type::Directional)
-        {
-            if (mDirectionalShadowMode == DirectionalShadowMode::CSM)
-            {
-                if (!mLightPropertiesDirty && !mCsmProjectionDirty)
-                    return mCachedLightViewProj[index];
-            }
-            else
-            {
-                if (!mLightPropertiesDirty)
-                    return mCachedLightViewProj[index];
-            }
-        }
-        else
-        {
-            if (!mLightPropertiesDirty)
-                return mCachedLightViewProj[index];
-        }
-    }
+    //if (mShadowMode == ShadowMode::Static)
+    //{
+    //    if (lightType == Light_Type::Directional)
+    //    {
+    //        if (mDirectionalShadowMode == DirectionalShadowMode::CSM)
+    //        {
+    //            if (!mLightPropertiesDirty && !mCsmProjectionDirty)
+    //                return mCachedLightViewProj[index];
+    //        }
+    //        else
+    //        {
+    //            if (!mLightPropertiesDirty)
+    //                return mCachedLightViewProj[index];
+    //        }
+    //    }
+    //    else
+    //    {
+    //        if (!mLightPropertiesDirty)
+    //            return mCachedLightViewProj[index];
+    //    }
+    //}
 
     switch (lightType)
     {

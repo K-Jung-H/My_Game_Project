@@ -45,22 +45,24 @@ D3D12_RASTERIZER_DESC PipelineDescFactory::GetRasterizer(RasterizerPreset preset
 {
     D3D12_RASTERIZER_DESC desc = {};
     desc.FillMode = D3D12_FILL_MODE_SOLID;
-    desc.CullMode = D3D12_CULL_MODE_BACK;
     desc.DepthClipEnable = TRUE;
 
     switch (preset)
     {
     case RasterizerPreset::Wireframe:
+        desc.CullMode = D3D12_CULL_MODE_BACK;
         desc.FillMode = D3D12_FILL_MODE_WIREFRAME;
         desc.CullMode = D3D12_CULL_MODE_NONE;
         break;
     case RasterizerPreset::Shadow:
-		desc.DepthBias = -100; // Reverse-Z
+        desc.CullMode = D3D12_CULL_MODE_FRONT;
+		desc.DepthBias = -5000; // Reverse-Z
         desc.DepthBiasClamp = 0.0f; // Reverse-Z
         desc.SlopeScaledDepthBias = -1.5f; // Reverse-Z
         break;
+    default: 
+        desc.CullMode = D3D12_CULL_MODE_BACK;
         break;
-    default: break;
     }
     return desc;
 }
