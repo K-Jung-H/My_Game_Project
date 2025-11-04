@@ -44,28 +44,41 @@ D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset pr
 D3D12_RASTERIZER_DESC PipelineDescFactory::GetRasterizer(RasterizerPreset preset)
 {
     D3D12_RASTERIZER_DESC desc = {};
+
     desc.FillMode = D3D12_FILL_MODE_SOLID;
+    desc.CullMode = D3D12_CULL_MODE_BACK;
+    desc.FrontCounterClockwise = FALSE;
+    desc.DepthBias = 0;
+    desc.DepthBiasClamp = 0.0f;
+    desc.SlopeScaledDepthBias = 0.0f;
     desc.DepthClipEnable = TRUE;
+    desc.MultisampleEnable = TRUE;
+    desc.AntialiasedLineEnable = FALSE;
+    desc.ForcedSampleCount = 0;
+    desc.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 
     switch (preset)
     {
     case RasterizerPreset::Wireframe:
-        desc.CullMode = D3D12_CULL_MODE_BACK;
         desc.FillMode = D3D12_FILL_MODE_WIREFRAME;
         desc.CullMode = D3D12_CULL_MODE_NONE;
         break;
+
     case RasterizerPreset::Shadow:
         desc.CullMode = D3D12_CULL_MODE_FRONT;
-		desc.DepthBias = 5000; // Reverse-Z
-        desc.DepthBiasClamp = 0.0f; // Reverse-Z
-        desc.SlopeScaledDepthBias = 1.5f; // Reverse-Z
+        desc.DepthBias = -5000;   // Reverse-Z : À½¼ö bias
+        desc.DepthBiasClamp = 0.0f;
+        desc.SlopeScaledDepthBias = -1.5f;
         break;
-    default: 
+
+    default:
         desc.CullMode = D3D12_CULL_MODE_BACK;
         break;
     }
+
     return desc;
 }
+
 
 D3D12_BLEND_DESC PipelineDescFactory::GetBlend(BlendPreset preset)
 {
