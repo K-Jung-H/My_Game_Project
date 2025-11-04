@@ -56,9 +56,9 @@ D3D12_RASTERIZER_DESC PipelineDescFactory::GetRasterizer(RasterizerPreset preset
         break;
     case RasterizerPreset::Shadow:
         desc.CullMode = D3D12_CULL_MODE_FRONT;
-		desc.DepthBias = -5000; // Reverse-Z
+		desc.DepthBias = 5000; // Reverse-Z
         desc.DepthBiasClamp = 0.0f; // Reverse-Z
-        desc.SlopeScaledDepthBias = -1.5f; // Reverse-Z
+        desc.SlopeScaledDepthBias = 1.5f; // Reverse-Z
         break;
     default: 
         desc.CullMode = D3D12_CULL_MODE_BACK;
