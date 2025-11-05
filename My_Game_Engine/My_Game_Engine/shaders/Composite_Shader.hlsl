@@ -315,7 +315,11 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     {
         float3 world_pos = ReconstructWorldPos(input.uv, Depth);
         finalColor = normalize(world_pos.xyz) * 0.5f + 0.5f;
-    }   
+    }
+    else if (gRenderFlags & RENDER_DEBUG_CLUSTER_AABB)
+    {
+        finalColor = float3(0.0f, 0.0f, 0.0f);
+    }
     else if (gRenderFlags & RENDER_DEBUG_CLUSTER_ID)
     {
         finalColor = float3(
