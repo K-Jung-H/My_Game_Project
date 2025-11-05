@@ -60,33 +60,52 @@ struct ClusterBound
     float pad1;
 };
 
+static const uint NUM_CUBE_FACES = 6;
+static const uint MAX_SHADOW_SPOT = 16;
+static const uint MAX_SHADOW_CSM = 4;
+static const uint MAX_SHADOW_POINT = 20;
+static const uint NUM_CSM_CASCADES = 4;
+
+static const uint gPointShadowBaseOffset = 0;
+static const uint gCsmShadowBaseOffset = gPointShadowBaseOffset + (MAX_SHADOW_POINT* NUM_CUBE_FACES);
+static const uint gSpotShadowBaseOffset = gCsmShadowBaseOffset + (MAX_SHADOW_CSM* NUM_CSM_CASCADES);
+
 struct LightInfo
 {
     float3 position;
-    float range;
-
-    float3 direction;
     float intensity;
-
-    float3 color;
+    float3 direction;
     uint type;
+    float3 color;
+    uint castsShadow;
 
+    float range;
     float spotOuterCosAngle;
     float spotInnerCosAngle;
-    uint castsShadow;
-    uint lightMask;
-    
     float volumetricStrength;
+
     uint shadowMapStartIndex;
     uint shadowMapLength;
-    uint padding;
+    uint lightMask;
+    uint directionalShadowMode;
+
+    float4 cascadeSplits;
+    float shadowNearZ;
+    float shadowFarZ;
+    float2 padding;
 };
+
 
 struct ClusterLightMeta
 {
     uint offset;
     uint count;
     float2 padding0;
+};
+
+struct ShadowMatrixData
+{
+    float4x4 ViewProj;
 };
 
 Texture2D gGBuffer_Albedo : register(t0);
@@ -99,10 +118,15 @@ StructuredBuffer<ClusterBound> ClusterListSRV : register(t5);
 StructuredBuffer<LightInfo> LightInput : register(t6);
 StructuredBuffer<ClusterLightMeta> ClusterLightMetaSRV : register(t7);
 StructuredBuffer<uint> ClusterLightIndicesSRV : register(t8);
+StructuredBuffer<ShadowMatrixData> ShadowMatrixBuffer : register(t9);
+
+Texture2DArray gShadowMapCSM : register(t10);
+TextureCubeArray gShadowMapPoint : register(t11);
+Texture2DArray gShadowMapSpot : register(t12);
 
 SamplerState gLinearSampler : register(s0);
 SamplerState gClampSampler : register(s1);
-
+SamplerComparisonState gShadowSampler : register(s2);
 
 struct VS_SCREEN_OUT
 {
@@ -128,20 +152,38 @@ VS_SCREEN_OUT FullscreenQuad_VS(uint vid : SV_VertexID)
 // === 선형화 함수 (View-space Depth 복원) ===
 float LinearizeDepth(float depth, float nearZ, float farZ)
 {
-    float z = depth * 2.0f - 1.0f; // [0,1] → [-1,1]
-    return (2.0f * nearZ * farZ) / (farZ + nearZ - z * (farZ - nearZ));
+    return (nearZ * farZ) / (depth * (farZ - nearZ) + nearZ);
 }
 
-float3 ReconstructWorldPos(float2 uv, float linearViewZ)
+
+float3 ReconstructWorldPos(float2 uv, float depth)
 {
-    float2 ndcXY = uv * 2.0f - 1.0f;
-    ndcXY.y = -ndcXY.y;
-    float viewSpaceX = ndcXY.x * gInvProj._11 * linearViewZ;
-    float viewSpaceY = ndcXY.y * gInvProj._22 * linearViewZ;
+    float2 ndc = float2(uv.x * 2.0f - 1.0f, (1.0f - uv.y) * 2.0f - 1.0f);
 
-    float4 viewSpacePos = float4(viewSpaceX, viewSpaceY, linearViewZ, 1.0f);
+    float4 clipPos = float4(ndc, depth, 1.0f);
 
-    float4 worldPos = mul(viewSpacePos, gInvView);
+    float4 viewPos = mul(clipPos, gInvProj);
+    viewPos /= viewPos.w;
+    float4 worldPos = mul(viewPos, gInvView);
+    return worldPos.xyz;
+}
 
-    return worldPos.xyz / worldPos.w;
+float3 Heatmap(float value)
+{
+    value = saturate(value);
+    float4 colors[5] =
+    {
+        float4(0, 0, 0, 0),
+        float4(0, 0, 1, 0.25f),
+        float4(0, 1, 0, 0.5f),
+        float4(1, 1, 0, 0.75f),
+        float4(1, 0, 0, 1.0f)
+    };
+
+    float3 finalColor = colors[0].rgb;
+    for (int i = 1; i < 5; ++i)
+    {
+        finalColor = lerp(finalColor, colors[i].rgb, saturate((value - colors[i - 1].w) / (colors[i].w - colors[i - 1].w)));
+    }
+    return finalColor;
 }

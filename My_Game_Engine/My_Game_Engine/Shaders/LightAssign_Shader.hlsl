@@ -7,27 +7,34 @@ struct ClusterBound
     float pad1;
 };
 
+
+#define NUM_CUBE_FACES 6
+
 struct LightInfo
 {
     float3 position;
-    float range;
-
-    float3 direction;
     float intensity;
-
-    float3 color;
+    float3 direction;
     uint type;
+    float3 color;
+    uint castsShadow;
 
+    float range;
     float spotOuterCosAngle;
     float spotInnerCosAngle;
-    uint castsShadow;
-    uint lightMask;
-    
     float volumetricStrength;
+
     uint shadowMapStartIndex;
     uint shadowMapLength;
-    uint padding;
+    uint lightMask;
+    uint directionalShadowMode;
+
+    float4 cascadeSplits;
+    float shadowNearZ;
+    float shadowFarZ;
+    float2 padding;
 };
+
 
 struct ClusterLightMeta
 {

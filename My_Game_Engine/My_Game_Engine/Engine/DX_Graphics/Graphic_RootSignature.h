@@ -32,6 +32,17 @@ namespace RootParameter_Default
     };
 }
 
+namespace RootParameter_Shadow
+{
+    enum Slot : UINT
+    {
+        ShadowMatrix_Index = 0,
+        ObjectCBV = 1,
+        ShadowMatrix_SRV = 2, 
+        Count
+    };
+}
+
 namespace RootParameter_LightPass
 {
     enum Slot : UINT
@@ -62,6 +73,10 @@ namespace RootParameter_PostFX
         LightBufferSRV = 6,
         ClusterLightMetaSRV = 7,
         ClusterLightIndicesSRV = 8,
+        ShadowMatrix_SRV = 9,
+        ShadowMapCSMTable = 10,
+        ShadowMapSpotTable = 11,
+        ShadowMapPointTable = 12,
         Count
     };
 }
@@ -73,6 +88,7 @@ enum class RootSignature_Type : int
     Terrain,
     PostFX,
     UI,
+    ShadowPass,
 	LightPass, // Compute shader for light culling
     Count
 };
@@ -94,6 +110,7 @@ private:
     static ComPtr<ID3D12RootSignature> CreateTerrain(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateSkinned(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateUI(ID3D12Device* device);
+    static ComPtr<ID3D12RootSignature> CreateShadowPass(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateLightPass(ID3D12Device* device);
 
 };

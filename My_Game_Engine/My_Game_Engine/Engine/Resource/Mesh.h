@@ -15,6 +15,7 @@ public:
         UINT startIndexLocation = 0;
         INT  baseVertexLocation = 0;
         UINT materialId = Engine::INVALID_ID;
+        BoundingBox localAABB;
     };
 
 public:
@@ -31,8 +32,9 @@ public:
 
     void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 
-private:
+protected:
     void UploadToGPU();
+    void SetAABB();
 
 public:
     std::vector<Submesh> submeshes;
@@ -47,6 +49,7 @@ public:
 
 
 private:
+    BoundingBox mLocalAABB;
 
     ComPtr<ID3D12Resource> posBuffer;
     ComPtr<ID3D12Resource> normalBuffer;
@@ -70,8 +73,16 @@ private:
     ComPtr<ID3D12Resource> indexUpload;
 };
 
+class Plane_Mesh : public Mesh
+{
+public:
+    Plane_Mesh(float width = 1.0f, float height = 1.0f);
 
+    virtual ~Plane_Mesh() = default;
 
+private:
+    void GeneratePlane(float width, float height);
+};
 
 
 class SkinnedMesh : public Mesh

@@ -10,6 +10,7 @@ struct ResourceStateTracker
     void Transition(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource, D3D12_RESOURCE_STATES newState);
     void UAVBarrier(ID3D12GraphicsCommandList* cmdList, ID3D12Resource* resource);
 
+	void Clear() { mCurrentStates.clear(); }
 private:
     std::unordered_map<ID3D12Resource*, D3D12_RESOURCE_STATES> mCurrentStates;
 };
@@ -52,6 +53,11 @@ struct ClusterLightMeta
     XMFLOAT2 padding0;;
 };
 
+struct ShadowMatrixData
+{
+    XMFLOAT4X4 ViewProj;
+};
+
 struct LightResource
 {
     ComPtr<ID3D12Resource> ClusterBuffer;
@@ -76,7 +82,31 @@ struct LightResource
 	UINT GlobalOffsetCounterBuffer_UAV_Index;
 
     UINT NumLights = 0;
+
+    //-----------------------------------------------
+
+    ComPtr<ID3D12Resource> SpotShadowArray;   // Texture2DArray
+    ComPtr<ID3D12Resource> CsmShadowArray;    // Texture2DArray
+    ComPtr<ID3D12Resource> PointShadowCubeArray; // TextureCubeArray
+
+    UINT SpotShadowArray_SRV = UINT_MAX;
+    UINT CsmShadowArray_SRV = UINT_MAX;
+    UINT PointShadowCubeArray_SRV = UINT_MAX;
+
+    std::vector<UINT> SpotShadow_DSVs;
+    std::vector<UINT> CsmShadow_DSVs;
+    std::vector<UINT> PointShadow_DSVs;
+
+    ComPtr<ID3D12Resource> ShadowMatrixBuffer;
+    ShadowMatrixData* MappedShadowMatrixBuffer = nullptr;
+    UINT ShadowMatrixBuffer_SRV_Index = UINT_MAX; 
+
+    std::unordered_map<LightComponent*, UINT> mLightShadowIndexMap;
+    std::vector<LightComponent*> mFrameShadowCastingCSM;
+    std::vector<LightComponent*> mFrameShadowCastingSpot;
+    std::vector<LightComponent*> mFrameShadowCastingPoint;
 };
+
 
 
 //=================================================================
@@ -108,7 +138,6 @@ struct SceneData
     UINT RenderFlags;
     float padding1;
 };
-
 
 
 //=================================================================
@@ -224,9 +253,10 @@ private:
     ComPtr<ID3D12Resource> mSceneData_CB;
     SceneData* mappedSceneDataCB;
 
+
     //==== Render DrawCall Target
     std::vector<DrawItem> mDrawItems;
-
+	std::vector<DrawItem> mVisibleItems; // After Culling
 private:
     // === Initialization steps ===
     bool CreateDeviceAndFactory();
@@ -240,25 +270,29 @@ private:
     bool Create_SceneCBV();
     bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
     bool Create_LightResources(FrameResource& fr, UINT maxLights);
-
+    bool Create_ShadowResources(FrameResource& fr);
+    bool CreateShadowMatrixBuffer(FrameResource& fr);
 
     // Frame resource creation
     bool CreateFrameResources();
+    bool CreateSingleFrameResource(FrameResource& fr, UINT frameIndex);
+    void DestroyFrameResources();
+    void DestroySingleFrameResource(FrameResource& fr);
     bool CreateBackBufferRTV(UINT frameIndex, FrameResource& fr);
     bool CreateCommandAllocator(FrameResource& fr);
 
-    bool CreateGBufferRTVs(UINT frameIndex, FrameResource& fr);
-    bool CreateGBufferSRVs(UINT frameIndex, FrameResource& fr);
-    bool CreateDSV(UINT frameIndex, FrameResource& fr);
+    bool CreateGBufferRTVs(FrameResource& fr);
+    bool CreateGBufferSRVs(FrameResource& fr);
+    bool CreateDSV(FrameResource& fr);
 
     // Helpers (府家胶 积己)
     bool CreateRTVHeap();
     bool CreateDSVHeap();
     bool CreateResourceHeap();
 
-    bool CreateGBuffer(UINT frameIndex, FrameResource& fr);
+    bool CreateGBuffer(FrameResource& fr);
     bool CreateDepthStencil(FrameResource& fr, UINT width, UINT height);    
-    bool Create_Merge_RenderTargets(UINT frameIndex, FrameResource& fr);
+    bool Create_Merge_RenderTargets(FrameResource& fr);
 
     bool CreateCommandList();
     bool CreateFenceObjects();
@@ -280,16 +314,18 @@ private:
 
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
+    void ShadowPass();
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);
     void PostProcessPass(std::shared_ptr<CameraComponent> render_camera);
     void Blit_BackBufferPass();
     void ImguiPass();
 
-    void SortByRenderType(std::vector<RenderData> renderData_list);
-    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList);
+    void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList);
 
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
-	void UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<GPULight>& lights);
+    void UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
+    void CullObjectsForShadow(LightComponent* light, UINT cascadeIdx);
+    void CullObjectsForRender(std::shared_ptr<CameraComponent> camera);
 
     void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);
 

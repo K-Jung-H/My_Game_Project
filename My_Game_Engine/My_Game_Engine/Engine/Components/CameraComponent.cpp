@@ -146,8 +146,18 @@ void CameraComponent::SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandLi
     cmdList->RSSetScissorRects(1, &mScissorRect);
 }
 
+void CameraComponent::UpdateFrustum()
+{
+    BoundingFrustum fr;
+    BoundingFrustum::CreateFromMatrix(fr, XMMatrixPerspectiveFovLH(mFovY, GetAspectRatio(), mNearZ, mFarZ)); 
+    XMMATRIX invView = XMMatrixInverse(nullptr, GetViewMatrix());
+    fr.Transform(mFrustumWS, invView);
+}
+
 void CameraComponent::Update()
 {
+    mFrameViewMatrixUpdated = false;
+
     if (auto tf = mTransform.lock())
     {
         if (mViewDirty || tf->GetUpdateFlag())
@@ -177,11 +187,13 @@ void CameraComponent::Update()
                 XMVECTOR look = XMVector3TransformNormal(XMVectorSet(0, 0, 1, 0), rotMat);
                 XMVECTOR upV = XMVector3TransformNormal(XMVectorSet(0, 1, 0, 0), rotMat);
 
-                view = XMMatrixLookToLH(pos, look, up);
+                view = XMMatrixLookToLH(pos, look, upV);
             }
 
             XMStoreFloat4x4(&mf4x4View, view);
             mViewDirty = false;
+
+            mFrameViewMatrixUpdated = true;
         }
 
         if (mProjDirty)
@@ -189,12 +201,17 @@ void CameraComponent::Update()
             if (mViewport.Height > 0)
             {
                 float aspect = mViewport.Width / mViewport.Height;
-                XMMATRIX proj = XMMatrixPerspectiveFovLH(mFovY, aspect, mNearZ, mFarZ);
+                XMMATRIX proj = XMMatrixPerspectiveFovLH(mFovY, aspect, mFarZ, mNearZ);
                 XMStoreFloat4x4(&mf4x4Projection, proj);
                 mProjDirty = false;
+
+                mFrameViewMatrixUpdated = true;
             }
         }
     }
+
+    if(mFrameViewMatrixUpdated)
+        UpdateFrustum();
 }
 
 void CameraComponent::SetPosition(const XMFLOAT3& pos)

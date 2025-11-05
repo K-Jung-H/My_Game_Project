@@ -1,4 +1,5 @@
 #include "DescriptorManager.h"
+#include "Components/LightComponent.h"
 
 DescriptorManager::DescriptorManager(ID3D12Device* device,
     D3D12_DESCRIPTOR_HEAP_TYPE type,
@@ -21,17 +22,26 @@ DescriptorManager::DescriptorManager(ID3D12Device* device,
     {
         UINT offset = 0;
 
-        mRegions[HeapRegion::SRV_Texture] = { offset, 2000, 0 };
-        offset += 2000;
+        mRegions[HeapRegion::SRV_Texture] = { offset, MAX_SRV_TEXTURE, 0 };
+        offset += MAX_SRV_TEXTURE;
 
-        mRegions[HeapRegion::SRV_Frame] = { offset, 512, 0 };
-        offset += 512;
+        mRegions[HeapRegion::SRV_Frame] = { offset, MAX_SRV_FRAME, 0 };
+        offset += MAX_SRV_FRAME;
 
-        mRegions[HeapRegion::CBV] = { offset, 512, 0 };
-        offset += 512;
+        mRegions[HeapRegion::CBV] = { offset, MAX_CBV, 0 };
+        offset += MAX_CBV;
 
-        mRegions[HeapRegion::UAV] = { offset, 512, 0 };
-        offset += 128;
+        mRegions[HeapRegion::UAV] = { offset, MAX_UAV, 0 };
+        offset += MAX_UAV;
+
+        mRegions[HeapRegion::SRV_ShadowMap_Spot] = { offset, MAX_SHADOW_SPOT, 0 };
+        offset += MAX_SHADOW_SPOT;
+
+        mRegions[HeapRegion::SRV_ShadowMap_CSM] = { offset, MAX_SHADOW_CSM, 0 };
+        offset += MAX_SHADOW_CSM;
+
+        mRegions[HeapRegion::SRV_ShadowMap_Point] = { offset, MAX_SHADOW_POINT, 0 };
+        offset += MAX_SHADOW_POINT;
     }
     else if (type == D3D12_DESCRIPTOR_HEAP_TYPE_RTV)
     {

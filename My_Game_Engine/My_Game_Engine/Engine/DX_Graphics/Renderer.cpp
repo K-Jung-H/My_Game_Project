@@ -193,7 +193,9 @@ bool DX12_Renderer::CreateRTVHeap()
 
 bool DX12_Renderer::CreateDSVHeap()
 {
-    mDsvManager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, FrameCount);
+    UINT dsvCountPerFrame = 1 + MAX_SHADOW_SPOT + (MAX_SHADOW_CSM * NUM_CSM_CASCADES)+ (MAX_SHADOW_POINT * 6);
+    UINT totalDsvCount = dsvCountPerFrame * FrameCount;
+    mDsvManager = std::make_unique<DescriptorManager>(mDevice.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_DSV, totalDsvCount);
     return true;
 }
 
@@ -221,13 +223,7 @@ bool DX12_Renderer::CreateFrameResources()
     {
         FrameResource& fr = mFrameResources[i];
 
-        success &= CreateCommandAllocator(fr);
-        success &= CreateBackBufferRTV(i, fr);
-        success &= CreateDSV(i, fr);
-        success &= CreateGBuffer(i, fr);
-        success &= Create_Merge_RenderTargets(i, fr);
-        success &= CreateObjectCB(fr, 5000);
-        success &= Create_LightResources(fr, 500);
+        CreateSingleFrameResource(fr, i);
 
         if (!success) return false;
     }
@@ -235,6 +231,189 @@ bool DX12_Renderer::CreateFrameResources()
     return success;
 }
 
+bool DX12_Renderer::CreateSingleFrameResource(FrameResource& fr, UINT frameIndex)
+{
+    bool success = true;
+    success &= CreateCommandAllocator(fr);
+    success &= CreateBackBufferRTV(frameIndex, fr); 
+    success &= CreateDSV(fr);           
+    success &= CreateGBuffer(fr);       
+    success &= Create_Merge_RenderTargets(fr); 
+    success &= CreateObjectCB(fr, 5000);
+    success &= Create_LightResources(fr, 500);
+    success &= Create_ShadowResources(fr);
+	success &= CreateShadowMatrixBuffer(fr);
+
+    return success;
+}
+
+void DX12_Renderer::DestroyFrameResources()
+{
+    for (UINT i = 0; i < FrameCount; ++i)
+    {
+        FrameResource& fr = mFrameResources[i];
+
+        DestroySingleFrameResource(fr);
+    }
+}
+
+void DX12_Renderer::DestroySingleFrameResource(FrameResource& fr)
+{
+    if (fr.BackBufferRtvSlot_ID != UINT_MAX)
+    {
+        mRtvManager->FreeDeferred(HeapRegion::RTV, fr.BackBufferRtvSlot_ID);
+        fr.BackBufferRtvSlot_ID = UINT_MAX;
+    }
+    if (fr.DsvSlot_ID != UINT_MAX)
+    {
+        mDsvManager->FreeDeferred(HeapRegion::DSV, fr.DsvSlot_ID);
+        fr.DsvSlot_ID = UINT_MAX;
+    }
+
+    for (UINT slot : fr.GBufferRtvSlot_IDs)
+        mRtvManager->FreeDeferred(HeapRegion::RTV, slot);
+    fr.GBufferRtvSlot_IDs.clear();
+
+    for (UINT slot : fr.GBufferSrvSlot_IDs)
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, slot);
+    fr.GBufferSrvSlot_IDs.clear();
+
+    for (int i = 0; i < 2; ++i)
+    {
+        if (fr.MergeRtvSlot_IDs[i] != UINT_MAX)
+        {
+            mRtvManager->FreeDeferred(HeapRegion::RTV, fr.MergeRtvSlot_IDs[i]);
+            fr.MergeRtvSlot_IDs[i] = UINT_MAX;
+        }
+        if (fr.MergeSrvSlot_IDs[i] != UINT_MAX)
+        {
+            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.MergeSrvSlot_IDs[i]);
+            fr.MergeSrvSlot_IDs[i] = UINT_MAX;
+        }
+    }
+
+    if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.DepthBufferSrvSlot_ID);
+        fr.DepthBufferSrvSlot_ID = UINT_MAX;
+    }
+
+    if (fr.light_resource.ClusterBuffer_SRV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterBuffer_SRV_Index);
+        fr.light_resource.ClusterBuffer_SRV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.ClusterBuffer_UAV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterBuffer_UAV_Index);
+        fr.light_resource.ClusterBuffer_UAV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.LightBuffer_SRV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.LightBuffer_SRV_Index);
+        fr.light_resource.LightBuffer_SRV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.ClusterLightMetaBuffer_SRV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
+        fr.light_resource.ClusterLightMetaBuffer_SRV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.ClusterLightMetaBuffer_UAV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
+        fr.light_resource.ClusterLightMetaBuffer_UAV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.ClusterLightIndicesBuffer_SRV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterLightIndicesBuffer_SRV_Index);
+        fr.light_resource.ClusterLightIndicesBuffer_SRV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.ClusterLightIndicesBuffer_UAV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterLightIndicesBuffer_UAV_Index);
+        fr.light_resource.ClusterLightIndicesBuffer_UAV_Index = UINT_MAX;
+    }
+    if (fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index);
+        fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index = UINT_MAX;
+    }
+
+    if (fr.light_resource.SpotShadowArray_SRV != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_ShadowMap_Spot, fr.light_resource.SpotShadowArray_SRV);
+        fr.light_resource.SpotShadowArray_SRV = UINT_MAX;
+    }
+    if (fr.light_resource.CsmShadowArray_SRV != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_ShadowMap_CSM, fr.light_resource.CsmShadowArray_SRV);
+        fr.light_resource.CsmShadowArray_SRV = UINT_MAX;
+    }
+    if (fr.light_resource.PointShadowCubeArray_SRV != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_ShadowMap_Point, fr.light_resource.PointShadowCubeArray_SRV);
+        fr.light_resource.PointShadowCubeArray_SRV = UINT_MAX;
+    }
+
+    if (fr.light_resource.MappedShadowMatrixBuffer)
+    {
+        fr.light_resource.ShadowMatrixBuffer->Unmap(0, nullptr);
+        fr.light_resource.MappedShadowMatrixBuffer = nullptr;
+    }
+    fr.light_resource.ShadowMatrixBuffer.Reset();
+
+    if (fr.light_resource.ShadowMatrixBuffer_SRV_Index != UINT_MAX)
+    {
+        mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ShadowMatrixBuffer_SRV_Index);
+        fr.light_resource.ShadowMatrixBuffer_SRV_Index = UINT_MAX;
+    }
+
+    for (UINT dsvIndex : fr.light_resource.SpotShadow_DSVs)
+        mDsvManager->FreeDeferred(HeapRegion::DSV, dsvIndex);
+    fr.light_resource.SpotShadow_DSVs.clear();
+    for (UINT dsvIndex : fr.light_resource.CsmShadow_DSVs)
+        mDsvManager->FreeDeferred(HeapRegion::DSV, dsvIndex);
+    fr.light_resource.CsmShadow_DSVs.clear();
+    for (UINT dsvIndex : fr.light_resource.PointShadow_DSVs)
+        mDsvManager->FreeDeferred(HeapRegion::DSV, dsvIndex);
+    fr.light_resource.PointShadow_DSVs.clear();
+
+    fr.DepthStencilBuffer.Reset();
+    for (auto& target : fr.gbuffer.targets)
+        target.Reset();
+    fr.gbuffer.Depth.Reset();
+    fr.Merge_RenderTargets[0].Reset();
+    fr.Merge_RenderTargets[1].Reset();
+
+    if (fr.ObjectCB.MappedObjectCB)
+    {
+        fr.ObjectCB.Buffer->Unmap(0, nullptr);
+        fr.ObjectCB.MappedObjectCB = nullptr;
+    }
+    fr.ObjectCB.Buffer.Reset();
+
+    if (fr.light_resource.MappedLightUploadBuffer)
+    {
+        fr.light_resource.LightUploadBuffer->Unmap(0, nullptr);
+        fr.light_resource.MappedLightUploadBuffer = nullptr;
+    }
+    fr.light_resource.LightUploadBuffer.Reset();
+    fr.light_resource.LightBuffer.Reset();
+    fr.light_resource.ClusterBuffer.Reset();
+    fr.light_resource.ClusterLightMetaBuffer.Reset();
+    fr.light_resource.ClusterLightIndicesBuffer.Reset();
+    fr.light_resource.GlobalOffsetCounterBuffer.Reset();
+
+    fr.light_resource.SpotShadowArray.Reset();
+    fr.light_resource.CsmShadowArray.Reset();
+    fr.light_resource.PointShadowCubeArray.Reset();
+
+    fr.CommandAllocator.Reset();
+
+    fr.FenceValue = 0;
+
+    fr.StateTracker.Clear();
+}
 bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
 {
     return SUCCEEDED(mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&fr.CommandAllocator)));
@@ -257,7 +436,7 @@ bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
 }
 
 
-bool DX12_Renderer::CreateGBuffer(UINT frameIndex, FrameResource& frame)
+bool DX12_Renderer::CreateGBuffer(FrameResource& frame)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
@@ -282,14 +461,14 @@ bool DX12_Renderer::CreateGBuffer(UINT frameIndex, FrameResource& frame)
         frame.StateTracker.Register(frame.gbuffer.targets[i].Get(), D3D12_RESOURCE_STATE_COMMON);
     }
 
-    if (!CreateGBufferRTVs(frameIndex, frame)) return false;
-    if (!CreateGBufferSRVs(frameIndex, frame)) return false;
+    if (!CreateGBufferRTVs(frame)) return false;
+    if (!CreateGBufferSRVs(frame)) return false;
 
 
     return true;
 }
 
-bool DX12_Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::CreateGBufferRTVs(FrameResource& fr)
 {
     
     fr.GBufferRtvSlot_IDs.clear();
@@ -308,7 +487,7 @@ bool DX12_Renderer::CreateGBufferRTVs(UINT frameIndex, FrameResource& fr)
     return true;
 }
 
-bool DX12_Renderer::CreateGBufferSRVs(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::CreateGBufferSRVs(FrameResource& fr)
 {
     fr.GBufferSrvSlot_IDs.clear();
     fr.GBufferSrvSlot_IDs.reserve((UINT)GBufferType::Count);
@@ -340,7 +519,7 @@ bool DX12_Renderer::CreateGBufferSRVs(UINT frameIndex, FrameResource& fr)
         dSrv.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
         dSrv.Texture2D.MostDetailedMip = 0;
         dSrv.Texture2D.MipLevels = 1;
-        dSrv.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+        dSrv.Format = DXGI_FORMAT_R32_FLOAT;
 
         UINT dslot = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
         fr.DepthBufferSrvSlot_ID = dslot;
@@ -357,13 +536,13 @@ bool DX12_Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT he
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
 
-    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R24G8_TYPELESS, width, height, 1, 1);
+    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(DXGI_FORMAT_R32_TYPELESS, width, height, 1, 1);
     depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
     // Clear value for depth/stencil
     D3D12_CLEAR_VALUE clearValue = {};
-    clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    clearValue.DepthStencil.Depth = 1.0f;
+    clearValue.Format = DXGI_FORMAT_D32_FLOAT;
+    clearValue.DepthStencil.Depth = 0.0f;
     clearValue.DepthStencil.Stencil = 0;
 
     if (FAILED(mDevice->CreateCommittedResource(
@@ -378,7 +557,7 @@ bool DX12_Renderer::CreateDepthStencil(FrameResource& frame, UINT width, UINT he
     return true;
 }
 
-bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::CreateDSV(FrameResource& fr)
 {
     if (!CreateDepthStencil(fr, mWidth, mHeight)) return false;
 
@@ -386,7 +565,7 @@ bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
     fr.DsvSlot_ID = slot;
 
     D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
-    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+    dsvDesc.Format = DXGI_FORMAT_D32_FLOAT;
     dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
     mDevice->CreateDepthStencilView(fr.DepthStencilBuffer.Get(), &dsvDesc, mDsvManager->GetCpuHandle(slot));
 
@@ -396,7 +575,7 @@ bool DX12_Renderer::CreateDSV(UINT frameIndex, FrameResource& fr)
 }
 
 
-bool DX12_Renderer::Create_Merge_RenderTargets(UINT frameIndex, FrameResource& fr)
+bool DX12_Renderer::Create_Merge_RenderTargets(FrameResource& fr)
 {
     CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_DEFAULT);
     DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -549,7 +728,32 @@ bool DX12_Renderer::Create_Shader()
     );
 
     //==================================
+
+    ShaderSetting shadow_ss;
+    shadow_ss.vs.file = L"Shaders/Shadow_Shader.hlsl";
+    shadow_ss.vs.entry = "Shadow_VS";
+    shadow_ss.vs.target = "vs_5_1";
+
+    PipelinePreset shadow_pp;
+    shadow_pp.inputlayout = InputLayoutPreset::Default;
+    shadow_pp.rasterizer = RasterizerPreset::Shadow;
+    shadow_pp.blend = BlendPreset::Opaque;
+    shadow_pp.depth = DepthPreset::Default;
+    shadow_pp.RenderTarget = RenderTargetPreset::ShadowMap; 
+
+    std::vector<VariantConfig> shadow_configs =
+    {
+        { ShaderVariant::Shadow, shadow_ss, shadow_pp },
+    };
+
+    auto shadow_shader = pso_manager.RegisterShader(
+        "ShadowMap_Pass",
+        RootSignature_Type::ShadowPass,
+        shadow_configs,
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
     
+    //==================================
 
     ShaderSetting light_cluster_clear_ss;
     light_cluster_clear_ss.cs.file = L"Shaders/LightAssign_Shader.hlsl";
@@ -994,6 +1198,185 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
 
 }
 
+bool DX12_Renderer::Create_ShadowResources(FrameResource& fr)
+{
+    const RendererContext ctx = Get_UploadContext();
+    LightResource& lr = fr.light_resource;
+
+    const DXGI_FORMAT SHADOW_MAP_FORMAT = DXGI_FORMAT_R32_TYPELESS;
+    const DXGI_FORMAT SHADOW_MAP_DSV_FORMAT = DXGI_FORMAT_D32_FLOAT;
+    const DXGI_FORMAT SHADOW_MAP_SRV_FORMAT = DXGI_FORMAT_R32_FLOAT;
+    const D3D12_RESOURCE_STATES SHADOW_MAP_DEFAULT_STATE = D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE;
+    const D3D12_RESOURCE_FLAGS SHADOW_MAP_FLAGS = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+    //------------------------------------------------------------------
+    // 1. Directional CSM Shadow Array
+    {
+        UINT totalCsmSlices = MAX_SHADOW_CSM * NUM_CSM_CASCADES;
+
+        lr.CsmShadowArray = ResourceUtils::CreateTexture2DArray(
+            ctx,
+            CSM_SHADOW_RESOLUTION, CSM_SHADOW_RESOLUTION,
+            SHADOW_MAP_FORMAT, 
+            totalCsmSlices,
+            SHADOW_MAP_FLAGS,
+            SHADOW_MAP_DEFAULT_STATE
+        );
+
+        fr.StateTracker.Register(lr.CsmShadowArray.Get(), SHADOW_MAP_DEFAULT_STATE);
+
+        lr.CsmShadowArray_SRV = mResource_Heap_Manager->Allocate(HeapRegion::SRV_ShadowMap_CSM);
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = SHADOW_MAP_SRV_FORMAT;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Texture2DArray.MostDetailedMip = 0;
+        srvDesc.Texture2DArray.MipLevels = 1;
+        srvDesc.Texture2DArray.FirstArraySlice = 0;
+        srvDesc.Texture2DArray.ArraySize = totalCsmSlices;
+        mDevice->CreateShaderResourceView(lr.CsmShadowArray.Get(), &srvDesc, mResource_Heap_Manager->GetCpuHandle(lr.CsmShadowArray_SRV));
+
+        lr.CsmShadow_DSVs.resize(totalCsmSlices);
+
+        for (UINT i = 0; i < totalCsmSlices; ++i)
+        {
+            lr.CsmShadow_DSVs[i] = mDsvManager->Allocate(HeapRegion::DSV);
+            D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+            dsvDesc.Format = SHADOW_MAP_DSV_FORMAT;
+            dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
+            dsvDesc.Texture2DArray.FirstArraySlice = i;
+            dsvDesc.Texture2DArray.ArraySize = 1;
+            dsvDesc.Texture2DArray.MipSlice = 0;
+            mDevice->CreateDepthStencilView(lr.CsmShadowArray.Get(), &dsvDesc, mDsvManager->GetCpuHandle(lr.CsmShadow_DSVs[i]));
+        }
+    }
+    //------------------------------------------------------------------
+    // 2. Point Shadow Array 
+    {
+        lr.PointShadowCubeArray = ResourceUtils::CreateTextureCubeArray(
+            ctx,
+            POINT_SHADOW_RESOLUTION, POINT_SHADOW_RESOLUTION,
+            SHADOW_MAP_FORMAT, 
+            MAX_SHADOW_POINT,
+            SHADOW_MAP_FLAGS,
+            SHADOW_MAP_DEFAULT_STATE
+        );
+        fr.StateTracker.Register(lr.PointShadowCubeArray.Get(), SHADOW_MAP_DEFAULT_STATE);
+
+        lr.PointShadowCubeArray_SRV = mResource_Heap_Manager->Allocate(HeapRegion::SRV_ShadowMap_Point);
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = SHADOW_MAP_SRV_FORMAT;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBEARRAY;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.TextureCubeArray.MostDetailedMip = 0;
+        srvDesc.TextureCubeArray.MipLevels = 1;
+        srvDesc.TextureCubeArray.First2DArrayFace = 0;
+        srvDesc.TextureCubeArray.NumCubes = MAX_SHADOW_POINT;
+        mDevice->CreateShaderResourceView(lr.PointShadowCubeArray.Get(), &srvDesc, mResource_Heap_Manager->GetCpuHandle(lr.PointShadowCubeArray_SRV));
+
+        lr.PointShadow_DSVs.resize(MAX_SHADOW_POINT * 6);
+        for (UINT cubeIndex = 0; cubeIndex < MAX_SHADOW_POINT; ++cubeIndex)
+        {
+            for (UINT faceIndex = 0; faceIndex < 6; ++faceIndex)
+            {
+                UINT dsvLinearIndex = cubeIndex * 6 + faceIndex;
+                lr.PointShadow_DSVs[dsvLinearIndex] = mDsvManager->Allocate(HeapRegion::DSV);
+
+                D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+                dsvDesc.Format = SHADOW_MAP_DSV_FORMAT;
+                dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
+                dsvDesc.Texture2DArray.FirstArraySlice = dsvLinearIndex;
+                dsvDesc.Texture2DArray.ArraySize = 1;
+                dsvDesc.Texture2DArray.MipSlice = 0;
+                mDevice->CreateDepthStencilView(lr.PointShadowCubeArray.Get(), &dsvDesc, mDsvManager->GetCpuHandle(lr.PointShadow_DSVs[dsvLinearIndex]));
+            }
+        }
+    }
+    //------------------------------------------------------------------
+    // 3. Spot Shadow Array 
+    {
+        lr.SpotShadowArray = ResourceUtils::CreateTexture2DArray(
+            ctx,
+            SPOT_SHADOW_RESOLUTION, SPOT_SHADOW_RESOLUTION,
+            SHADOW_MAP_FORMAT, 
+            MAX_SHADOW_SPOT,
+            SHADOW_MAP_FLAGS,
+            SHADOW_MAP_DEFAULT_STATE
+        );
+        fr.StateTracker.Register(lr.SpotShadowArray.Get(), SHADOW_MAP_DEFAULT_STATE);
+
+        lr.SpotShadowArray_SRV = mResource_Heap_Manager->Allocate(HeapRegion::SRV_ShadowMap_Spot);
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Format = SHADOW_MAP_SRV_FORMAT;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Texture2DArray.MostDetailedMip = 0;
+        srvDesc.Texture2DArray.MipLevels = 1;
+        srvDesc.Texture2DArray.FirstArraySlice = 0;
+        srvDesc.Texture2DArray.ArraySize = MAX_SHADOW_SPOT;
+        mDevice->CreateShaderResourceView(lr.SpotShadowArray.Get(), &srvDesc, mResource_Heap_Manager->GetCpuHandle(lr.SpotShadowArray_SRV));
+
+        lr.SpotShadow_DSVs.resize(MAX_SHADOW_SPOT);
+        for (UINT i = 0; i < MAX_SHADOW_SPOT; ++i)
+        {
+            lr.SpotShadow_DSVs[i] = mDsvManager->Allocate(HeapRegion::DSV);
+            D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+            dsvDesc.Format = SHADOW_MAP_DSV_FORMAT;
+            dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2DARRAY;
+            dsvDesc.Texture2DArray.FirstArraySlice = i;
+            dsvDesc.Texture2DArray.ArraySize = 1;
+            dsvDesc.Texture2DArray.MipSlice = 0;
+            mDevice->CreateDepthStencilView(lr.SpotShadowArray.Get(), &dsvDesc, mDsvManager->GetCpuHandle(lr.SpotShadow_DSVs[i]));
+        }
+    }
+
+
+    return true;
+}
+
+bool DX12_Renderer::CreateShadowMatrixBuffer(FrameResource& fr)
+{
+    LightResource& lr = fr.light_resource;
+
+    UINT bufferSize = (sizeof(ShadowMatrixData) * MAX_SHADOW_VIEWS);
+    bufferSize = (bufferSize + 255) & ~255;
+
+    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
+    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc,
+        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&lr.ShadowMatrixBuffer));
+
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to create ShadowMatrixBuffer.\n");
+        return false;
+    }
+
+    hr = lr.ShadowMatrixBuffer->Map(0, nullptr, reinterpret_cast<void**>(&lr.MappedShadowMatrixBuffer));
+    if (FAILED(hr))
+    {
+        OutputDebugStringA("Failed to map ShadowMatrixBuffer.\n");
+        return false;
+    }
+
+    lr.ShadowMatrixBuffer_SRV_Index = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Buffer.FirstElement = 0;
+
+    srvDesc.Buffer.NumElements = MAX_SHADOW_VIEWS;
+    srvDesc.Buffer.StructureByteStride = sizeof(ShadowMatrixData);
+    srvDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+
+    mDevice->CreateShaderResourceView(lr.ShadowMatrixBuffer.Get(), &srvDesc, 
+        mResource_Heap_Manager->GetCpuHandle(lr.ShadowMatrixBuffer_SRV_Index));
+
+    return true;
+}
+
 // ------------------- Rendering Steps -------------------
 
 FrameResource& DX12_Renderer::GetCurrentFrameResource()
@@ -1034,6 +1417,8 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 
     ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
 
+    Material defaultMaterial = Material::Get_Default();
+
     for (auto& rd : renderables)
     {
         auto transform = rd.transform.lock();
@@ -1048,28 +1433,27 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         const size_t submeshCount = mesh->submeshes.size();
         for (size_t i = 0; i < submeshCount; ++i)
         {
-            if (fr.ObjectCB.HeadOffset >= fr.ObjectCB.MaxObjects)
-                break;
-
             UINT matId = renderer->GetMaterial(i);
             if (matId == Engine::INVALID_ID)
                 matId = mesh->submeshes[i].materialId;
 
             auto material = rsm->GetById<Material>(matId);
-            if (!material) continue;
+
+            const Material* matToUse = material ? material.get() : &defaultMaterial;
 
             ObjectCBData cb{};
             cb.World = worldT;
-            cb.Albedo = XMFLOAT4(material->albedoColor.x, material->albedoColor.y, material->albedoColor.z, 1.0f);
-            cb.Roughness = material->roughness;
-            cb.Metallic = material->metallic;
             cb.Emissive = 0.0f;
 
+            cb.Albedo = XMFLOAT4(matToUse->albedoColor.x, matToUse->albedoColor.y, matToUse->albedoColor.z, 1.0f);
+            cb.Roughness = matToUse->roughness;
+            cb.Metallic = matToUse->metallic;
+
             auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); };
-            cb.DiffuseTexIdx = toIdx(material->diffuseTexSlot);
-            cb.NormalTexIdx = toIdx(material->normalTexSlot);
-            cb.RoughnessTexIdx = toIdx(material->roughnessTexSlot);
-            cb.MetallicTexIdx = toIdx(material->metallicTexSlot);
+            cb.DiffuseTexIdx = toIdx(matToUse->diffuseTexSlot);
+            cb.NormalTexIdx = toIdx(matToUse->normalTexSlot);
+            cb.RoughnessTexIdx = toIdx(matToUse->roughnessTexSlot);
+            cb.MetallicTexIdx = toIdx(matToUse->metallicTexSlot);
 
             const UINT cbIndex = fr.ObjectCB.HeadOffset++;
             fr.ObjectCB.MappedObjectCB[cbIndex] = cb;
@@ -1078,35 +1462,127 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             di.mesh = mesh.get();
             di.sub = mesh->submeshes[i];
             di.cbIndex = cbIndex;
-            di.materialId = matId;
+            di.materialId = (material) ? matId : Engine::INVALID_ID;
 
             mDrawItems.emplace_back(std::move(di));
         }
     }
 }
 
-void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render_camera, const std::vector<GPULight>& lights)
+
+void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
     LightResource& lr = fr.light_resource;
+    const UINT currentFrameIndex = mFrameIndex;
+
+    lr.mFrameShadowCastingCSM.clear();
+    lr.mFrameShadowCastingSpot.clear();
+    lr.mFrameShadowCastingPoint.clear();
+    lr.mLightShadowIndexMap.clear();
+
+    UINT csmShadowCount = 0;
+    UINT spotShadowCount = 0;
+    UINT pointShadowCount = 0;
+
+    const UINT pointBaseOffset = 0;
+    const UINT csmBaseOffset = pointBaseOffset + (MAX_SHADOW_POINT * 6);
+    const UINT spotBaseOffset = csmBaseOffset + (MAX_SHADOW_CSM * NUM_CSM_CASCADES);
+
+    if (render_camera->IsViewMatrixUpdatedThisFrame())
+        for (const auto& light : light_comp_list) light->NotifyCameraMoved();
 
     XMMATRIX view_matrix = render_camera->GetViewMatrix();
-
     std::vector<GPULight> view_space_lights;
-    view_space_lights.reserve(lights.size());
+    view_space_lights.reserve(light_comp_list.size());
 
-    for (const auto& world_light : lights)
+    for (const auto& world_light : light_comp_list)
     {
-        GPULight view_light = world_light;
+        // [수정] ToGPUData() 호출을 루프 후반부로 이동시켰습니다.
 
-        XMVECTOR world_pos = XMLoadFloat3(&world_light.position);
-        XMVECTOR view_pos = XMVector3TransformCoord(world_pos, view_matrix);
-        XMStoreFloat3(&view_light.position, view_pos);
+        XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
+        XMVECTOR world_dir = XMLoadFloat3(&world_light->GetDirection());
 
-        XMVECTOR world_dir = XMLoadFloat3(&world_light.direction);
-        XMVECTOR view_dir = XMVector3TransformNormal(world_dir, view_matrix);
-        view_dir = XMVector3Normalize(view_dir);
-        XMStoreFloat3(&view_light.direction, view_dir);
+        // shadowMapStartIndex와 shadowMapLength를 임시 저장할 변수
+        UINT shadowBaseIndex = Engine::INVALID_ID;
+        UINT shadowMatrixCount = 0;
+
+        if (world_light->CastsShadow())
+        {
+            Light_Type type = world_light->GetLightType();
+            UINT baseIndex = 0, matrixCount = 0;
+            bool assigned = false;
+
+            if (type == Light_Type::Point && pointShadowCount < MAX_SHADOW_POINT)
+            {
+                baseIndex = pointBaseOffset + (pointShadowCount * 6);
+                matrixCount = 6;
+                pointShadowCount++;
+                assigned = true;
+
+                if (world_light->NeedsShadowUpdate(currentFrameIndex))
+                {
+                    lr.mFrameShadowCastingPoint.push_back(world_light);
+                    for (UINT i = 0; i < 6; ++i)
+                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(nullptr, i);
+                    world_light->ClearStaticBakeFlag(currentFrameIndex);
+                }
+            }
+            else if (type == Light_Type::Directional && csmShadowCount < MAX_SHADOW_CSM)
+            {
+                baseIndex = csmBaseOffset + (csmShadowCount * NUM_CSM_CASCADES);
+                matrixCount = NUM_CSM_CASCADES;
+                csmShadowCount++;
+                assigned = true;
+
+                if (world_light->NeedsShadowUpdate(currentFrameIndex))
+                {
+                    lr.mFrameShadowCastingCSM.push_back(world_light);
+                    // 이 UpdateShadowViewProj 호출이 C++ 멤버(cascadeSplits)를 먼저 업데이트합니다.
+                    if (world_light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
+                        for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
+                            lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj =
+                            world_light->UpdateShadowViewProj(render_camera, i);
+                    else
+                        lr.MappedShadowMatrixBuffer[baseIndex].ViewProj =
+                        world_light->UpdateShadowViewProj(nullptr, 0);
+                    world_light->ClearStaticBakeFlag(currentFrameIndex);
+                }
+            }
+            else if (type == Light_Type::Spot && spotShadowCount < MAX_SHADOW_SPOT)
+            {
+                baseIndex = spotBaseOffset + spotShadowCount;
+                matrixCount = 1;
+                spotShadowCount++;
+                assigned = true;
+
+                if (world_light->NeedsShadowUpdate(currentFrameIndex))
+                {
+                    lr.mFrameShadowCastingSpot.push_back(world_light);
+                    lr.MappedShadowMatrixBuffer[baseIndex].ViewProj = world_light->UpdateShadowViewProj(nullptr, 0);
+                    world_light->ClearStaticBakeFlag(currentFrameIndex);
+                }
+            }
+
+            if (assigned)
+            {
+                lr.mLightShadowIndexMap[world_light] = baseIndex;
+                shadowBaseIndex = baseIndex;   // 임시 변수에 저장
+                shadowMatrixCount = matrixCount; // 임시 변수에 저장
+            }
+        }
+
+        // [수정] UpdateShadowViewProj()가 호출된 이후에 ToGPUData()를 호출합니다.
+        // 이렇게 하면 cascadeSplits 멤버가 최신 값으로 채워진 GPULight 구조체가 생성됩니다.
+        GPULight view_light = world_light->ToGPUData();
+
+        // View Space 변환 적용
+        XMStoreFloat3(&view_light.position, XMVector3TransformCoord(world_pos, view_matrix));
+        XMStoreFloat3(&view_light.direction, XMVector3Normalize(XMVector3TransformNormal(world_dir, view_matrix)));
+
+        // 임시 저장했던 섀도우 인덱스 정보를 최종 GPU 데이터에 할당
+        view_light.shadowMapStartIndex = shadowBaseIndex;
+        view_light.shadowMapLength = shadowMatrixCount;
 
         view_space_lights.push_back(view_light);
     }
@@ -1114,33 +1590,142 @@ void DX12_Renderer::UpdateLightResources(std::shared_ptr<CameraComponent> render
     memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * view_space_lights.size());
 
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
-
     mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * view_space_lights.size());
-
     fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
 }
 
-void DX12_Renderer::SortByRenderType(std::vector<RenderData> renderData_list)
+void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
 {
+    mVisibleItems.clear();
 
+    FrameResource& fr = mFrameResources[mFrameIndex];
+    ObjectCBData* objCBArray = fr.ObjectCB.MappedObjectCB;
+
+    const Light_Type lightType = light->GetLightType();
+    const BoundingBox clipAABB(XMFLOAT3(0, 0, 0), XMFLOAT3(1, 1, 1));
+
+    if (lightType == Light_Type::Directional)
+    {
+        const XMFLOAT4X4& cachedTP = light->GetShadowViewProj(cascadeIdx);
+        XMMATRIX lightViewProjT = XMLoadFloat4x4(&cachedTP);
+        XMMATRIX lightViewProj = XMMatrixTranspose(lightViewProjT);
+
+        for (const auto& di : mDrawItems)
+        {
+            if (!di.mesh) continue;
+
+            const ObjectCBData& objData = objCBArray[di.cbIndex];
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            BoundingBox worldAABB;
+            di.sub.localAABB.Transform(worldAABB, world);
+
+            BoundingBox lightAABB;
+            worldAABB.Transform(lightAABB, lightViewProj);
+
+            if (lightAABB.Intersects(clipAABB))
+                mVisibleItems.push_back(di);
+        }
+    }
+    else if (lightType == Light_Type::Point)
+    {
+        const XMFLOAT3 lightPos = light->GetPosition();
+        float r = std::min(light->GetRange(), light->GetShadowMapFar());
+        BoundingSphere lightSphere(lightPos, r);
+
+        for (const auto& di : mDrawItems)
+        {
+            if (!di.mesh) continue;
+
+            const ObjectCBData& objData = objCBArray[di.cbIndex];
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            BoundingBox worldAABB;
+            di.sub.localAABB.Transform(worldAABB, world);
+
+            if (worldAABB.Intersects(lightSphere))
+                mVisibleItems.push_back(di);
+        }
+    }
+    else if (lightType == Light_Type::Spot)
+    {
+        const XMFLOAT3 pos = light->GetPosition();
+        const XMFLOAT3 dir = light->GetDirection();
+        const float nearZ = light->GetShadowMapNear();
+        const float farZ = light->GetShadowMapFar();
+        const float fov = light->GetOuterAngle();
+
+        XMVECTOR eye = XMLoadFloat3(&pos);
+        XMVECTOR look = XMVector3Normalize(XMLoadFloat3(&dir));
+        XMVECTOR up = (fabsf(XMVectorGetY(look)) > 0.99f) ? XMVectorSet(0, 0, 1, 0) : XMVectorSet(0, 1, 0, 0);
+
+        XMMATRIX view = XMMatrixLookToLH(eye, look, up);
+        XMMATRIX proj = XMMatrixPerspectiveFovLH(fov, 1.0f, nearZ, farZ);
+
+        BoundingFrustum frSpot;
+        BoundingFrustum::CreateFromMatrix(frSpot, proj);
+
+        XMMATRIX invView = XMMatrixInverse(nullptr, view);
+        frSpot.Transform(frSpot, invView);
+
+        for (const auto& di : mDrawItems)
+        {
+            if (!di.mesh) continue;
+
+            const ObjectCBData& objData = objCBArray[di.cbIndex];
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            BoundingBox worldAABB;
+            di.sub.localAABB.Transform(worldAABB, world);
+
+            if (frSpot.Intersects(worldAABB))
+                mVisibleItems.push_back(di);
+        }
+    }
 }
 
-void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList)
+
+void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera)
 {
+    mVisibleItems.clear();
+
+    const BoundingFrustum& frustum = camera->GetFrustumWS();
     FrameResource& fr = mFrameResources[mFrameIndex];
+    const ObjectCBData* objCBArray = fr.ObjectCB.MappedObjectCB;
 
     for (const auto& di : mDrawItems)
     {
         if (!di.mesh) continue;
 
+        const ObjectCBData& objData = objCBArray[di.cbIndex];
+        XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+        BoundingBox worldAABB;
+        di.sub.localAABB.Transform(worldAABB, world);
+
+        if (frustum.Intersects(worldAABB))
+            mVisibleItems.push_back(di);
+    }
+}
+
+
+void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList)
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    for (const auto& di : drawList)
+    {
+        if (!di.mesh) continue;
+
         D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + di.cbIndex * sizeof(ObjectCBData);
-        cmdList->SetGraphicsRootConstantBufferView(RootParameter_Default::ObjectCBV, gpuAddr);
+
+        cmdList->SetGraphicsRootConstantBufferView(objectCBVRootParamIndex, gpuAddr);
 
         di.mesh->Bind(cmdList);
-
         cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
     }
 }
+
 
 void DX12_Renderer::PrepareCommandList()
 {
@@ -1180,7 +1765,7 @@ void DX12_Renderer::ClearGBuffer()
         mCommandList->ClearRenderTargetView(rtvs[g], cfg.clearColor, 0, nullptr);
     }
 
-    mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
 
     for (auto& target : fr.gbuffer.targets)
         fr.StateTracker.Transition(mCommandList.Get(), target.Get(), D3D12_RESOURCE_STATE_COMMON);
@@ -1254,10 +1839,12 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 {
     std::shared_ptr<CameraComponent> mainCam = render_scene->GetActiveCamera();
     std::vector<RenderData> renderData_list = render_scene->GetRenderable();
-    std::vector<GPULight > light_data_list = render_scene->GetLightList();
+    std::vector<LightComponent*> light_comp_list = render_scene->GetLightList();
 
     if (!mainCam)
         return;
+
+    mainCam->Update();
 
     //--------------------------------------------------------------------------------------
 
@@ -1273,11 +1860,15 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     //------------------------------------------
     UpdateObjectCBs(renderData_list);
+    CullObjectsForRender(mainCam);
     GeometryPass(mainCam);
     //------------------------------------------
-    UpdateLightResources(mainCam, light_data_list);
+    UpdateLightAndShadowData(mainCam, light_comp_list);
     LightPass(mainCam);
-    //------------------------------------------
+    ShadowPass();
+	//------------------------------------------
+
+    mainCam->SetViewportsAndScissorRects(mCommandList);
 
     CompositePass(mainCam);
 
@@ -1312,7 +1903,7 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
-    Render_Objects(mCommandList);
+    Render_Objects(mCommandList, RootParameter_Default::ObjectCBV, mVisibleItems);
 }
 
 void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
@@ -1397,14 +1988,123 @@ void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
         mCommandList->Dispatch(dispatchX, 1, 1);
 
         fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get());
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get());
     }
     //============================================
 }
 
+void DX12_Renderer::ShadowPass()
+{
+    FrameResource& fr = GetCurrentFrameResource();
+    LightResource& lr = fr.light_resource;
+
+    ID3D12RootSignature* shadow_rs = RootSignatureFactory::Get(RootSignature_Type::ShadowPass);
+    mCommandList->SetGraphicsRootSignature(shadow_rs);
+
+    PSO_Manager::Instance().BindShader(mCommandList, "ShadowMap_Pass", ShaderVariant::Shadow);
+
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Shadow::ShadowMatrix_SRV, mResource_Heap_Manager->GetGpuHandle(lr.ShadowMatrixBuffer_SRV_Index));
+
+    //============================================
+    // A. Point (Cube)
+    D3D12_VIEWPORT pointViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Point);
+    D3D12_RECT pointScissor = LightComponent::Get_ShadowMapScissorRect(Light_Type::Point);
+
+    mCommandList->RSSetViewports(1, &pointViewport);
+    mCommandList->RSSetScissorRects(1, &pointScissor);
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.PointShadowCubeArray.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    for (UINT i = 0; i < lr.mFrameShadowCastingPoint.size(); ++i)
+    {
+        LightComponent* light = lr.mFrameShadowCastingPoint[i];
+        UINT baseMatrixIndex = lr.mLightShadowIndexMap[light];
+        UINT baseDsvIndex = i * 6;
+
+        for (UINT faceIndex = 0; faceIndex < 6; ++faceIndex)
+        {
+            UINT matrixIndex = baseMatrixIndex + faceIndex;
+            UINT dsvIndex = baseDsvIndex + faceIndex;
+
+            auto dsv = mDsvManager->GetCpuHandle(lr.PointShadow_DSVs[dsvIndex]);
+            mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
+
+            mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
+
+            CullObjectsForShadow(light, 0);
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, mVisibleItems);
+        }
+    }
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.PointShadowCubeArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    // =======================================================
+    // B. Directional (CSM)
+    D3D12_VIEWPORT csmViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Directional);
+    D3D12_RECT csmScissor = LightComponent::Get_ShadowMapScissorRect(Light_Type::Directional);
+
+    mCommandList->RSSetViewports(1, &csmViewport);
+    mCommandList->RSSetScissorRects(1, &csmScissor);
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.CsmShadowArray.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    for (UINT i = 0; i < lr.mFrameShadowCastingCSM.size(); ++i)
+    {
+        LightComponent* light = lr.mFrameShadowCastingCSM[i];
+        UINT baseMatrixIndex = lr.mLightShadowIndexMap[light];
+        UINT baseDsvIndex = i * NUM_CSM_CASCADES;
+
+        for (UINT cascadeIndex = 0; cascadeIndex < NUM_CSM_CASCADES; ++cascadeIndex)
+        {
+            UINT matrixIndex = baseMatrixIndex + cascadeIndex;
+            UINT dsvIndex = baseDsvIndex + cascadeIndex;
+
+            auto dsv = mDsvManager->GetCpuHandle(lr.CsmShadow_DSVs[dsvIndex]);
+            mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+            mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
+
+            mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
+
+            CullObjectsForShadow(light, cascadeIndex);
+            Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, mVisibleItems);
+        }
+    }
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.CsmShadowArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+    // =======================================================
+    // C. Spot
+    D3D12_VIEWPORT spotViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Spot);
+    D3D12_RECT spotScissor = LightComponent::Get_ShadowMapScissorRect(Light_Type::Spot);
+
+    mCommandList->RSSetViewports(1, &spotViewport);
+    mCommandList->RSSetScissorRects(1, &spotScissor);
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.SpotShadowArray.Get(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+
+    for (UINT i = 0; i < lr.mFrameShadowCastingSpot.size(); ++i)
+    {
+        LightComponent* light = lr.mFrameShadowCastingSpot[i];
+        UINT matrixIndex = lr.mLightShadowIndexMap[light];
+
+        auto dsv = mDsvManager->GetCpuHandle(lr.SpotShadow_DSVs[i]);
+        mCommandList->OMSetRenderTargets(0, nullptr, FALSE, &dsv);
+        mCommandList->ClearDepthStencilView(dsv, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr); // Clear to far plane 0.0f for reversed Z
+
+        mCommandList->SetGraphicsRoot32BitConstants(RootParameter_Shadow::ShadowMatrix_Index, 1, &matrixIndex, 0);
+
+        CullObjectsForShadow(light, 0);
+        Render_Objects(mCommandList, RootParameter_Shadow::ObjectCBV, mVisibleItems);
+    }
+
+    fr.StateTracker.Transition(mCommandList.Get(), lr.SpotShadowArray.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+}
 
 void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
+    LightResource& lr = fr.light_resource;
 
     ID3D12RootSignature* rs = RootSignatureFactory::Get(RootSignature_Type::PostFX);
     mCommandList->SetGraphicsRootSignature(rs);
@@ -1417,6 +2117,9 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
 
     fr.StateTracker.Transition(mCommandList.Get(), fr.Merge_RenderTargets[fr.Merge_Target_Index].Get(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    fr.StateTracker.Transition(mCommandList.Get(), lr.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
     auto rtv = mRtvManager->GetCpuHandle(fr.MergeRtvSlot_IDs[fr.Merge_Target_Index]);
     mCommandList->OMSetRenderTargets(1, &rtv, FALSE, nullptr);
     
@@ -1424,19 +2127,16 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
 
     render_camera->Graphics_Bind(mCommandList, RootParameter_PostFX::CameraCBV);
 
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-    fr.StateTracker.Transition(mCommandList.Get(), fr.light_resource.ClusterLightIndicesBuffer.Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-    auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterBuffer_SRV_Index);
+    auto ClusterSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterAreaSRV, ClusterSrv);
 
-    auto LightSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.LightBuffer_SRV_Index);
+    auto LightSrv = mResource_Heap_Manager->GetGpuHandle(lr.LightBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::LightBufferSRV, LightSrv);
 
-    auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
+    auto LightMetaSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterLightMetaBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightMetaSRV, LightMetaSrv);
 
-    auto LightIndicesSrv = mResource_Heap_Manager->GetGpuHandle(fr.light_resource.ClusterLightIndicesBuffer_SRV_Index);
+    auto LightIndicesSrv = mResource_Heap_Manager->GetGpuHandle(lr.ClusterLightIndicesBuffer_SRV_Index);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ClusterLightIndicesSRV, LightIndicesSrv);
 
 
@@ -1451,6 +2151,23 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
         auto depthSrv = mResource_Heap_Manager->GetGpuHandle(fr.DepthBufferSrvSlot_ID);
         mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::DepthTexture, depthSrv);
     }
+
+    {
+        auto ShadowMatrixSrv = mResource_Heap_Manager->GetGpuHandle(lr.ShadowMatrixBuffer_SRV_Index);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMatrix_SRV, ShadowMatrixSrv);
+
+        auto csmSrv = mResource_Heap_Manager->GetGpuHandle(lr.CsmShadowArray_SRV);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapCSMTable, csmSrv);
+
+        auto spotSrv = mResource_Heap_Manager->GetGpuHandle(lr.SpotShadowArray_SRV);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapSpotTable, spotSrv);
+
+        auto pointSrv = mResource_Heap_Manager->GetGpuHandle(lr.PointShadowCubeArray_SRV);
+        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapPointTable, pointSrv);
+    }
+
+    auto src = mResource_Heap_Manager->GetGpuHandle(fr.MergeSrvSlot_IDs[fr.Merge_Base_Index]);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::MergeTexture, src);
 
     mCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     mCommandList->DrawInstanced(6, 1, 0, 0);
@@ -1630,98 +2347,23 @@ bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
     mWidth = newWidth;
     mHeight = newHeight;
 
-    for (auto& fr : mFrameResources)
+    for (UINT i = 0; i < FrameCount; ++i)
     {
-        if (fr.BackBufferRtvSlot_ID != UINT_MAX)
-            mRtvManager->FreeDeferred(HeapRegion::RTV, fr.BackBufferRtvSlot_ID);
-
-        if (fr.DsvSlot_ID != UINT_MAX)
-            mDsvManager->FreeDeferred(HeapRegion::DSV, fr.DsvSlot_ID);
-
-        for (UINT slot : fr.GBufferRtvSlot_IDs)
-            mRtvManager->FreeDeferred(HeapRegion::RTV, slot);
-
-        for (UINT slot : fr.GBufferSrvSlot_IDs)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, slot);
-
-        for (UINT slot : fr.MergeRtvSlot_IDs)
-            mRtvManager->FreeDeferred(HeapRegion::RTV,slot);
-
-        for (UINT slot : fr.MergeSrvSlot_IDs)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, slot);
-
-        if (fr.DepthBufferSrvSlot_ID != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.DepthBufferSrvSlot_ID);
-
-        if(fr.light_resource.ClusterBuffer_SRV_Index != UINT_MAX)
-			mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterBuffer_SRV_Index);
-
-        if(fr.light_resource.ClusterBuffer_UAV_Index != UINT_MAX)
-			mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterBuffer_UAV_Index);
-
-        if (fr.light_resource.LightBuffer_SRV_Index != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.LightBuffer_SRV_Index);
-
-        if (fr.light_resource.ClusterLightMetaBuffer_SRV_Index != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterLightMetaBuffer_SRV_Index);
-
-        if (fr.light_resource.ClusterLightMetaBuffer_UAV_Index != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterLightMetaBuffer_UAV_Index);
-
-        if (fr.light_resource.ClusterLightIndicesBuffer_SRV_Index != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ClusterLightIndicesBuffer_SRV_Index);
-
-        if (fr.light_resource.ClusterLightIndicesBuffer_UAV_Index != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.ClusterLightIndicesBuffer_UAV_Index);
-
-        if (fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index != UINT_MAX)
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::UAV, fr.light_resource.GlobalOffsetCounterBuffer_UAV_Index);
-        
-
-        if (fr.light_resource.MappedLightUploadBuffer)
-        {
-            fr.light_resource.LightUploadBuffer->Unmap(0, nullptr);
-            fr.light_resource.LightUploadBuffer.Reset();
-            fr.light_resource.MappedLightUploadBuffer = nullptr;
-        }
-
-        if (fr.light_resource.LightBuffer)
-            fr.light_resource.LightBuffer.Reset();
-
-        if(fr.light_resource.ClusterBuffer)
-			fr.light_resource.ClusterBuffer.Reset();   
-
-        if(fr.light_resource.ClusterLightMetaBuffer)
-			fr.light_resource.ClusterLightMetaBuffer.Reset();
-
-        if (fr.light_resource.ClusterLightIndicesBuffer)
-            fr.light_resource.ClusterLightIndicesBuffer.Reset();
-
-        if (fr.light_resource.GlobalOffsetCounterBuffer)
-            fr.light_resource.GlobalOffsetCounterBuffer.Reset();
-    }
-
-    for (auto& fr : mFrameResources)
-    {
-        fr.RenderTarget.Reset();
-        fr.DepthStencilBuffer.Reset();
-        for (auto& target : fr.gbuffer.targets)
-            target.Reset();
-        fr.gbuffer.Depth.Reset();
-
-		fr.light_resource.ClusterBuffer.Reset();
-        fr.light_resource.LightBuffer.Reset();
-		fr.light_resource.LightUploadBuffer.Reset();
+        mFrameResources[i].RenderTarget.Reset();
+        DestroySingleFrameResource(mFrameResources[i]);
     }
 
     mRtvManager->Update();
     mDsvManager->Update();
     mResource_Heap_Manager->Update();
 
-
     DXGI_SWAP_CHAIN_DESC desc;
     mSwapChain->GetDesc(&desc);
-    mSwapChain->ResizeBuffers(FrameCount, newWidth, newHeight, desc.BufferDesc.Format, desc.Flags);
+    HRESULT hr = mSwapChain->ResizeBuffers(FrameCount, newWidth, newHeight, desc.BufferDesc.Format, desc.Flags);
+    if (FAILED(hr))
+    {
+        return false;
+    }
     mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
 
     return CreateFrameResources();
@@ -1991,19 +2633,24 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Separator();
             ImGui::Indent();
 
-            // Light Type 선택
             Light_Type type = light->GetLightType();
             const char* typeNames[] = { "Directional", "Point", "Spot" };
             int currentType = static_cast<int>(type);
+
+            // ==========================================================
+            // 1. General Light Settings
+            // ==========================================================
+            ImGui::Text("Light Settings");
+            ImGui::Separator();
 
             if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
                 light->SetLightType(static_cast<Light_Type>(currentType));
 
             XMFLOAT3 color = light->GetColor();
-            float intensity = light->GetIntensity();
-
             if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color)))
                 light->SetColor(color);
+
+            float intensity = light->GetIntensity();
             if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
                 light->SetIntensity(intensity);
 
@@ -2012,9 +2659,8 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 XMFLOAT3 direction = light->GetDirection();
                 if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
                 {
-                    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f) 
-                        direction.y = -1.0f; 
-                    
+                    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)
+                        direction.y = -1.0f;
                     light->SetDirection(direction);
                 }
             }
@@ -2022,36 +2668,101 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             if (type == Light_Type::Point || type == Light_Type::Spot)
             {
                 float range = light->GetRange();
-                if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 1000.0f))
+                if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 10000.0f))
                     light->SetRange(range);
             }
 
             if (type == Light_Type::Spot)
             {
                 float inner = XMConvertToDegrees(light->GetInnerAngle());
-                float outer = XMConvertToDegrees(light->GetOuterAngle());
                 if (ImGui::DragFloat("Inner Angle", &inner, 0.5f, 0.0f, 90.0f))
                     light->SetInnerAngle(XMConvertToRadians(inner));
+
+                float outer = XMConvertToDegrees(light->GetOuterAngle());
                 if (ImGui::DragFloat("Outer Angle", &outer, 0.5f, 0.0f, 180.0f))
                     light->SetOuterAngle(XMConvertToRadians(outer));
             }
 
+            ImGui::Spacing();
+
+            // ==========================================================
+            // 2. Shadow Settings
+            // ==========================================================
+            ImGui::Text("Shadow Settings");
+            ImGui::Separator();
+
             bool castShadow = light->CastsShadow();
-            if (ImGui::Checkbox("Cast Shadow", &castShadow))
-                light->SetCastShadow(castShadow);
+            ImGui::Checkbox("Cast Shadow", &castShadow);
+            light->SetCastShadow(castShadow);
 
-
-            if (auto tf = light->GetTransform())
+            if (castShadow)
             {
-     //           XMFLOAT3 dir = tf->GetForward();
-     //           if (ImGui::DragFloat3("MainDirection", reinterpret_cast<float*>(&dir), 0.01f))
-					//tf->SetRotationEuler(dir);
+                ShadowMode shadowMode = light->GetShadowMode();
+                const char* modeNames[] = { "Dynamic", "Static" };
+                int currentModeInt = static_cast<int>(shadowMode);
+
+                if (ImGui::Combo("Shadow Mode", &currentModeInt, modeNames, IM_ARRAYSIZE(modeNames)))
+                {
+                    light->SetShadowMode(static_cast<ShadowMode>(currentModeInt));
+                }
+
+                if (static_cast<ShadowMode>(currentModeInt) == ShadowMode::Static)
+                {
+                    if (ImGui::Button("Bake New ShadowMap"))
+                    {
+                        light->ForceShadowMapUpdate();
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(One-time manual bake)");
+                }
+
+                ImGui::Separator();
+
+                if (type == Light_Type::Directional)
+                {
+                    DirectionalShadowMode dirMode = light->GetDirectionalShadowMode();
+                    const char* dirModeNames[] = { "Default (StaticGlobal)", "CSM (Camera Dependent)" };
+                    int currentDirModeInt = static_cast<int>(dirMode);
+
+                    if (ImGui::Combo("Directional Mode", &currentDirModeInt, dirModeNames, IM_ARRAYSIZE(dirModeNames)))
+                    {
+                        light->SetDirectionalShadowMode(static_cast<DirectionalShadowMode>(currentDirModeInt));
+                    }
+
+                    if (static_cast<DirectionalShadowMode>(currentDirModeInt) == DirectionalShadowMode::Default)
+                    {
+                        float orthoSize = light->GetStaticOrthoSize();
+                        if (ImGui::DragFloat("Static Ortho Size", &orthoSize, 1.0f, 1.0f, 10000.0f))
+                        {
+                            light->SetStaticOrthoSize(orthoSize);
+                        }
+                    }
+
+                    ImGui::Separator();
+
+                    float lambda = light->GetCascadeLambda();
+                    if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
+                        light->SetCascadeLambda(lambda);
+
+                    ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
+
+                    ImGui::Separator();
+                }
+
+                float shadowNear = light->GetShadowMapNear();
+                if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, light->GetShadowMapFar() - 1.0f))
+                    light->SetShadowMapNear(shadowNear);
+
+                float shadowFar = light->GetShadowMapFar();
+                if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, light->GetShadowMapNear() + 1.0f, 20000.0f))
+                    light->SetShadowMapFar(shadowFar);
             }
 
             ImGui::Unindent();
         }
     }
     break;
+
 
 
 

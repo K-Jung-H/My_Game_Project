@@ -131,6 +131,18 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateTextureResource(const RendererContex
     return CreateResource(ctx, pData, rowPitchBytes, D3D12_RESOURCE_DIMENSION_TEXTURE2D, width, height, arraySize, mipLevels, flags, format, heapType, finalState, uploadBuffer);
 }
 
+ComPtr<ID3D12Resource> ResourceUtils::CreateTexture2DArray(const RendererContext& ctx, UINT width, UINT height, DXGI_FORMAT format, UINT arraySize, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState)
+{
+    ComPtr<ID3D12Resource> dummyUpload;
+	return CreateTextureResource(ctx, nullptr, 0, width, height, arraySize, 1, flags, format, D3D12_HEAP_TYPE_DEFAULT, initialState, dummyUpload);
+}
+
+ComPtr<ID3D12Resource> ResourceUtils::CreateTextureCubeArray(const RendererContext& ctx, UINT width, UINT height, DXGI_FORMAT format, UINT numCubes, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initialState)
+{
+	ComPtr<ID3D12Resource> dummyUpload;
+	return CreateTextureResource(ctx, nullptr, 0, width, height, numCubes * 6, 1, flags, format, D3D12_HEAP_TYPE_DEFAULT, initialState, dummyUpload);
+}
+
 
 
 ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx, void* pData, UINT64 nBytes, D3D12_RESOURCE_DIMENSION dimension, UINT width, UINT height, UINT depthOrArraySize, UINT mipLevels,
@@ -172,8 +184,32 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
         D3D12_RESOURCE_STATES initState =
             (dimension == D3D12_RESOURCE_DIMENSION_BUFFER) ? D3D12_RESOURCE_STATE_COMMON : (pData ? D3D12_RESOURCE_STATE_COPY_DEST : finalState);
 
+        D3D12_CLEAR_VALUE clearValue = {};
+        D3D12_CLEAR_VALUE* pClearValue = nullptr; 
+
+        if (flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL)
+        {
+			clearValue.DepthStencil.Depth = 0.0f; // Reverse-Z
+            clearValue.DepthStencil.Stencil = 0;
+
+            if (desc.Format == DXGI_FORMAT_R32_TYPELESS)
+            {
+                clearValue.Format = DXGI_FORMAT_D32_FLOAT; 
+            }
+            else if (desc.Format == DXGI_FORMAT_R24G8_TYPELESS)
+            {
+                clearValue.Format = DXGI_FORMAT_D24_UNORM_S8_UINT; 
+            }
+            else
+            {
+                clearValue.Format = desc.Format; 
+            }
+
+            pClearValue = &clearValue;
+        }
+
         HRESULT hr = device->CreateCommittedResource(&heapProps,
-            D3D12_HEAP_FLAG_NONE, &desc, initState, nullptr, IID_PPV_ARGS(&resource));
+            D3D12_HEAP_FLAG_NONE, &desc, initState, pClearValue, IID_PPV_ARGS(&resource));
 
         if (FAILED(hr))
             throw std::runtime_error("Failed to create default heap resource");

@@ -76,6 +76,8 @@ public:
     void SetScissorRect(XMUINT2 LeftTop, XMUINT2 RightBottom);
     void SetViewportsAndScissorRects(ComPtr<ID3D12GraphicsCommandList> cmdList);
 
+    void UpdateFrustum();
+    const BoundingFrustum& GetFrustumWS() const { return mFrustumWS; }
 
     void SetFovY(float fovY) { mFovY = fovY; mProjDirty = true; }
     void SetNearZ(float nearZ) { mNearZ = nearZ; mProjDirty = true; }
@@ -84,10 +86,12 @@ public:
     float GetFovY() { return mFovY; }
     float GetNearZ() { return mNearZ; }
     float GetFarZ() { return mFarZ; }
-
+	float GetAspectRatio() const { return mViewport.Width / mViewport.Height; }
 
     XMMATRIX GetViewMatrix() const { return XMLoadFloat4x4(&mf4x4View); }
     XMMATRIX GetProjectionMatrix() const { return XMLoadFloat4x4(&mf4x4Projection); }
+
+    bool IsViewMatrixUpdatedThisFrame() const { return mFrameViewMatrixUpdated; }
 
 private:
     float mPitch = 0.0f; 
@@ -111,8 +115,10 @@ private:
 
     bool mViewDirty = true;
     bool mProjDirty = true;
-
+	bool mFrameViewMatrixUpdated = false;
 
     ComPtr<ID3D12Resource> mCameraCB;
     CameraCB* mMappedCB = nullptr;
+
+    BoundingFrustum mFrustumWS;
 };

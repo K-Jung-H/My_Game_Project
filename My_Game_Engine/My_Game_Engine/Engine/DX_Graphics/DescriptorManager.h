@@ -1,12 +1,18 @@
 
-constexpr UINT MAX_CBV = 1000;
-constexpr UINT MAX_SRV = 1000;
-constexpr UINT MAX_UAV = 1000;
+constexpr UINT MAX_CBV = 512;
+constexpr UINT MAX_UAV = 128;
+
+constexpr UINT MAX_SRV_FRAME = 512;
+constexpr UINT MAX_SRV_TEXTURE = 2000;
+
 
 enum class HeapRegion
 {
     SRV_Texture,   // 일반 텍스처 
     SRV_Frame,     // 프레임 버퍼 리소스
+    SRV_ShadowMap_CSM,
+    SRV_ShadowMap_Point,
+    SRV_ShadowMap_Spot,
     CBV,
     UAV,
     RTV,

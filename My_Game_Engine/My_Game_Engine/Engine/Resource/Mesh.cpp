@@ -56,6 +56,45 @@ void Mesh::UploadToGPU()
     }
 }
 
+void Mesh::SetAABB()
+{
+    if (positions.empty() || submeshes.empty())
+        return;
+
+    XMVECTOR meshMin = XMVectorSet(+FLT_MAX, +FLT_MAX, +FLT_MAX, 0);
+    XMVECTOR meshMax = XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 0);
+
+    for (auto& sub : submeshes)
+    {
+        XMVECTOR subMin = XMVectorSet(+FLT_MAX, +FLT_MAX, +FLT_MAX, 0);
+        XMVECTOR subMax = XMVectorSet(-FLT_MAX, -FLT_MAX, -FLT_MAX, 0);
+
+        for (UINT i = 0; i < sub.indexCount; ++i)
+        {
+            UINT idx = indices[sub.startIndexLocation + i];
+            const XMFLOAT3& pos = positions[idx];
+            XMVECTOR p = XMLoadFloat3(&pos);
+            subMin = XMVectorMin(subMin, p);
+            subMax = XMVectorMax(subMax, p);
+        }
+
+        XMVECTOR c = (subMin + subMax) * 0.5f;
+        XMVECTOR e = (subMax - subMin) * 0.5f;
+        XMStoreFloat3(&sub.localAABB.Center, c);
+        XMStoreFloat3(&sub.localAABB.Extents, e);
+
+        // Mesh 전체 범위 업데이트
+        meshMin = XMVectorMin(meshMin, subMin);
+        meshMax = XMVectorMax(meshMax, subMax);
+    }
+
+    XMVECTOR meshC = (meshMin + meshMax) * 0.5f;
+    XMVECTOR meshE = (meshMax - meshMin) * 0.5f;
+    XMStoreFloat3(&mLocalAABB.Center, meshC);
+    XMStoreFloat3(&mLocalAABB.Extents, meshE);
+}
+
+
 void Mesh::FromAssimp(const aiMesh* mesh)
 {
     positions.resize(mesh->mNumVertices);
@@ -98,6 +137,7 @@ void Mesh::FromAssimp(const aiMesh* mesh)
     }
 
     UploadToGPU();
+    SetAABB();
 }
 
 void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
@@ -189,8 +229,8 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
     }
 
     UploadToGPU();
+    SetAABB();
 }
-
 
 void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
 {
@@ -209,6 +249,67 @@ void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
 
     cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }
+
+Plane_Mesh::Plane_Mesh(float width, float height)
+{
+    GeneratePlane(width, height);
+    UploadToGPU();
+    SetAABB();
+}
+
+void Plane_Mesh::GeneratePlane(float width, float depth) 
+{
+    float halfWidth = width / 2.0f;
+    float halfDepth = depth / 2.0f; 
+
+    positions = {
+        { -halfWidth, 0.0f, -halfDepth }, 
+        { -halfWidth, 0.0f,  halfDepth }, 
+        {  halfWidth, 0.0f,  halfDepth }, 
+        {  halfWidth, 0.0f, -halfDepth } 
+    };
+
+    normals = {
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f }
+    };
+
+    tangents = {
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f }
+    };
+
+        uvs = {
+        { 0.0f, 1.0f },
+        { 0.0f, 0.0f },
+        { 1.0f, 0.0f },
+        { 1.0f, 1.0f } 
+    };
+
+    colors = {
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f },
+        { 1.0f, 1.0f, 1.0f, 1.0f }
+    };
+
+    indices = {
+        0, 1, 2, 
+        0, 2, 3  
+    };
+
+    Submesh submesh;
+    submesh.indexCount = static_cast<UINT>(indices.size());
+    submesh.startIndexLocation = 0;
+    submesh.baseVertexLocation = 0;
+    submesh.materialId = Engine::INVALID_ID;
+    submeshes.push_back(submesh);
+}
+
 
 void SkinnedMesh::FromAssimp(const aiMesh* mesh)
 {

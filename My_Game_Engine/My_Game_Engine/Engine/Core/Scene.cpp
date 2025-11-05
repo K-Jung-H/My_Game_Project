@@ -23,21 +23,35 @@ void Scene::Build()
 	Object* camera_obj = m_pObjectManager->CreateObject("Main_Camera");
 	auto camera_component = camera_obj->AddComponent<CameraComponent>();
 	camera_component->SetTransform(camera_obj->GetTransform());
-	camera_component->SetPosition({ 0.0f, 0.0f, 50.0f });
-
+	camera_component->SetPosition({ 0.0f, 10.0f, -30.0f });
 	SetActiveCamera(camera_component);
 
 	//--------------------------------------------------------------------------------
 	{
 		Object* light_obj = m_pObjectManager->CreateObject("Main_Light");
+		light_obj->GetTransform()->SetPosition({ 0.0f, 30.0f, 0.0f });
+
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
+		light_component->SetLightType(Light_Type::Point);
 	}
 	{
 		Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
 		auto light_component = sub_light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(sub_light_obj->GetTransform());
 	}
+	{
+		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
+		plane_mesh->SetAlias("Plane_Mesh");
+		rsm->RegisterResource(plane_mesh);
+		UINT plane_id = plane_mesh->GetId();
+
+		Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
+		plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
+		auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
+		mesh_component->SetMesh(plane_id);
+	}
+	
 	//--------------------------------------------------------------------------------
 	
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
@@ -175,13 +189,15 @@ void Scene::Update_Late()
 			cp->Update();
 	}
 	
-	m_pObjectManager->UpdateTransform_All();
 
 	for (auto lightComponent : light_list)
 	{
 		if (auto lc = lightComponent.lock())
 			lc->Update();
 	}
+
+	m_pObjectManager->UpdateTransform_All();
+
 }
 
 void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
@@ -320,15 +336,14 @@ std::vector<RenderData> Scene::GetRenderable() const
 	return result;
 }
 
-std::vector<GPULight> Scene::GetLightList() const
+std::vector<LightComponent*> Scene::GetLightList() const
 {
-	std::vector<GPULight> list;
+	std::vector<LightComponent*> list;
 	for (const auto& light_comp : light_list)
 	{
 		if (auto light = light_comp.lock())
 		{ 
-			GPULight light_data = light->ToGPUData();
-			list.push_back(light_data);
+			list.push_back(light.get());
 		}
 	}
 	return list;

@@ -28,7 +28,7 @@ public:
     
     std::vector<Object*> GetRootObjectList() const;
     std::vector<RenderData> GetRenderable() const;
-    std::vector<GPULight> GetLightList() const;
+    std::vector<LightComponent*> GetLightList() const;
 
     void RegisterCamera(std::weak_ptr<CameraComponent> cam);
     void SetActiveCamera(const std::shared_ptr<CameraComponent>& cam) { activeCamera = cam; }
