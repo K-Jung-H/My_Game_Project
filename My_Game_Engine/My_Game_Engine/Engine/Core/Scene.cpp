@@ -33,13 +33,14 @@ void Scene::Build()
 
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
-		light_component->SetLightType(Light_Type::Point);
+		light_component->SetLightType(Light_Type::Directional);
+		light_component->SetCastShadow(false);
 	}
-	{
-		Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
-		auto light_component = sub_light_obj->AddComponent<LightComponent>();
-		light_component->SetTransform(sub_light_obj->GetTransform());
-	}
+	//{
+	//	Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
+	//	auto light_component = sub_light_obj->AddComponent<LightComponent>();
+	//	light_component->SetTransform(sub_light_obj->GetTransform());
+	//}
 	{
 		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
 		plane_mesh->SetAlias("Plane_Mesh");

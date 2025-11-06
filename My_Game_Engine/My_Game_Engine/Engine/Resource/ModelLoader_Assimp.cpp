@@ -29,17 +29,14 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         return false;
     }
 
-    // --- 모델 생성 ---
     auto model = std::make_shared<Model>();
     model->SetAlias(std::filesystem::path(path).stem().string());
     model->SetPath(path);
     rs->RegisterResource(model);
     result.modelId = model->GetId();
 
-    // --- Material 처리 ---
     std::unordered_map<std::string, int> matNameCount;
     std::vector<UINT> matIdTable(ai_scene->mNumMaterials);
-
     std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
     std::filesystem::create_directories(matDir);
 
@@ -51,8 +48,8 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
 
         std::string baseName = aiMatName.length > 0 ? aiMatName.C_Str() : "Material_" + std::to_string(i);
         std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
-
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+
         auto mat = MaterialLoader::LoadOrReuse(ctx, matFilePath, uniqueName, path);
         if (!mat) continue;
 
@@ -69,20 +66,24 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         result.materialIds.push_back(mat->GetId());
     }
 
-    // --- Mesh 처리 ---
     std::unordered_map<std::string, int> nameCount;
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
 
     for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
     {
-        auto mesh = std::make_shared<Mesh>();
-        mesh->FromAssimp(ai_scene->mMeshes[i]);
+        aiMesh* ai_mesh = ai_scene->mMeshes[i];
+        std::shared_ptr<Mesh> mesh;
 
-        // --- 기본 이름 설정 ---
-        std::string baseName = ai_scene->mMeshes[i]->mName.C_Str();
-        if (baseName.empty())
-            baseName = "Mesh_" + std::to_string(i);
+        bool isSkinned = (ai_mesh->HasBones() && ai_scene->mNumAnimations > 0);
+        if (isSkinned)
+            mesh = std::make_shared<SkinnedMesh>();
+        else
+            mesh = std::make_shared<Mesh>();
 
+        mesh->FromAssimp(ai_mesh);
+
+        std::string baseName = ai_mesh->mName.C_Str();
+        if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
         if (nameCount.count(baseName) > 0)
         {
             nameCount[baseName]++;
@@ -91,21 +92,23 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         else
             nameCount[baseName] = 0;
 
-
         mesh->SetAlias(baseName);
-
-
         mesh->SetGUID(MetaIO::CreateGUID(path, baseName));
-
-        std::string uniqueKey = path + "#" + baseName;
-        mesh->SetPath(uniqueKey);
+        mesh->SetPath(path + "#" + baseName);
 
         Mesh::Submesh sub{};
         sub.indexCount = (UINT)mesh->indices.size();
-        sub.materialId = ai_scene->mMeshes[i]->mMaterialIndex < matIdTable.size()
-            ? matIdTable[ai_scene->mMeshes[i]->mMaterialIndex]
+        sub.materialId = ai_mesh->mMaterialIndex < matIdTable.size()
+            ? matIdTable[ai_mesh->mMaterialIndex]
             : Engine::INVALID_ID;
         mesh->submeshes.push_back(sub);
+
+        if (isSkinned)
+        {
+            SkinnedMesh* skinned = static_cast<SkinnedMesh*>(mesh.get());
+            skinned->Skinning_Skeleton_Bones(model->GetSkeleton());
+            skinned->CreatePreSkinnedOutputBuffer();
+        }
 
         rs->RegisterResource(mesh);
         loadedMeshes.push_back(mesh);
@@ -113,18 +116,15 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         model->AddMesh(mesh);
     }
 
-    // --- 노드 계층 및 스켈레톤 구성 ---
     if (ai_scene->mRootNode)
         model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene, loadedMeshes));
 
     model->SetSkeleton(BuildSkeleton(ai_scene));
 
-    // --- Meta 정보 저장 ---
     FbxMeta meta;
     meta.guid = model->GetGUID();
     meta.path = path;
 
-    // Mesh 등록
     for (auto& mesh : loadedMeshes)
     {
         SubResourceMeta s{};
@@ -134,12 +134,10 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         meta.sub_resources.push_back(s);
     }
 
-    // Material 등록
     for (auto& matId : result.materialIds)
     {
         std::shared_ptr<Material> mat = rs->GetById<Material>(matId);
         if (!mat) continue;
-
         SubResourceMeta s{};
         s.name = mat->GetAlias();
         s.type = "MATERIAL";
@@ -147,12 +145,10 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         meta.sub_resources.push_back(s);
     }
 
-    // Texture 등록
     for (auto& texId : result.textureIds)
     {
         std::shared_ptr<Texture> tex = rs->GetById<Texture>(texId);
         if (!tex) continue;
-
         SubResourceMeta s{};
         s.name = tex->GetAlias();
         s.type = "TEXTURE";
@@ -160,9 +156,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         meta.sub_resources.push_back(s);
     }
 
-    // Meta 저장 (기존 파일 없을 경우만)
-        MetaIO::SaveFbxMeta(meta);
-
+    MetaIO::SaveFbxMeta(meta);
     OutputDebugStringA(("[Assimp] Model loaded successfully: " + path + "\n").c_str());
     return true;
 }
