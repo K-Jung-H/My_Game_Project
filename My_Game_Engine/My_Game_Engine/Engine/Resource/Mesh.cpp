@@ -174,7 +174,6 @@ void Mesh::SetAABB()
     }
 }
 
-// ===== Assimp =====
 void Mesh::FromAssimp(const aiMesh* mesh)
 {
     positions.clear(); normals.clear(); tangents.clear();
@@ -241,7 +240,6 @@ void Mesh::FromAssimp(const aiMesh* mesh)
     SetAABB();
 }
 
-// ===== FBX SDK =====
 static inline XMFLOAT2 ReadFbxUV(FbxMesh* m, int polyIndex, int vertInPoly, int ctrlIndex, int setIdx)
 {
     FbxStringList uvSetNames;
@@ -337,10 +335,13 @@ void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
 {
     D3D12_VERTEX_BUFFER_VIEW views[2] = {};
     UINT count = 0;
-    if (mHotVBV.BufferLocation && mHotVBV.SizeInBytes)  
+
+    if (mHotVBV.BufferLocation && mHotVBV.SizeInBytes)
         views[count++] = mHotVBV;
-    if (mColdVBV.BufferLocation && mColdVBV.SizeInBytes) 
+
+    if (mColdVBV.BufferLocation && mColdVBV.SizeInBytes)
         views[count++] = mColdVBV;
+
 
     if (count) 
         cmdList->IASetVertexBuffers(0, count, views);
@@ -373,14 +374,20 @@ void Plane_Mesh::GeneratePlane(float width, float height)
     };
     normals = { {0,1,0},{0,1,0},{0,1,0},{0,1,0} };
     tangents = { {1,0,0},{1,0,0},{1,0,0},{1,0,0} };
-    uvs = { {0,0},{1,0},{1,1},{0,1} };
-    uv1s = uvs;
 
-    colors.resize(positions.size(), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    uvs = { {0,0},{1,0},{1,1},{0,1} };
+
+
+    uv1s = uvs;
+    std::fill(uv1s.begin(), uv1s.end(), XMFLOAT2(0.0f, 0.0f));
+
+    colors.resize(positions.size());
+    std::fill(colors.begin(), colors.end(), XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 
     indices = { 0, 2, 1, 0, 3, 2 };
 
     submeshes.clear();
+
     Submesh s;
     s.indexCount = (UINT)indices.size();
     s.startIndexLocation = 0;
@@ -388,6 +395,7 @@ void Plane_Mesh::GeneratePlane(float width, float height)
     s.materialId = Engine::INVALID_ID;
     submeshes.push_back(s);
 }
+
 
 void SkinnedMesh::FromAssimp(const aiMesh* mesh)
 {

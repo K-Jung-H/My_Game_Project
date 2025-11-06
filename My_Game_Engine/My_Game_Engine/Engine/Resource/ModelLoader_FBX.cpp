@@ -238,7 +238,7 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
         sub.materialId = Engine::INVALID_ID;
         mesh->submeshes.push_back(sub);
     }
-
+    mesh->SetAABB();
     rs->RegisterResource(mesh);
     return mesh;
 }

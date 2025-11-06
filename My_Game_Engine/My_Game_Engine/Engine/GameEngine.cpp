@@ -6,7 +6,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_hInstance = hInstance;
 	m_hWnd = hMainWnd;
 
-	Is_Initialized = true;
+
 	CoInitialize(NULL);
 
 
@@ -45,12 +45,9 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 
 	SceneManager::Get().CreateScene("wow");
 
-
-
-
 	mRenderer->EndUpload();
 
-
+	Is_Initialized = true;
 }
 
 void GameEngine::OnDestroy()
@@ -154,7 +151,7 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 		if (wParam == SIZE_MINIMIZED) break;
 		else if (wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED)
 		{
-			if (mRenderer)
+			if (mRenderer && Is_Initialized)
 				mRenderer->OnResize(newWidth, newHeight);
 
 			if (auto scene = SceneManager::Get().GetActiveScene())
@@ -180,7 +177,7 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 	{
 		if (mResizeRequested)
 		{
-			if (mRenderer)
+			if (mRenderer && Is_Initialized)
 				mRenderer->OnResize(mPendingWidth, mPendingHeight);
 			mResizeRequested = false;
 

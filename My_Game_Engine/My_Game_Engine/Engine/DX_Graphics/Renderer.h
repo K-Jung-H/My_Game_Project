@@ -205,6 +205,8 @@ public:
     bool test_value = false;
 
 private:
+	bool is_initialized = false;
+
     UINT mWidth = 0;
     UINT mHeight = 0;
 

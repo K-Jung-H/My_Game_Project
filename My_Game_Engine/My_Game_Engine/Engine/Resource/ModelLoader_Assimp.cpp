@@ -114,6 +114,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         loadedMeshes.push_back(mesh);
         result.meshIds.push_back(mesh->GetId());
         model->AddMesh(mesh);
+        mesh->SetAABB();
     }
 
     if (ai_scene->mRootNode)

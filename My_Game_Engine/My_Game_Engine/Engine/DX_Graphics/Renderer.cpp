@@ -88,6 +88,9 @@ bool DX12_Renderer::Initialize(HWND m_hWnd, UINT width, UINT height)
     if (FAILED(mDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&mImguiSrvHeap))))
         return false;
 
+
+    is_initialized = true;
+
     return true;
 }
 
@@ -1723,6 +1726,10 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UI
 
         di.mesh->Bind(cmdList);
         cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
+
+        //char buf[256];
+        //sprintf_s(buf, "[DRAW] mesh=%s\n", di.mesh->GetAlias().c_str());
+        //OutputDebugStringA(buf);
     }
 }
 
@@ -1847,7 +1854,6 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     mainCam->Update();
 
     //--------------------------------------------------------------------------------------
-
     PrepareCommandList();
     
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
@@ -1860,7 +1866,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     //------------------------------------------
     UpdateObjectCBs(renderData_list);
-    CullObjectsForRender(mainCam);
+    if(!test_value)
+        CullObjectsForRender(mainCam);
     GeometryPass(mainCam);
     //------------------------------------------
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -2338,6 +2345,7 @@ void DX12_Renderer::WaitForFrame(UINT64 fenceValue)
 
 bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
 {
+    if (!is_initialized) return false;
     if (!mDevice || !mSwapChain) return false;
 
     for (auto& fr : mFrameResources)
