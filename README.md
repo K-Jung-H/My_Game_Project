@@ -40,6 +40,25 @@
 
 ────────────────────────────────────
 
+진행 상황
+
+────────────────────────────────────
+Mesh` 기본 구조 리팩토링을 완료하였으나, Plane Mesh가 렌더링 파이프라인에 들어가는 시점과 제거되는 시점에 오류 발생
+	- 경고 차원의 오류 메시지임 // 렌더링에는 문제 없으나, 성능 저하 문제 고려하여 해결 필요
+	- 두 오류코드가 동시에 발생 중
+		- ID3D12CommandList::DrawInstanced: Vertex Buffer at the input vertex slot 0 is not big enough for what the Draw*() call expects to traverse. This is OK, as reading off the end of the Buffer is defined to return 0. However the developer probably did not intend to make use of this behavior.  [ EXECUTION WARNING #210: COMMAND_LIST_DRAW_VERTEX_BUFFER_TOO_SMALL]
+
+		- D3D12 WARNING: ID3D12CommandList::DrawInstanced: Vertex Buffer at the input vertex slot 1 is not big enough for what the Draw*() call expects to traverse. This is OK, as reading off the end of the Buffer is defined to return 0. However the developer probably did not intend to make use of this behavior.  [ EXECUTION WARNING #210: COMMAND_LIST_DRAW_VERTEX_BUFFER_TOO_SMALL]
+
+	- 소스의 SizeInBytes 또는 Stride가 0으로 초기화되는 시점의 동기화 문제 의심중
+
+-> 오류 코드 원인을 찾고 해결하면, 스키닝 CS를 위한 루트 시그니쳐 작성 및 CS 작성하기
+
+
+
+
+
+
 장기적 목표
 
 ────────────────────────────────────
