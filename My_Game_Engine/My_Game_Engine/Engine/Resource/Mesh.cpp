@@ -342,11 +342,11 @@ void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
     if (mColdVBV.BufferLocation && mColdVBV.SizeInBytes)
         views[count++] = mColdVBV;
 
-
     if (count) 
         cmdList->IASetVertexBuffers(0, count, views);
-    
-    if (mIBV.BufferLocation) 
+   
+
+    if (mIBV.BufferLocation && mIBV.SizeInBytes) 
         cmdList->IASetIndexBuffer(&mIBV);
 
     cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -395,7 +395,6 @@ void Plane_Mesh::GeneratePlane(float width, float height)
     s.materialId = Engine::INVALID_ID;
     submeshes.push_back(s);
 }
-
 
 void SkinnedMesh::FromAssimp(const aiMesh* mesh)
 {

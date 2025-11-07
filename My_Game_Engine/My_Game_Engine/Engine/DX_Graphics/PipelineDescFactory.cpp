@@ -37,6 +37,8 @@ D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset pr
         return { posColorLayout.data(), (UINT)posColorLayout.size() };
     case InputLayoutPreset::PosOnly:
         return { posOnlyLayout.data(), (UINT)posOnlyLayout.size() };
+    case InputLayoutPreset::None:
+        return { nullptr, 0 };
     default:
         return { hotColdLayout.data(), (UINT)hotColdLayout.size() };
     }
