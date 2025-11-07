@@ -20,6 +20,7 @@ enum class ShaderVariant
     LightClusterClear,
     ClusterBuild,
     LightAssign,
+    Skinning,
 
     //======================================
 

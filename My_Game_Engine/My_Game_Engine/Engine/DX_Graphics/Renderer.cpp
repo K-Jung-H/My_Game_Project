@@ -732,6 +732,26 @@ bool DX12_Renderer::Create_Shader()
 
     //==================================
 
+    //ShaderSetting skinning_ss;
+    //skinning_ss.cs.file = L"Shaders/Skinning_Shader.hlsl";
+    //skinning_ss.cs.entry = "Skinning_CS";
+    //skinning_ss.cs.target = "cs_5_1";
+
+    //PipelinePreset skinning_pp{};
+
+    //std::vector<VariantConfig> skinning_configs =
+    //{
+    //    { ShaderVariant::Skinning, skinning_ss, skinning_pp },
+    //};
+
+    //auto skinning_shader = pso_manager.RegisterComputeShader(
+    //    "Skinning_Pass",
+    //    RootSignature_Type::Skinning,
+    //    skinning_configs
+    //);
+
+    //==================================
+
     ShaderSetting shadow_ss;
     shadow_ss.vs.file = L"Shaders/Shadow_Shader.hlsl";
     shadow_ss.vs.entry = "Shadow_VS";
@@ -1726,10 +1746,6 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UI
 
         di.mesh->Bind(cmdList);
         cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
-
-        //char buf[256];
-        //sprintf_s(buf, "[DRAW] mesh=%s\n", di.mesh->GetAlias().c_str());
-        //OutputDebugStringA(buf);
     }
 }
 

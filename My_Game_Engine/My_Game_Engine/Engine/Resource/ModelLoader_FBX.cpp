@@ -6,10 +6,14 @@
 #include "DXMathUtils.h"
 #include "Mesh.h"
 
-ModelLoader_FBX::ModelLoader_FBX() {}
+ModelLoader_FBX::ModelLoader_FBX() 
+{
+}
 
 bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
+    m_meshMap.clear();
+
     RendererContext ctx = GameEngine::Get().Get_UploadContext();
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
@@ -157,7 +161,18 @@ std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
     if (auto mesh = CreateMeshFromNode(fbxNode, matMap, path))
     {
         node->meshes.push_back(mesh);
-        loadedMeshes.push_back(mesh);
+
+        bool already_tracked = false;
+        for (const auto& existingMesh : loadedMeshes) 
+        {
+            if (existingMesh == mesh) 
+            {
+                already_tracked = true;
+                break;
+            }
+        }
+        if (!already_tracked) 
+            loadedMeshes.push_back(mesh);       
     }
 
     int childCount = fbxNode->GetChildCount();
@@ -178,6 +193,11 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     if (!fbxNode) return nullptr;
     FbxMesh* fbxMesh = fbxNode->GetMesh();
     if (!fbxMesh) return nullptr;
+
+
+    auto it = m_meshMap.find(fbxMesh);
+    if (it != m_meshMap.end())
+        return it->second;
 
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
@@ -240,6 +260,10 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     }
     mesh->SetAABB();
     rs->RegisterResource(mesh);
+
+
+    m_meshMap[fbxMesh] = mesh;
+
     return mesh;
 }
 

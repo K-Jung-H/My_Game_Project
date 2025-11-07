@@ -229,15 +229,7 @@ void Mesh::FromAssimp(const aiMesh* mesh)
         }
     }
 
-    Submesh s;
-    s.indexCount = (UINT)indices.size();
-    s.startIndexLocation = 0;
-    s.baseVertexLocation = 0;
-    s.materialId = Engine::INVALID_ID;
-    submeshes.push_back(s);
-
     BuildInterleavedBuffers();
-    SetAABB();
 }
 
 static inline XMFLOAT2 ReadFbxUV(FbxMesh* m, int polyIndex, int vertInPoly, int ctrlIndex, int setIdx)
@@ -319,15 +311,7 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
         }
     }
 
-    Submesh s;
-    s.indexCount = (UINT)indices.size();
-    s.startIndexLocation = 0;
-    s.baseVertexLocation = 0;
-    s.materialId = Engine::INVALID_ID;
-    submeshes.push_back(s);
-
     BuildInterleavedBuffers();
-    SetAABB();
 }
 
 
@@ -432,21 +416,24 @@ void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
     {
         FbxSkin* skin = static_cast<FbxSkin*>(fbxMesh->GetDeformer(s, FbxDeformer::eSkin));
         if (!skin) continue;
-        int clusterCount = skin->GetClusterCount();
+
+        const int clusterCount = skin->GetClusterCount();
         for (int c = 0; c < clusterCount; ++c)
         {
             FbxCluster* cl = skin->GetCluster(c);
             if (!cl || !cl->GetLink()) continue;
+
             std::string boneName = cl->GetLink()->GetName();
             int* idx = cl->GetControlPointIndices();
             double* w = cl->GetControlPointWeights();
             int cnt = cl->GetControlPointIndicesCount();
+
             for (int i = 0; i < cnt; ++i)
             {
                 BoneMappingData m;
                 m.boneName = boneName;
                 m.vertexId = idx[i];
-                m.weight = (float)w[i];
+                m.weight = static_cast<float>(w[i]);
                 bone_mapping_data.push_back(std::move(m));
             }
         }
@@ -465,7 +452,7 @@ void SkinnedMesh::Skinning_Skeleton_Bones(const Skeleton& skeleton)
         auto it = skeleton.NameToIndex.find(m.boneName);
         if (it == skeleton.NameToIndex.end()) continue;
 
-        uint16_t boneIdx = (uint16_t)it->second;
+        uint16_t boneIdx = static_cast<uint16_t>(it->second);
         uint32_t vtx = m.vertexId;
         float w = m.weight;
         if (vtx >= bone_vertex_data.size()) continue;
@@ -489,46 +476,40 @@ void SkinnedMesh::Skinning_Skeleton_Bones(const Skeleton& skeleton)
         if (sum > 0.0f)
         {
             float inv = 1.0f / sum;
-            for (int i = 0; i < 4; ++i) v.weights[i] *= inv;
+            for (int i = 0; i < MAX_BONES_PER_VERTEX; ++i)
+                v.weights[i] *= inv;
         }
     }
 
-    const UINT vCount = (UINT)bone_vertex_data.size();
+    const UINT vCount = static_cast<UINT>(bone_vertex_data.size());
     if (vCount == 0) return;
 
-    struct GPU_SkinData { uint16_t idx[4]; uint16_t pad[4]; float w[4]; };
-    const UINT stride = sizeof(GPU_SkinData);
-    std::vector<GPU_SkinData> blob(vCount);
+    std::vector<GPU_SkinData> gpuData(vCount);
     for (UINT i = 0; i < vCount; ++i)
     {
-        memcpy(blob[i].idx, bone_vertex_data[i].boneIndices, sizeof(uint16_t) * 4);
-        memcpy(blob[i].w, bone_vertex_data[i].weights, sizeof(float) * 4);
+        for (int j = 0; j < MAX_BONES_PER_VERTEX; ++j)
+        {
+            gpuData[i].idx[j] = bone_vertex_data[i].boneIndices[j];
+            gpuData[i].w16[j] = static_cast<uint16_t>(
+                std::clamp(bone_vertex_data[i].weights[j], 0.0f, 1.0f) * 65535.0f);
+        }
     }
 
     RendererContext rc = GameEngine::Get().Get_UploadContext();
+    const UINT stride = sizeof(GPU_SkinData);
+    const UINT bufferSize = stride * vCount;
+
     mSkinData = ResourceUtils::CreateBufferResource(
-        rc, blob.data(), (UINT)(blob.size() * stride),
-        D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, mSkinDataUpload);
+        rc,
+        gpuData.data(),
+        bufferSize,
+        D3D12_HEAP_TYPE_DEFAULT,
+        D3D12_RESOURCE_FLAG_NONE,
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+        mSkinDataUpload
+    );
 }
 
-void SkinnedMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
-{
-    D3D12_VERTEX_BUFFER_VIEW views[2] = {};
-    UINT count = 0;
-    if (mHotVBV.BufferLocation && mHotVBV.SizeInBytes)
-        views[count++] = mHotVBV;
-    if (mColdVBV.BufferLocation && mColdVBV.SizeInBytes)
-        views[count++] = mColdVBV;
-
-    if (count)
-        cmdList->IASetVertexBuffers(0, count, views);
-
-    if (mIBV.BufferLocation)
-        cmdList->IASetIndexBuffer(&mIBV);
-
-    cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-}
 void SkinnedMesh::CreatePreSkinnedOutputBuffer()
 {
     if (!mHotVB || mSkinnedHotVB) return;
@@ -546,4 +527,29 @@ void SkinnedMesh::CreatePreSkinnedOutputBuffer()
     mSkinnedHotVBV.BufferLocation = mSkinnedHotVB->GetGPUVirtualAddress();
     mSkinnedHotVBV.StrideInBytes = mHotVBV.StrideInBytes;
     mSkinnedHotVBV.SizeInBytes = bytes;
+    mHasSkinnedBuffer = true;
+    mIsSkinningResultReady = false;
+}
+
+void SkinnedMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
+{
+    D3D12_VERTEX_BUFFER_VIEW views[2] = {};
+    UINT count = 0;
+
+    if (mHasSkinnedBuffer && mIsSkinningResultReady && mSkinnedHotVBV.BufferLocation && mSkinnedHotVBV.SizeInBytes)
+        views[count++] = mSkinnedHotVBV;
+    else if (mHotVBV.BufferLocation && mHotVBV.SizeInBytes)
+        views[count++] = mHotVBV;
+
+
+    if (mColdVBV.BufferLocation && mColdVBV.SizeInBytes)
+        views[count++] = mColdVBV;
+
+    if (count)
+        cmdList->IASetVertexBuffers(0, count, views);
+
+    if (mIBV.BufferLocation)
+        cmdList->IASetIndexBuffer(&mIBV);
+
+    cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 }

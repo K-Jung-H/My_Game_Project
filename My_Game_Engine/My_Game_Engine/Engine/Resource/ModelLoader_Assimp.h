@@ -8,6 +8,8 @@ public:
     bool Load(const std::string& path, std::string_view alias, LoadResult& result);
 
 private:
-    std::shared_ptr<Model::Node> ProcessNode(aiNode* node, const aiScene* scene, const std::vector<std::shared_ptr<Mesh>>& loadedMeshes);
+    std::shared_ptr<Model::Node> ProcessNode(aiNode* node, const aiScene* scene);
     Skeleton BuildSkeleton(const aiScene* scene);
+
+    std::vector<std::shared_ptr<Mesh>> m_loadedMeshes;
 };

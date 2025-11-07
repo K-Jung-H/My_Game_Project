@@ -12,6 +12,8 @@ ModelLoader_Assimp::ModelLoader_Assimp()
 
 bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
+    m_loadedMeshes.clear();
+
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
@@ -66,29 +68,29 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         result.materialIds.push_back(mat->GetId());
     }
 
+    if (ai_scene->mNumAnimations > 0 || ai_scene->HasMeshes())
+    {
+        Skeleton skeleton = BuildSkeleton(ai_scene);
+        model->SetSkeleton(skeleton);
+    }
+
     std::unordered_map<std::string, int> nameCount;
-    std::vector<std::shared_ptr<Mesh>> loadedMeshes;
 
     for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
     {
         aiMesh* ai_mesh = ai_scene->mMeshes[i];
-        std::shared_ptr<Mesh> mesh;
+        const bool isSkinned = (ai_mesh->HasBones() && ai_scene->mNumAnimations > 0);
 
-        bool isSkinned = (ai_mesh->HasBones() && ai_scene->mNumAnimations > 0);
-        if (isSkinned)
-            mesh = std::make_shared<SkinnedMesh>();
-        else
-            mesh = std::make_shared<Mesh>();
+        std::shared_ptr<Mesh> mesh = isSkinned ?
+            std::make_shared<SkinnedMesh>() :
+            std::make_shared<Mesh>();
 
         mesh->FromAssimp(ai_mesh);
 
         std::string baseName = ai_mesh->mName.C_Str();
         if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
         if (nameCount.count(baseName) > 0)
-        {
-            nameCount[baseName]++;
-            baseName += "_" + std::to_string(nameCount[baseName]);
-        }
+            baseName += "_" + std::to_string(++nameCount[baseName]);
         else
             nameCount[baseName] = 0;
 
@@ -98,6 +100,8 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
 
         Mesh::Submesh sub{};
         sub.indexCount = (UINT)mesh->indices.size();
+        sub.startIndexLocation = 0;
+        sub.baseVertexLocation = 0;
         sub.materialId = ai_mesh->mMaterialIndex < matIdTable.size()
             ? matIdTable[ai_mesh->mMaterialIndex]
             : Engine::INVALID_ID;
@@ -111,22 +115,20 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         }
 
         rs->RegisterResource(mesh);
-        loadedMeshes.push_back(mesh);
+        mesh->SetAABB();
+        m_loadedMeshes.push_back(mesh);
         result.meshIds.push_back(mesh->GetId());
         model->AddMesh(mesh);
-        mesh->SetAABB();
     }
 
     if (ai_scene->mRootNode)
-        model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene, loadedMeshes));
-
-    model->SetSkeleton(BuildSkeleton(ai_scene));
+        model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene));
 
     FbxMeta meta;
     meta.guid = model->GetGUID();
     meta.path = path;
 
-    for (auto& mesh : loadedMeshes)
+    for (auto& mesh : m_loadedMeshes)
     {
         SubResourceMeta s{};
         s.name = mesh->GetAlias();
@@ -162,7 +164,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     return true;
 }
 
-std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, const aiScene* scene, const std::vector<std::shared_ptr<Mesh>>& loadedMeshes)
+std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, const aiScene* scene)
 {
     auto node = std::make_shared<Model::Node>();
     node->name = ainode->mName.C_Str();
@@ -171,10 +173,10 @@ std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, con
     XMStoreFloat4x4(&node->localTransform, xm);
 
     for (unsigned int i = 0; i < ainode->mNumMeshes; i++)
-        node->meshes.push_back(loadedMeshes[ainode->mMeshes[i]]);
+        node->meshes.push_back(m_loadedMeshes[ainode->mMeshes[i]]);
 
     for (unsigned int i = 0; i < ainode->mNumChildren; i++)
-        node->children.push_back(ProcessNode(ainode->mChildren[i], scene, loadedMeshes));
+        node->children.push_back(ProcessNode(ainode->mChildren[i], scene));
 
     return node;
 }

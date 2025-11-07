@@ -108,6 +108,12 @@ private:
     void GeneratePlane(float width, float height);
 };
 
+struct GPU_SkinData
+{
+    uint16_t idx[MAX_BONES_PER_VERTEX];
+    uint16_t w16[MAX_BONES_PER_VERTEX];
+};
+
 class SkinnedMesh : public Mesh
 {
 public:
@@ -154,5 +160,6 @@ protected:
     ComPtr<ID3D12Resource> mSkinnedHotUpload;
 
     D3D12_VERTEX_BUFFER_VIEW mSkinnedHotVBV{};
-    bool mHasSkinnedOutput = false;
+    bool mHasSkinnedBuffer = false;
+    bool mIsSkinningResultReady = false;
 };

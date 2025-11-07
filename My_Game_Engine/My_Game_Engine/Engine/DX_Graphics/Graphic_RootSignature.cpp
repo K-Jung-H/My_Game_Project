@@ -5,13 +5,12 @@ void RootSignatureFactory::Init(ID3D12Device* device)
     if (initialized) return;
 
     cache[(int)RootSignature_Type::Default] = CreateDefault(device);
+    cache[(int)RootSignature_Type::Skinning] = CreateSkinning(device);
     cache[(int)RootSignature_Type::PostFX] = CreatePostFX(device);
-    //cache[(int)RootSignature_Type::Terrain] = CreateTerrain(device);
-    //cache[(int)RootSignature_Type::Skinned] = CreateSkinned(device);
-    //cache[(int)RootSignature_Type::UI] = CreateUI(device);
-    cache[(int)RootSignature_Type::ShadowPass] = CreateShadowPass(device);
     cache[(int)RootSignature_Type::LightPass] = CreateLightPass(device);
-
+    cache[(int)RootSignature_Type::ShadowPass] = CreateShadowPass(device);
+    //cache[(int)RootSignature_Type::Terrain] = CreateTerrain(device);
+//cache[(int)RootSignature_Type::UI] = CreateUI(device);
     initialized = true;
 }
 
@@ -367,64 +366,102 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateTerrain(ID3D12Device* pd
     return rootSig;
 }
 
-ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateSkinned(ID3D12Device* pd3dDevice)
+ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateSkinning(ID3D12Device* pd3dDevice)
 {
-    D3D12_DESCRIPTOR_RANGE ranges[ShaderRegister::Count];
-    for (UINT i = 0; i < ShaderRegister::Count; i++)
-    {
-        ranges[i].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-        ranges[i].NumDescriptors = 1;
-        ranges[i].BaseShaderRegister = i;
-        ranges[i].RegisterSpace = 0;
-        ranges[i].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
-    }
+    using namespace RootParameter_SkinningCS;
 
-    D3D12_ROOT_PARAMETER params[RootParameter_Default::Count] = {};
+    D3D12_DESCRIPTOR_RANGE srvRanges[3] = {};
 
-    D3D12_STATIC_SAMPLER_DESC samplers[1] = {};
+    // t0: SkinData
+    srvRanges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRanges[0].NumDescriptors = 1;
+    srvRanges[0].BaseShaderRegister = 0; // t0
+    srvRanges[0].RegisterSpace = 0;
+    srvRanges[0].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
-    samplers[0].Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    samplers[0].AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    samplers[0].AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    samplers[0].AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    samplers[0].MipLODBias = 0.0f;
-    samplers[0].MaxAnisotropy = 1;
-    samplers[0].ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
-    samplers[0].MinLOD = 0.0f;
-    samplers[0].MaxLOD = D3D12_FLOAT32_MAX;
-    samplers[0].ShaderRegister = 0;
-    samplers[0].RegisterSpace = 0;
-    samplers[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    // t1: HotInput
+    srvRanges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRanges[1].NumDescriptors = 1;
+    srvRanges[1].BaseShaderRegister = 1; // t1
+    srvRanges[1].RegisterSpace = 0;
+    srvRanges[1].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
 
+    // t2: BoneMatrices
+    srvRanges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+    srvRanges[2].NumDescriptors = 1;
+    srvRanges[2].BaseShaderRegister = 2; // t2
+    srvRanges[2].RegisterSpace = 0;
+    srvRanges[2].OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    // UAV range: u0
+    D3D12_DESCRIPTOR_RANGE uavRange = {};
+    uavRange.RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+    uavRange.NumDescriptors = 1;
+    uavRange.BaseShaderRegister = 0; // u0
+    uavRange.RegisterSpace = 0;
+    uavRange.OffsetInDescriptorsFromTableStart = D3D12_DESCRIPTOR_RANGE_OFFSET_APPEND;
+
+    D3D12_ROOT_PARAMETER params[Count] = {};
+    // b0: 32-bit constants (vertexCount, hotStride, skinStride, boneCount)
+    params[SkinningConstants].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+    params[SkinningConstants].Constants.Num32BitValues = 4;
+    params[SkinningConstants].Constants.ShaderRegister = 0; // b0
+    params[SkinningConstants].Constants.RegisterSpace = 0;
+    params[SkinningConstants].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // t0: SkinData
+    params[SkinDataSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[SkinDataSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[SkinDataSRV].DescriptorTable.pDescriptorRanges = &srvRanges[0];
+    params[SkinDataSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // t1: HotInput
+    params[HotInputSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[HotInputSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[HotInputSRV].DescriptorTable.pDescriptorRanges = &srvRanges[1];
+    params[HotInputSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // t2: BoneMatrices
+    params[BoneMatricesSRV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[BoneMatricesSRV].DescriptorTable.NumDescriptorRanges = 1;
+    params[BoneMatricesSRV].DescriptorTable.pDescriptorRanges = &srvRanges[2];
+    params[BoneMatricesSRV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+    // u0: SkinnedOutput
+    params[SkinnedOutputUAV].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+    params[SkinnedOutputUAV].DescriptorTable.NumDescriptorRanges = 1;
+    params[SkinnedOutputUAV].DescriptorTable.pDescriptorRanges = &uavRange;
+    params[SkinnedOutputUAV].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_ROOT_SIGNATURE_DESC rsDesc = {};
     rsDesc.NumParameters = _countof(params);
     rsDesc.pParameters = params;
-    rsDesc.NumStaticSamplers = _countof(samplers);
-    rsDesc.pStaticSamplers = samplers;
+    rsDesc.NumStaticSamplers = 0;
+    rsDesc.pStaticSamplers = nullptr;
+
     rsDesc.Flags =
-        D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
-        | D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS
-        | D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS
-        | D3D12_ROOT_SIGNATURE_FLAG_ALLOW_STREAM_OUTPUT;
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+        D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
 
     ComPtr<ID3DBlob> sigBlob, errorBlob;
-    HRESULT hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1, sigBlob.GetAddressOf(), errorBlob.GetAddressOf());
+    HRESULT hr = D3D12SerializeRootSignature(&rsDesc, D3D_ROOT_SIGNATURE_VERSION_1,
+        sigBlob.GetAddressOf(), errorBlob.GetAddressOf());
     if (FAILED(hr))
     {
-        if (errorBlob)
-            OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+        if (errorBlob) OutputDebugStringA((char*)errorBlob->GetBufferPointer());
         return nullptr;
     }
 
     ComPtr<ID3D12RootSignature> rootSig;
-    hr = pd3dDevice->CreateRootSignature(0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(), IID_PPV_ARGS(&rootSig));
+    hr = pd3dDevice->CreateRootSignature(0, sigBlob->GetBufferPointer(), sigBlob->GetBufferSize(),
+        IID_PPV_ARGS(&rootSig));
     if (FAILED(hr))
     {
-        OutputDebugStringA("Failed to create root signature.\n");
+        OutputDebugStringA("Failed to create SkinningCS root signature.\n");
         return nullptr;
     }
-
     return rootSig;
 }
 
