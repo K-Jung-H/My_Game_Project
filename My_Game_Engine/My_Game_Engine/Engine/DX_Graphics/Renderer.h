@@ -314,6 +314,7 @@ private:
     void WaitForFrame(UINT64 fenceValue);
     FrameResource& GetCurrentFrameResource();
 
+    void SkinningPass();
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
     void ShadowPass();

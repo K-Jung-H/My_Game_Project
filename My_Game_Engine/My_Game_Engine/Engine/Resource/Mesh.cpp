@@ -314,8 +314,7 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
     BuildInterleavedBuffers();
 }
 
-
-void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
+void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT current_frame) const
 {
     D3D12_VERTEX_BUFFER_VIEW views[2] = {};
     UINT count = 0;
@@ -512,32 +511,64 @@ void SkinnedMesh::Skinning_Skeleton_Bones(const Skeleton& skeleton)
 
 void SkinnedMesh::CreatePreSkinnedOutputBuffer()
 {
-    if (!mHotVB || mSkinnedHotVB) return;
+    if (!mHotVB || mFrameSkinnedBuffers[0].skinnedBuffer) return;
 
     const UINT bytes = mHotVBV.SizeInBytes;
-    const RendererContext rc = GameEngine::Get().Get_UploadContext();
+    const UINT stride = mHotVBV.StrideInBytes;
 
-    mSkinnedHotVB = ResourceUtils::CreateBufferResource(
-        rc, nullptr, bytes,
-        D3D12_HEAP_TYPE_DEFAULT,
-        D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-        mSkinnedHotUpload);
+    RendererContext rc = GameEngine::Get().Get_UploadContext();
+    DescriptorManager* heap = rc.resourceHeap;
 
-    mSkinnedHotVBV.BufferLocation = mSkinnedHotVB->GetGPUVirtualAddress();
-    mSkinnedHotVBV.StrideInBytes = mHotVBV.StrideInBytes;
-    mSkinnedHotVBV.SizeInBytes = bytes;
+    for (UINT i = 0; i < Engine::Frame_Render_Buffer_Count; ++i)
+    {
+        FrameSkinBuffer& fsb = mFrameSkinnedBuffers[i];
+
+        fsb.skinnedBuffer = ResourceUtils::CreateBufferResource(
+            rc, nullptr, bytes,
+            D3D12_HEAP_TYPE_DEFAULT,
+            D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
+            D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            fsb.uploadBuffer 
+        );
+
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+        uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+        uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        uavDesc.Buffer.NumElements = bytes / stride;
+        uavDesc.Buffer.StructureByteStride = stride;
+
+        fsb.uavSlot = heap->Allocate(HeapRegion::UAV);
+        rc.device->CreateUnorderedAccessView(fsb.skinnedBuffer.Get(), nullptr, &uavDesc, heap->GetCpuHandle(fsb.uavSlot));
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+        srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+        srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srvDesc.Buffer.NumElements = bytes / stride;
+        srvDesc.Buffer.StructureByteStride = stride;
+
+        fsb.srvSlot = heap->Allocate(HeapRegion::SRV_Texture);
+        rc.device->CreateShaderResourceView(fsb.skinnedBuffer.Get(), &srvDesc, heap->GetCpuHandle(fsb.srvSlot));
+
+        fsb.vbv.BufferLocation = fsb.skinnedBuffer->GetGPUVirtualAddress();
+        fsb.vbv.StrideInBytes = stride;
+        fsb.vbv.SizeInBytes = bytes;
+
+        fsb.mIsSkinningResultReady = false;
+    }
+
     mHasSkinnedBuffer = true;
-    mIsSkinningResultReady = false;
 }
 
-void SkinnedMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
+
+void SkinnedMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT current_frame) const
 {
     D3D12_VERTEX_BUFFER_VIEW views[2] = {};
     UINT count = 0;
 
-    if (mHasSkinnedBuffer && mIsSkinningResultReady && mSkinnedHotVBV.BufferLocation && mSkinnedHotVBV.SizeInBytes)
-        views[count++] = mSkinnedHotVBV;
+    if (mHasSkinnedBuffer && mFrameSkinnedBuffers[current_frame].mIsSkinningResultReady)
+        views[count++] = mFrameSkinnedBuffers[current_frame].vbv;
     else if (mHotVBV.BufferLocation && mHotVBV.SizeInBytes)
         views[count++] = mHotVBV;
 

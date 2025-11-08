@@ -368,7 +368,7 @@ ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateTerrain(ID3D12Device* pd
 
 ComPtr<ID3D12RootSignature> RootSignatureFactory::CreateSkinning(ID3D12Device* pd3dDevice)
 {
-    using namespace RootParameter_SkinningCS;
+    using namespace RootParameter_Skinning;
 
     D3D12_DESCRIPTOR_RANGE srvRanges[3] = {};
 

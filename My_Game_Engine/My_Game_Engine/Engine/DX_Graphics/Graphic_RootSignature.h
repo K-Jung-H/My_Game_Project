@@ -59,7 +59,7 @@ namespace RootParameter_LightPass
     };
 }
 
-namespace RootParameter_SkinningCS
+namespace RootParameter_Skinning
 {
     enum Slot : UINT
     {

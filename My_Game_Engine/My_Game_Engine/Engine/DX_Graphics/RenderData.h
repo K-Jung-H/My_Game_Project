@@ -31,7 +31,7 @@ struct alignas(256) ObjectCBData
 
 struct DrawItem
 {
-    const Mesh* mesh = nullptr;
+    Mesh* mesh = nullptr;
     Mesh::Submesh sub;
 
     UINT cbIndex = 0;

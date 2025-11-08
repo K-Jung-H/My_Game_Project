@@ -1492,7 +1492,6 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     }
 }
 
-
 void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
@@ -1707,7 +1706,6 @@ void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
     }
 }
 
-
 void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera)
 {
     mVisibleItems.clear();
@@ -1730,7 +1728,6 @@ void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera
             mVisibleItems.push_back(di);
     }
 }
-
 
 void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList)
 {
@@ -1868,6 +1865,8 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
         return;
 
     mainCam->Update();
+    mainCam->UpdateCBV();
+
 
     //--------------------------------------------------------------------------------------
     PrepareCommandList();
@@ -1877,13 +1876,10 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     mainCam->SetViewportsAndScissorRects(mCommandList);
 
-
-    mainCam->UpdateCBV();
-
     //------------------------------------------
     UpdateObjectCBs(renderData_list);
-    if(!test_value)
-        CullObjectsForRender(mainCam);
+    CullObjectsForRender(mainCam);
+	SkinningPass();
     GeometryPass(mainCam);
     //------------------------------------------
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -1904,6 +1900,61 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     mCommandList->Close();
     PresentFrame();
 }
+
+void DX12_Renderer::SkinningPass()
+{
+    struct SkinningConstants
+    {
+        UINT vertexCount;
+        UINT hotStride;
+        UINT skinStride;
+        UINT boneCount;
+    };
+
+    FrameResource& fr = mFrameResources[mFrameIndex];
+    ID3D12RootSignature* skinning_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Skinning);
+    mCommandList->SetComputeRootSignature(skinning_rootsignature);
+    PSO_Manager::Instance().BindShader(mCommandList, "Skinning", ShaderVariant::Skinning);
+
+    for (const auto& di : mVisibleItems)
+    {
+        if (!di.mesh) continue;
+
+        SkinnedMesh* skinMesh = dynamic_cast<SkinnedMesh*>(di.mesh);
+        if (!skinMesh || !skinMesh->IsSkinningBufferExisted())
+            continue;
+
+        auto& fsb = skinMesh->GetFrameSkinBuffer(mFrameIndex);
+        if (!fsb.skinnedBuffer)
+            continue;
+
+        SkinningConstants constants = {
+            skinMesh->GetVertexCount(),
+            skinMesh->GetHotStride(),
+            sizeof(GPU_SkinData),
+            (UINT)skinMesh->GetSkeleton().BoneList.size()
+        };
+
+        mCommandList->SetComputeRoot32BitConstants(0, 4, &constants, 0);
+
+        mCommandList->SetComputeRootDescriptorTable(1, mResource_Heap_Manager->GetGpuHandle(skinMesh->SkinDataSRV));   // t0: SkinData
+        mCommandList->SetComputeRootDescriptorTable(2, mResource_Heap_Manager->GetGpuHandle(skinMesh->HotInputSRV));   // t1: Input Vertex
+        mCommandList->SetComputeRootDescriptorTable(3, mResource_Heap_Manager->GetGpuHandle(skinMesh->BoneMatricesSRV)); // t2: Bone Matrices
+        mCommandList->SetComputeRootDescriptorTable(4, mResource_Heap_Manager->GetGpuHandle(fsb.uavSlot));             // u0: Output UAV
+
+
+        fr.StateTracker.Transition(mCommandList.Get(), fsb.skinnedBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        UINT threadGroupCount = (constants.vertexCount + 63) / 64;
+        mCommandList->Dispatch(threadGroupCount, 1, 1);
+
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fsb.skinnedBuffer.Get());
+
+		fsb.mIsSkinningResultReady = true;
+    }
+}
+
 
 void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 {
