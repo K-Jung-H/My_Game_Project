@@ -9,7 +9,7 @@ public:
 
 private:
     std::shared_ptr<Model::Node> ProcessNode(aiNode* node, const aiScene* scene);
-    Skeleton BuildSkeleton(const aiScene* scene);
+    std::shared_ptr<Skeleton> BuildSkeleton(const aiScene* scene);
 
     std::vector<std::shared_ptr<Mesh>> m_loadedMeshes;
 };

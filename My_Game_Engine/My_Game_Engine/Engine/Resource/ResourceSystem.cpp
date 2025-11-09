@@ -78,6 +78,7 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     case ResourceType::Material: mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
     case ResourceType::Texture:  mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
     case ResourceType::Model:    mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
+    case ResourceType::Skeleton: mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
     default: break;
     }
 

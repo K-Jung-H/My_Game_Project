@@ -4,8 +4,8 @@
 #include "Texture.h"
 #include "Material.h"
 #include "Model.h"
+#include "Skeleton.h"
 #include "MetaIO.h"
-
 
 struct LoadResult
 {
@@ -65,6 +65,7 @@ private:
     std::vector<std::shared_ptr<Material>> mMaterials;
     std::vector<std::shared_ptr<Texture>>  mTextures;
     std::vector<std::shared_ptr<Model>>    mModels;
+    std::vector<std::shared_ptr<Skeleton>> mSkeletons;
 
     // GUID Ä³½Ì (meta scan)
     std::unordered_map<std::string, std::string> mPathToGUID;

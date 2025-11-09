@@ -14,7 +14,7 @@ private:
     std::shared_ptr<Mesh> CreateMeshFromNode(FbxNode* fbxNode,
         std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap, const std::string& path);
 
-    Skeleton BuildSkeleton(FbxScene* fbxScene);
+    std::shared_ptr<Skeleton> BuildSkeleton(FbxScene* fbxScene);
 
     std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>> m_meshMap;
 };

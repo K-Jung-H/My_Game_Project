@@ -85,15 +85,20 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     if (scene->GetRootNode())
         model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, path, loadedMeshes));
 
-    Skeleton skeleton = BuildSkeleton(scene);
-    model->SetSkeleton(skeleton);
+    auto skeletonRes = BuildSkeleton(scene);
+    std::string skelAlias = model->GetAlias() + "_Skeleton";
+    skeletonRes->SetAlias(skelAlias);
+    skeletonRes->SetPath(MakeSubresourcePath(path, "skeleton", skelAlias));
+    skeletonRes->SetGUID(MetaIO::CreateGUID(skeletonRes->GetPath(), skelAlias));
+    rs->RegisterResource(skeletonRes);
+
+    model->SetSkeleton(skeletonRes);
 
     for (auto& mesh : loadedMeshes)
     {
         if (auto skinned = std::dynamic_pointer_cast<SkinnedMesh>(mesh))
         {
-            skinned->Skinning_Skeleton_Bones(skeleton);
-            skinned->CreatePreSkinnedOutputBuffer();
+            skinned->Skinning_Skeleton_Bones(skeletonRes);
         }
     }
 
@@ -267,10 +272,14 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     return mesh;
 }
 
-Skeleton ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
+std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 {
-    Skeleton skeleton;
-    if (!fbxScene) return skeleton;
+    auto skeletonRes = std::make_shared<Skeleton>();
+
+    if (!fbxScene)
+    {
+        return skeletonRes;
+    }
 
     std::unordered_map<std::string, int> boneNameToIndex;
     int nodeCount = fbxScene->GetNodeCount();
@@ -315,8 +324,9 @@ Skeleton ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 
                 bone.inverseBind = Matrix4x4::Transpose(m);
 
-                boneNameToIndex[boneName] = (int)skeleton.BoneList.size();
-                skeleton.BoneList.push_back(bone);
+
+                boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size(); 
+                skeletonRes->BoneList.push_back(bone); 
             }
         }
     }
@@ -329,11 +339,13 @@ Skeleton ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
             std::string parentName = boneNode->GetParent()->GetName();
             auto it = boneNameToIndex.find(parentName);
             if (it != boneNameToIndex.end())
-                skeleton.BoneList[idx].parentIndex = it->second;
+            {
+                skeletonRes->BoneList[idx].parentIndex = it->second; 
+            }
         }
     }
 
-    skeleton.BuildNameToIndex();
-    return skeleton;
-}
+    skeletonRes->BuildNameToIndex(); 
 
+    return skeletonRes; 
+}

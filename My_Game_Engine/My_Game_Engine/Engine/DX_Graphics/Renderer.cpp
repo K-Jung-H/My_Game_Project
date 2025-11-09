@@ -1916,43 +1916,6 @@ void DX12_Renderer::SkinningPass()
     mCommandList->SetComputeRootSignature(skinning_rootsignature);
     PSO_Manager::Instance().BindShader(mCommandList, "Skinning", ShaderVariant::Skinning);
 
-    for (const auto& di : mVisibleItems)
-    {
-        if (!di.mesh) continue;
-
-        SkinnedMesh* skinMesh = dynamic_cast<SkinnedMesh*>(di.mesh);
-        if (!skinMesh || !skinMesh->IsSkinningBufferExisted())
-            continue;
-
-        auto& fsb = skinMesh->GetFrameSkinBuffer(mFrameIndex);
-        if (!fsb.skinnedBuffer)
-            continue;
-
-        SkinningConstants constants = {
-            skinMesh->GetVertexCount(),
-            skinMesh->GetHotStride(),
-            sizeof(GPU_SkinData),
-            (UINT)skinMesh->GetSkeleton().BoneList.size()
-        };
-
-        mCommandList->SetComputeRoot32BitConstants(0, 4, &constants, 0);
-
-        mCommandList->SetComputeRootDescriptorTable(1, mResource_Heap_Manager->GetGpuHandle(skinMesh->SkinDataSRV));   // t0: SkinData
-        mCommandList->SetComputeRootDescriptorTable(2, mResource_Heap_Manager->GetGpuHandle(skinMesh->HotInputSRV));   // t1: Input Vertex
-        mCommandList->SetComputeRootDescriptorTable(3, mResource_Heap_Manager->GetGpuHandle(skinMesh->BoneMatricesSRV)); // t2: Bone Matrices
-        mCommandList->SetComputeRootDescriptorTable(4, mResource_Heap_Manager->GetGpuHandle(fsb.uavSlot));             // u0: Output UAV
-
-
-        fr.StateTracker.Transition(mCommandList.Get(), fsb.skinnedBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-        UINT threadGroupCount = (constants.vertexCount + 63) / 64;
-        mCommandList->Dispatch(threadGroupCount, 1, 1);
-
-
-        fr.StateTracker.UAVBarrier(mCommandList.Get(), fsb.skinnedBuffer.Get());
-
-		fsb.mIsSkinningResultReady = true;
-    }
 }
 
 

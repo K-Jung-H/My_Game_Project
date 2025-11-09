@@ -51,7 +51,7 @@ public:
     virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
     virtual void FromAssimp(const aiMesh* mesh);
     virtual void FromFbxSDK(FbxMesh* fbxMesh);
-    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT current_frame) const;
+    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 
     VertexFlags GetVertexFlags() const { return mVertexFlags; }
     const VertexStreamLayout& GetHotLayout() const { return mHotLayout; }
@@ -108,6 +108,7 @@ private:
     void GeneratePlane(float width, float height);
 };
 
+
 struct GPU_SkinData
 {
     uint16_t idx[MAX_BONES_PER_VERTEX];
@@ -130,43 +131,26 @@ public:
         float weight;
     };
 
-    struct FrameSkinBuffer
-    {
-        ComPtr<ID3D12Resource> skinnedBuffer;
-        ComPtr<ID3D12Resource> uploadBuffer;
-        D3D12_VERTEX_BUFFER_VIEW vbv;
-        UINT uavSlot = UINT_MAX;
-        UINT srvSlot = UINT_MAX;
-
-        bool mIsSkinningResultReady = false;
-    };
-
-
-    void Skinning_Skeleton_Bones(const Skeleton& skeleton);
-    void CreatePreSkinnedOutputBuffer();
+    void Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes);
 
     virtual void FromAssimp(const aiMesh* mesh) override;
     virtual void FromFbxSDK(FbxMesh* fbxMesh) override;
-    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT current_frame) const override;
+    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 
-    D3D12_GPU_VIRTUAL_ADDRESS GetHotInputGPUVA() const { return mHotVB ? mHotVB->GetGPUVirtualAddress() : 0; }
-    D3D12_GPU_VIRTUAL_ADDRESS GetSkinDataGPUVA() const { return mSkinData ? mSkinData->GetGPUVirtualAddress() : 0; }
+    UINT GetHotInputSRV() const { return HotInputSRV; }
+    UINT GetSkinDataSRV() const { return SkinDataSRV; }
 
     UINT GetVertexCount() const { return static_cast<UINT>(positions.size()); }
     UINT GetHotStride() const { return mHotLayout.stride; }
-	bool IsSkinningBufferExisted() const { return mHasSkinnedBuffer; }
-    FrameSkinBuffer& GetFrameSkinBuffer(UINT frameIndex)  { return mFrameSkinnedBuffers[frameIndex]; }
-
-    UINT SkinDataSRV = UINT_MAX;
-    UINT HotInputSRV = UINT_MAX;
 
     std::vector<VertexBoneDataCPU> bone_vertex_data;
     std::vector<BoneMappingData>   bone_mapping_data;
 
 protected:
+    UINT SkinDataSRV = UINT_MAX;
+    UINT HotInputSRV = UINT_MAX;
+
+    std::shared_ptr<Skeleton> mSkeleton;
     ComPtr<ID3D12Resource> mSkinData;
     ComPtr<ID3D12Resource> mSkinDataUpload;
-
-    FrameSkinBuffer mFrameSkinnedBuffers[Engine::Frame_Render_Buffer_Count];
-    bool mHasSkinnedBuffer = false;
 };

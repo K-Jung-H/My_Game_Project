@@ -70,8 +70,13 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
 
     if (ai_scene->mNumAnimations > 0 || ai_scene->HasMeshes())
     {
-        Skeleton skeleton = BuildSkeleton(ai_scene);
-        model->SetSkeleton(skeleton);
+        auto skeletonRes = BuildSkeleton(ai_scene);
+        std::string skelAlias = model->GetAlias() + "_Skeleton";
+        skeletonRes->SetAlias(skelAlias);
+        skeletonRes->SetPath(MakeSubresourcePath(path, "skeleton", skelAlias));
+        skeletonRes->SetGUID(MetaIO::CreateGUID(skeletonRes->GetPath(), skelAlias));
+        rs->RegisterResource(skeletonRes);
+        model->SetSkeleton(skeletonRes);
     }
 
     std::unordered_map<std::string, int> nameCount;
@@ -111,7 +116,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         {
             SkinnedMesh* skinned = static_cast<SkinnedMesh*>(mesh.get());
             skinned->Skinning_Skeleton_Bones(model->GetSkeleton());
-            skinned->CreatePreSkinnedOutputBuffer();
         }
 
         rs->RegisterResource(mesh);
@@ -181,9 +185,10 @@ std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, con
     return node;
 }
 
-Skeleton ModelLoader_Assimp::BuildSkeleton(const aiScene* scene)
+std::shared_ptr<Skeleton> ModelLoader_Assimp::BuildSkeleton(const aiScene* scene)
 {
-    Skeleton skeleton;
+    auto skeletonRes = std::make_shared<Skeleton>();
+
     std::unordered_map<std::string, int> boneMap;
 
     for (unsigned int m = 0; m < scene->mNumMeshes; m++)
@@ -201,11 +206,13 @@ Skeleton ModelLoader_Assimp::BuildSkeleton(const aiScene* scene)
             XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&bone->mOffsetMatrix)));
             XMStoreFloat4x4(&bdata.inverseBind, xm);
 
-            boneMap[name] = (int)skeleton.BoneList.size();
-            skeleton.BoneList.push_back(bdata);
+
+            boneMap[name] = (int)skeletonRes->BoneList.size();
+            skeletonRes->BoneList.push_back(bdata);
         }
     }
 
-    skeleton.BuildNameToIndex();
-    return skeleton;
+    skeletonRes->BuildNameToIndex();
+
+    return skeletonRes;
 }
