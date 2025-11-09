@@ -1439,7 +1439,6 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     mDrawItems.clear();
 
     ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
-
     Material defaultMaterial = Material::Get_Default();
 
     for (auto& rd : renderables)
@@ -1447,6 +1446,8 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         auto transform = rd.transform.lock();
         auto renderer = rd.meshRenderer.lock();
         if (!transform || !renderer) continue;
+
+        auto skinnedComp = std::dynamic_pointer_cast<SkinnedMeshRendererComponent>(renderer);
 
         auto mesh = renderer->GetMesh();
         if (!mesh) continue;
@@ -1459,18 +1460,15 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             UINT matId = renderer->GetMaterial(i);
             if (matId == Engine::INVALID_ID)
                 matId = mesh->submeshes[i].materialId;
-
             auto material = rsm->GetById<Material>(matId);
-
             const Material* matToUse = material ? material.get() : &defaultMaterial;
 
             ObjectCBData cb{};
             cb.World = worldT;
-            cb.Emissive = 0.0f;
-
             cb.Albedo = XMFLOAT4(matToUse->albedoColor.x, matToUse->albedoColor.y, matToUse->albedoColor.z, 1.0f);
             cb.Roughness = matToUse->roughness;
             cb.Metallic = matToUse->metallic;
+            cb.Emissive = 0.0f;
 
             auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); };
             cb.DiffuseTexIdx = toIdx(matToUse->diffuseTexSlot);
@@ -1486,6 +1484,9 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             di.sub = mesh->submeshes[i];
             di.cbIndex = cbIndex;
             di.materialId = (material) ? matId : Engine::INVALID_ID;
+
+            if (skinnedComp)
+                di.skinnedComp = skinnedComp.get();
 
             mDrawItems.emplace_back(std::move(di));
         }
@@ -1916,9 +1917,60 @@ void DX12_Renderer::SkinningPass()
     mCommandList->SetComputeRootSignature(skinning_rootsignature);
     PSO_Manager::Instance().BindShader(mCommandList, "Skinning", ShaderVariant::Skinning);
 
+    for (const auto& di : mVisibleItems)
+    {
+        if (!di.skinnedComp) continue;
+
+        FrameSkinBuffer& fsb = di.skinnedComp->GetFrameSkinBuffer(mFrameIndex);
+
+        if (!di.skinnedComp->HasValidBuffers())
+        {
+            fsb.mIsSkinningResultReady = false;
+            continue;
+        }
+
+        auto animController = di.skinnedComp->GetAnimController();
+        if (!animController)
+        {
+            fsb.mIsSkinningResultReady = false;
+            continue;
+        }
+
+        UINT boneSRVSlot = animController->GetBoneMatrixSRV();
+        auto skeleton = animController->GetSkeleton();
+
+        if (boneSRVSlot == UINT_MAX || !skeleton)
+        {
+            fsb.mIsSkinningResultReady = false;
+            continue;
+        }
+
+        SkinnedMesh* skinMesh = static_cast<SkinnedMesh*>(di.mesh);
+
+        SkinningConstants constants = {
+            skinMesh->GetVertexCount(),
+            skinMesh->GetHotStride(),
+            sizeof(GPU_SkinData),
+            (UINT)skeleton->BoneList.size()
+        };
+
+        mCommandList->SetComputeRoot32BitConstants(0, 4, &constants, 0);
+
+        mCommandList->SetComputeRootDescriptorTable(1, mResource_Heap_Manager->GetGpuHandle(skinMesh->GetSkinDataSRV()));
+        mCommandList->SetComputeRootDescriptorTable(2, mResource_Heap_Manager->GetGpuHandle(skinMesh->GetHotInputSRV()));
+        mCommandList->SetComputeRootDescriptorTable(3, mResource_Heap_Manager->GetGpuHandle(boneSRVSlot));
+        mCommandList->SetComputeRootDescriptorTable(4, mResource_Heap_Manager->GetGpuHandle(fsb.uavSlot));
+
+        fr.StateTracker.Transition(mCommandList.Get(), fsb.skinnedBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        UINT threadGroupCount = (constants.vertexCount + 63) / 64;
+        mCommandList->Dispatch(threadGroupCount, 1, 1);
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fsb.skinnedBuffer.Get());
+
+        fsb.mIsSkinningResultReady = true;
+    }
 }
-
-
 void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];

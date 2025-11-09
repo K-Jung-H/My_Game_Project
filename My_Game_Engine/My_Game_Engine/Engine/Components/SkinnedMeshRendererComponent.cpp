@@ -1,8 +1,8 @@
 #include "SkinnedMeshRendererComponent.h"
+#include "AnimationControllerComponent.h"
 #include "Core/Object.h" 
 #include "GameEngine.h"
 #include "DX_Graphics/ResourceUtils.h"
-//#include "Components/AnimationController.h" 
 
 SkinnedMeshRendererComponent::SkinnedMeshRendererComponent()
     : MeshRendererComponent()
@@ -24,11 +24,22 @@ void SkinnedMeshRendererComponent::CacheAnimController()
         current = current->GetParent();
     }
 
-//    mCachedAnimController = current->GetComponent<AnimationController>();
+    mCachedAnimController = current->GetComponent<AnimationControllerComponent>();
 
     if (!mCachedAnimController)
     {
         OutputDebugStringA("[SkinnedMeshRendererComponent] Warning: 루트에서 AnimationController를 찾지 못했습니다.\n");
+    }
+
+    if (mCachedAnimController)
+    {
+        if (auto mesh = GetMesh())
+        {
+            if (auto skinnedMesh = std::dynamic_pointer_cast<SkinnedMesh>(mesh))
+            {
+                mCachedAnimController->SetSkeleton(skinnedMesh->GetSkeleton());
+            }
+        }
     }
 }
 
@@ -108,4 +119,19 @@ const D3D12_VERTEX_BUFFER_VIEW& SkinnedMeshRendererComponent::GetSkinnedVBV(UINT
         return mFrameSkinnedBuffers[frameIndex].vbv;
 
     return mOriginalHotVBV;
+}
+
+bool SkinnedMeshRendererComponent::HasValidBuffers() const
+{
+    if (!mHasSkinnedBuffer)
+    {
+        return false;
+    }
+
+    if (!mCachedAnimController)
+    {
+        return false;
+    }
+
+    return mCachedAnimController->IsReady();
 }

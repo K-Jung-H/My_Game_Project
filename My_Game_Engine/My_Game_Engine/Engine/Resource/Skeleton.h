@@ -13,7 +13,10 @@ class Skeleton : public Game_Resource
 {
     friend class ModelLoader_FBX;
 	friend class ModelLoader_Assimp;
+	friend class AnimationControllerComponent;
     friend class SkinnedMesh;
+    friend class DX12_Renderer;
+
 private:
     std::vector<Bone> BoneList;
     std::unordered_set<std::string> BoneNames;

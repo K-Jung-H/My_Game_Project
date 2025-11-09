@@ -1,7 +1,7 @@
 #pragma once
 #include "Components/LightComponent.h"
 #include "Components/CameraComponent.h"
-#include "Components/MeshRendererComponent.h"
+#include "Components/SkinnedMeshRendererComponent.h"
 #include "Components/TransformComponent.h"
 #include "Resource/Mesh.h"
 
@@ -36,4 +36,6 @@ struct DrawItem
 
     UINT cbIndex = 0;
     UINT materialId = 0;
+
+    SkinnedMeshRendererComponent* skinnedComp = nullptr;
 };

@@ -147,6 +147,8 @@ public:
     UINT GetVertexCount() const { return static_cast<UINT>(positions.size()); }
     UINT GetHotStride() const { return mHotLayout.stride; }
 
+    std::shared_ptr<Skeleton> GetSkeleton() const { return mSkeleton; }
+    
     std::vector<VertexBoneDataCPU> bone_vertex_data;
     std::vector<BoneMappingData>   bone_mapping_data;
 

@@ -1,8 +1,6 @@
 #pragma once
 #include "MeshRendererComponent.h"
-
-
-class AnimationController;
+#include "AnimationControllerComponent.h"
 
 struct FrameSkinBuffer
 {
@@ -16,8 +14,11 @@ struct FrameSkinBuffer
 class SkinnedMeshRendererComponent : public MeshRendererComponent
 {
 public:
-    SkinnedMeshRendererComponent() = default;
+    SkinnedMeshRendererComponent();
     virtual ~SkinnedMeshRendererComponent() = default;
+
+    static constexpr Component_Type Type = Component_Type::Skinned_Mesh_Renderer;
+    Component_Type GetType() const override { return Type; }
 
     void Initialize();
     virtual void SetMesh(UINT id);
@@ -27,15 +28,15 @@ public:
 
     const D3D12_VERTEX_BUFFER_VIEW& GetSkinnedVBV(UINT frameIndex) const;
 
-    AnimationController* GetAnimController() const { return mCachedAnimController; }
+    std::shared_ptr<AnimationControllerComponent> GetAnimController() const { return mCachedAnimController; }
+    bool HasValidBuffers() const;
 
 private:
     void CacheAnimController();
-
     void CreatePreSkinnedOutputBuffers(std::shared_ptr<SkinnedMesh> skinnedMesh);
 
 private:
-    AnimationController* mCachedAnimController = nullptr;
+    std::shared_ptr<AnimationControllerComponent> mCachedAnimController;
 
     FrameSkinBuffer mFrameSkinnedBuffers[Engine::Frame_Render_Buffer_Count];
     bool mHasSkinnedBuffer = false;
