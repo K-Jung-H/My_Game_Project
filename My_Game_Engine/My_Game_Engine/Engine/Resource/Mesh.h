@@ -56,6 +56,10 @@ public:
     VertexFlags GetVertexFlags() const { return mVertexFlags; }
     const VertexStreamLayout& GetHotLayout() const { return mHotLayout; }
     const VertexStreamLayout& GetColdLayout() const { return mColdLayout; }
+
+    ID3D12Resource* GetHotVB() const { return mHotVB.Get(); }
+    const D3D12_VERTEX_BUFFER_VIEW& GetHotVBV() const { return mHotVBV; }
+
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
     UINT GetMaterialID() const { return submeshes.empty() ? Engine::INVALID_ID : submeshes[0].materialId; }
     const BoundingBox& GetLocalAABB() const { return mLocalAABB; }

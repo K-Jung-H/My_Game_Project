@@ -17,7 +17,7 @@ public:
     MeshRendererComponent() = default;
     ~MeshRendererComponent() = default;
 
-    void SetMesh(UINT id);
+    virtual void SetMesh(UINT id);
     std::shared_ptr<Mesh> GetMesh() const { return mMesh.lock(); }
     UINT GetMeshId() const { return meshId; }
 
