@@ -2576,11 +2576,13 @@ void DrawInspector(Object* obj)
         switch (type)
         {
         case    Mesh_Renderer: component_name = "Mesh_Renderer"; break;
+        case    Skinned_Mesh_Renderer: component_name = "Skinned_Mesh_Renderer"; break;
+        case    AnimationController: component_name = "AnimationController"; break;
         case    Camera: component_name = "Camera"; break;
+
         case    Collider:   component_name = "Collider"; break;
         case    Rigidbody:  component_name = "Rigidbody"; break;
         case    Light:  component_name = "Light"; break;
-
         case    Transform:
         case    etc:
         default:
@@ -2615,7 +2617,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Separator();
             ImGui::Indent();
 
-            // Get mesh info
             auto meshPtr = mr->GetMesh();
             if (meshPtr)
             {
@@ -2640,7 +2641,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     ImGui::EndTable();
                 }
 
-                // Submesh material list
                 ImGui::Spacing();
                 ImGui::Text("Submesh Materials");
                 ImGui::Separator();
@@ -2689,6 +2689,128 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
     }
     break;
 
+    case Skinned_Mesh_Renderer:
+    {
+        std::shared_ptr<SkinnedMeshRendererComponent> smr = std::dynamic_pointer_cast<SkinnedMeshRendererComponent>(comp);
+        if (smr)
+        {
+            ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+
+            ImGui::Text("SkinnedMeshRenderer");
+            ImGui::Separator();
+            ImGui::Indent();
+
+            auto meshPtr = smr->GetMesh();
+            if (meshPtr)
+            {
+                ImGui::Text("Mesh Info");
+                ImGui::Separator();
+                if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Property");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableHeadersRow();
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", smr->GetMesh()->GetId());
+                    ImGui::EndTable();
+                }
+
+                ImGui::Spacing();
+                ImGui::Text("Submesh Materials");
+                ImGui::Separator();
+
+                if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Submesh Index");
+                    ImGui::TableSetupColumn("Material Alias");
+                    ImGui::TableSetupColumn("Material ID");
+                    ImGui::TableHeadersRow();
+
+                    const auto& submeshes = meshPtr->submeshes;
+                    for (size_t i = 0; i < submeshes.size(); ++i)
+                    {
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::Text("%zu", i);
+
+                        UINT matId = smr->GetMaterial(i);
+                        std::string matAlias = "<null>";
+
+                        if (matId != Engine::INVALID_ID)
+                        {
+                            auto matPtr = rsm->GetById<Material>(matId);
+                            if (matPtr)
+                                matAlias = matPtr->GetAlias();
+                        }
+
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::Text("%u", matId);
+
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::Text("%s", matAlias.c_str());
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
+            else
+            {
+                ImGui::Text("Mesh: <invalid>");
+            }
+
+            ImGui::Spacing();
+            ImGui::Text("Skinned Renderer Info");
+            ImGui::Separator();
+
+            auto animController = smr->GetAnimController();
+            if (animController)
+            {
+                ImGui::Text("Controller: %s (ID: %u)", animController->GetOwner()->GetName().c_str(), animController->GetOwner()->GetId());
+            }
+            else
+            {
+                ImGui::Text("Controller: <Not Connected>");
+            }
+            ImGui::Text("Buffers Ready: %s", smr->HasValidBuffers() ? "Yes" : "No");
+
+            ImGui::Unindent();
+        }
+    }
+    break;
+
+    case AnimationController:
+    {
+        std::shared_ptr<AnimationControllerComponent> ac = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
+        if (ac)
+        {
+            ImGui::Text("Animation Controller");
+            ImGui::Separator();
+            ImGui::Indent();
+
+            ImGui::Text("Status: %s", ac->IsReady() ? "Ready" : "Not Ready");
+            ImGui::Text("Key Frame Current Time: %.2f", -1.0f);
+            ImGui::Text("Bone SRV Slot: %u", ac->GetBoneMatrixSRV());
+
+            ImGui::Separator();
+            auto skeleton = ac->GetSkeleton();
+            if (skeleton)
+            {
+                ImGui::Text("Skeleton: %s (ID: %u)", skeleton->GetAlias().c_str(), skeleton->GetId());
+                ImGui::Text("Bone Count: %u", (UINT)skeleton->GetBoneCount());
+            }
+            else
+            {
+                ImGui::Text("Skeleton: <None>");
+            }
+
+            ImGui::Unindent();
+        }
+    }
+    break;
 
     case Camera:
     {

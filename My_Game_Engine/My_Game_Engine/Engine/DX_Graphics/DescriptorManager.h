@@ -1,6 +1,6 @@
 
-constexpr UINT MAX_CBV = 512;
-constexpr UINT MAX_UAV = 128;
+constexpr UINT MAX_CBV = 128;
+constexpr UINT MAX_UAV = 512;
 
 constexpr UINT MAX_SRV_FRAME = 512;
 constexpr UINT MAX_SRV_TEXTURE = 2000;

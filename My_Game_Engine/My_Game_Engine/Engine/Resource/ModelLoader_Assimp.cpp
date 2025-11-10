@@ -84,7 +84,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
     {
         aiMesh* ai_mesh = ai_scene->mMeshes[i];
-        const bool isSkinned = (ai_mesh->HasBones() && ai_scene->mNumAnimations > 0);
+        const bool isSkinned = ai_mesh->HasBones();
 
         std::shared_ptr<Mesh> mesh = isSkinned ?
             std::make_shared<SkinnedMesh>() :

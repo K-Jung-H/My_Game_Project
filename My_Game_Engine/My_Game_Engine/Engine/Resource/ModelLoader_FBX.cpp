@@ -315,15 +315,19 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
                 bone.name = boneName;
                 bone.parentIndex = -1;
 
-                FbxAMatrix bindMatrix;
-                cluster->GetTransformLinkMatrix(bindMatrix);
+                FbxAMatrix linkMatrix, modelMatrix;
+                cluster->GetTransformLinkMatrix(linkMatrix);
+                cluster->GetTransformMatrix(modelMatrix);
+
+                FbxAMatrix invBindMatrix = linkMatrix.Inverse() * modelMatrix;
 
                 XMFLOAT4X4 m;
-                for (int r = 0; r < 4; r++)
-                    for (int c2 = 0; c2 < 4; c2++)
-                        m.m[r][c2] = static_cast<float>(bindMatrix.Get(r, c2));
+                for (int r = 0; r < 4; ++r)
+                    for (int c = 0; c < 4; ++c)
+                        m.m[r][c] = static_cast<float>(invBindMatrix.Get(r, c));
 
-                bone.inverseBind = Matrix4x4::Transpose(m);
+                bone.inverseBind = m;
+
 
                 boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
                 skeletonRes->BoneList.push_back(bone);

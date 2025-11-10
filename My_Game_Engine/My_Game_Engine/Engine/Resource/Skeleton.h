@@ -26,6 +26,7 @@ private:
 public:
     virtual bool LoadFromFile(std::string path, const RendererContext& ctx) { return false; }
     void SortBoneList();
+    UINT GetBoneCount() const { return BoneList.size(); }
 
     void BuildNameToIndex()
     {
