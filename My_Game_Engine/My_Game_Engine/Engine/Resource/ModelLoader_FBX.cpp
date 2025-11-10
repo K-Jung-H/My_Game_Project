@@ -207,6 +207,7 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
     bool hasSkin = (fbxMesh->GetDeformerCount(FbxDeformer::eSkin) > 0);
+
     std::shared_ptr<Mesh> mesh = hasSkin
         ? std::make_shared<SkinnedMesh>()
         : std::make_shared<Mesh>();

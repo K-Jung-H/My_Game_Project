@@ -61,9 +61,11 @@ Object* ObjectManager::CreateObjectWithId(const std::string& name, UINT id)
     return CreateObjectInternal(name, id);
 }
 
-Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model) 
+Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 {
     if (!model || !model->GetRoot()) return nullptr;
+
+    std::vector<SkinnedMeshRendererComponent*> newSkinnedRenderers;
 
     std::function<Object* (const std::shared_ptr<Model::Node>&, Object*)> createNodeRecursive;
 
@@ -77,8 +79,20 @@ Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 
         for (auto& mesh : node->meshes)
         {
-            auto mr = obj->AddComponent<MeshRendererComponent>();
-            mr->SetMesh(mesh->GetId());
+            auto skinnedMeshRes = std::dynamic_pointer_cast<SkinnedMesh>(mesh);
+
+            if (skinnedMeshRes)
+            {
+                auto skinnedRenderer = obj->AddComponent<SkinnedMeshRendererComponent>();
+                skinnedRenderer->SetMesh(mesh->GetId());
+
+                newSkinnedRenderers.push_back(skinnedRenderer.get());
+            }
+            else
+            {
+                auto mr = obj->AddComponent<MeshRendererComponent>();
+                mr->SetMesh(mesh->GetId());
+            }
         }
 
         for (auto& childNode : node->children)
@@ -89,7 +103,17 @@ Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
         return obj;
         };
 
-    return createNodeRecursive(model->GetRoot(), nullptr);
+    Object* rootObject = createNodeRecursive(model->GetRoot(), nullptr);
+
+    auto animController = rootObject->AddComponent<AnimationControllerComponent>();
+
+
+    for (auto* renderer : newSkinnedRenderers)
+    {
+        renderer->Initialize();
+    }
+
+    return rootObject;
 }
 
 void ObjectManager::DestroyObject(UINT id) 

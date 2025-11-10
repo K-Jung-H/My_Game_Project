@@ -79,6 +79,8 @@ void Scene::Build()
 
 		auto rb = test_obj->AddComponent<RigidbodyComponent>();
 		rb->SetUseGravity(false);
+
+		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
 	}
 
 	{
@@ -209,6 +211,7 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 	switch (comp->GetType())
 	{
 	case Component_Type::Mesh_Renderer:
+	case Component_Type::Skinned_Mesh_Renderer:
 	{
 		if (auto mr = std::dynamic_pointer_cast<MeshRendererComponent>(comp))
 		{

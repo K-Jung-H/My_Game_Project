@@ -732,23 +732,23 @@ bool DX12_Renderer::Create_Shader()
 
     //==================================
 
-    //ShaderSetting skinning_ss;
-    //skinning_ss.cs.file = L"Shaders/Skinning_Shader.hlsl";
-    //skinning_ss.cs.entry = "Skinning_CS";
-    //skinning_ss.cs.target = "cs_5_1";
+    ShaderSetting skinning_ss;
+    skinning_ss.cs.file = L"Shaders/Skinning_Shader.hlsl";
+    skinning_ss.cs.entry = "Skinning_CS";
+    skinning_ss.cs.target = "cs_5_1";
 
-    //PipelinePreset skinning_pp{};
+    PipelinePreset skinning_pp{};
 
-    //std::vector<VariantConfig> skinning_configs =
-    //{
-    //    { ShaderVariant::Skinning, skinning_ss, skinning_pp },
-    //};
+    std::vector<VariantConfig> skinning_configs =
+    {
+        { ShaderVariant::Skinning, skinning_ss, skinning_pp },
+    };
 
-    //auto skinning_shader = pso_manager.RegisterComputeShader(
-    //    "Skinning_Pass",
-    //    RootSignature_Type::Skinning,
-    //    skinning_configs
-    //);
+    auto skinning_shader = pso_manager.RegisterComputeShader(
+        "Skinning",
+        RootSignature_Type::Skinning,
+        skinning_configs
+    );
 
     //==================================
 
@@ -1880,7 +1880,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     //------------------------------------------
     UpdateObjectCBs(renderData_list);
     CullObjectsForRender(mainCam);
-	SkinningPass();
+    SkinningPass();
     GeometryPass(mainCam);
     //------------------------------------------
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -1971,6 +1971,7 @@ void DX12_Renderer::SkinningPass()
         fsb.mIsSkinningResultReady = true;
     }
 }
+
 void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
