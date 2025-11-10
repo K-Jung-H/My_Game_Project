@@ -59,6 +59,8 @@ public:
 
     ID3D12Resource* GetHotVB() const { return mHotVB.Get(); }
     const D3D12_VERTEX_BUFFER_VIEW& GetHotVBV() const { return mHotVBV; }
+    const D3D12_VERTEX_BUFFER_VIEW& GetColdVBV() const { return mColdVBV; }
+    const D3D12_INDEX_BUFFER_VIEW& GetIBV() const { return mIBV; }
 
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
     UINT GetMaterialID() const { return submeshes.empty() ? Engine::INVALID_ID : submeshes[0].materialId; }

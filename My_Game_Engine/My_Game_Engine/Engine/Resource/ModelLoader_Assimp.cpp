@@ -185,6 +185,33 @@ std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, con
     return node;
 }
 
+void FindBoneParent(aiNode* node, const std::unordered_map<std::string, int>& boneMap, std::vector<Bone>& boneList)
+{
+    std::string nodeName = node->mName.C_Str();
+
+    auto it = boneMap.find(nodeName);
+    if (it != boneMap.end())
+    {
+        aiNode* parentNode = node->mParent;
+        while (parentNode)
+        {
+            std::string parentName = parentNode->mName.C_Str();
+            auto parentIt = boneMap.find(parentName);
+            if (parentIt != boneMap.end())
+            {
+                boneList[it->second].parentIndex = parentIt->second;
+                break;
+            }
+            parentNode = parentNode->mParent;
+        }
+    }
+
+    for (unsigned int i = 0; i < node->mNumChildren; ++i)
+    {
+        FindBoneParent(node->mChildren[i], boneMap, boneList);
+    }
+}
+
 std::shared_ptr<Skeleton> ModelLoader_Assimp::BuildSkeleton(const aiScene* scene)
 {
     auto skeletonRes = std::make_shared<Skeleton>();
@@ -206,11 +233,17 @@ std::shared_ptr<Skeleton> ModelLoader_Assimp::BuildSkeleton(const aiScene* scene
             XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&bone->mOffsetMatrix)));
             XMStoreFloat4x4(&bdata.inverseBind, xm);
 
-
             boneMap[name] = (int)skeletonRes->BoneList.size();
             skeletonRes->BoneList.push_back(bdata);
         }
     }
+
+    if (scene->mRootNode)
+    {
+        FindBoneParent(scene->mRootNode, boneMap, skeletonRes->BoneList);
+    }
+
+    skeletonRes->SortBoneList();
 
     skeletonRes->BuildNameToIndex();
 

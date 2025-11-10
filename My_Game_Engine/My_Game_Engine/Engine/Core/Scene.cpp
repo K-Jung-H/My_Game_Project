@@ -81,6 +81,11 @@ void Scene::Build()
 		rb->SetUseGravity(false);
 
 		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
+		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
+		for (auto& renderer : skinnedRenderers)
+		{
+			renderer->Initialize();
+		}
 	}
 
 	{
@@ -182,10 +187,18 @@ void Scene::Update_Fixed(float dt)
 void Scene::Update_Scene(float dt)
 {
 	m_pObjectManager->Update_Animate_All(dt);
+
+	for (auto animController : animation_controller_list)
+	{
+		if (animController)
+			animController->Update(dt);
+	}
 }
 
 void Scene::Update_Late()
 {
+
+
 	for (auto camera_ptr : camera_list)
 	{
 		if (auto cp = camera_ptr.lock())
@@ -234,6 +247,15 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 		if (auto light = std::dynamic_pointer_cast<LightComponent>(comp))
 		{
 			light_list.push_back(light);
+		}
+		break;
+	}
+
+	case Component_Type::AnimationController:
+	{
+		if(auto animation_controller = std::dynamic_pointer_cast<AnimationControllerComponent>(comp))
+		{
+			animation_controller_list.push_back(animation_controller);
 		}
 		break;
 	}

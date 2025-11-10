@@ -45,6 +45,9 @@ public:
     template<typename T>
     std::vector<std::shared_ptr<T>> GetComponents();
 
+    template<typename T>
+    std::vector<std::shared_ptr<T>> GetComponentsInChildren();
+
 
     Object* GetParent() { return m_pParent; }
     const std::vector<Object*>& GetChildren() const { return m_pChildren; }
@@ -148,4 +151,32 @@ std::vector<std::shared_ptr<T>> Object::GetComponents()
         }
     }
     return result;
+}
+
+template<typename T>
+std::vector<std::shared_ptr<T>> Object::GetComponentsInChildren()
+{
+    std::vector<std::shared_ptr<T>> allComponents;
+
+    std::function<void(Object*)> searchRecursive;
+    searchRecursive = [&](Object* currentObject)
+        {
+            if (!currentObject) return;
+
+            std::vector<std::shared_ptr<T>> currentComponents = currentObject->GetComponents<T>();
+
+            if (!currentComponents.empty())
+            {
+                allComponents.insert(allComponents.end(), currentComponents.begin(), currentComponents.end());
+            }
+
+            for (Object* child : currentObject->GetChildren())
+            {
+                searchRecursive(child);
+            }
+        };
+
+    searchRecursive(this);
+
+    return allComponents;
 }

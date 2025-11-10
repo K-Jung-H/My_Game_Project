@@ -125,7 +125,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         ModelLoader_Assimp assimpLoader;
         if (assimpLoader.Load(path, alias, result))
         {
-            OutputDebugStringA(("[Assimp Fallback] Loaded FBX: " + path + "\n").c_str());
+            OutputDebugStringA(("[Assimp] Loaded FBX: " + path + "\n").c_str());
             return;
         }
 

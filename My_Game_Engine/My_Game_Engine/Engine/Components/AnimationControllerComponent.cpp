@@ -79,32 +79,58 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
     const size_t boneCount = mSkeleton->BoneList.size();
     if (boneCount == 0) return;
 
-    std::vector<XMFLOAT4X4> globalTransforms(boneCount);
+
+    std::vector<XMMATRIX> localTransforms(boneCount);
+    std::vector<XMMATRIX> globalTransforms(boneCount);
+
     for (size_t i = 0; i < boneCount; ++i)
     {
         const Bone& bone = mSkeleton->BoneList[i];
         XMMATRIX invBind = XMLoadFloat4x4(&bone.inverseBind);
-        XMMATRIX global = XMMatrixInverse(nullptr, invBind);
+        XMMATRIX globalT_Pose = XMMatrixInverse(nullptr, invBind);
+
+        int parentIdx = bone.parentIndex;
+        if (parentIdx == -1)
+        {
+            localTransforms[i] = globalT_Pose;
+        }
+        else
+        {
+
+            const Bone& parentBone = mSkeleton->BoneList[parentIdx];
+            XMMATRIX parentInvBind = XMLoadFloat4x4(&parentBone.inverseBind);
+            XMMATRIX parentGlobalT_Pose = XMMatrixInverse(nullptr, parentInvBind);
+            localTransforms[i] = globalT_Pose * XMMatrixInverse(nullptr, parentGlobalT_Pose);
+        }
 
         if (bone.name == "Spine1")
         {
             XMMATRIX rotation = XMMatrixRotationZ(sin(time * 2.0f) * 0.5f);
-            global = rotation * global;
+            localTransforms[i] = rotation * localTransforms[i];
         }
-
-        XMStoreFloat4x4(&globalTransforms[i], global);
     }
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        XMMATRIX global = XMLoadFloat4x4(&globalTransforms[i]);
+        int parentIdx = mSkeleton->BoneList[i].parentIndex;
+        if (parentIdx == -1)
+        {
+            globalTransforms[i] = localTransforms[i]; 
+        }
+        else
+        {
+            globalTransforms[i] = localTransforms[i] * globalTransforms[parentIdx];
+        }
+    }
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
         XMMATRIX invBind = XMLoadFloat4x4(&mSkeleton->BoneList[i].inverseBind);
 
-        XMMATRIX final = XMMatrixTranspose(invBind * global);
+        XMMATRIX final = XMMatrixTranspose(invBind * globalTransforms[i]);
         XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, final);
     }
 }
-
 UINT AnimationControllerComponent::GetBoneMatrixSRV() const
 {
     return mBoneMatrixSRVSlot;

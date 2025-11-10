@@ -325,9 +325,8 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 
                 bone.inverseBind = Matrix4x4::Transpose(m);
 
-
-                boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size(); 
-                skeletonRes->BoneList.push_back(bone); 
+                boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
+                skeletonRes->BoneList.push_back(bone);
             }
         }
     }
@@ -341,12 +340,14 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
             auto it = boneNameToIndex.find(parentName);
             if (it != boneNameToIndex.end())
             {
-                skeletonRes->BoneList[idx].parentIndex = it->second; 
+                skeletonRes->BoneList[idx].parentIndex = it->second;
             }
         }
     }
 
-    skeletonRes->BuildNameToIndex(); 
+    skeletonRes->SortBoneList();
 
-    return skeletonRes; 
+    skeletonRes->BuildNameToIndex();
+
+    return skeletonRes;
 }
