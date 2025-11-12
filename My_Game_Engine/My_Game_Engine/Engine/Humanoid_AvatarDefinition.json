@@ -1,0 +1,213 @@
+{
+  "DefinitionType": "Humanoid",
+  "BoneDefinitions": [
+    {
+      "key": "Hips",
+      "keywords": [ "hips", "pelvis", "root", "bip01_pelvis", "bip_pelvis", "mixamorig:hips" ]
+    },
+    {
+      "key": "Spine",
+      "keywords": [ "spine", "spine_01", "spine1", "bip01_spine", "bip_spine_0", "mixamorig:spine" ]
+    },
+    {
+      "key": "Chest",
+      "keywords": [ "chest", "spine_02", "spine2", "bip01_spine1", "bip_spine_1", "mixamorig:spine1" ]
+    },
+    {
+      "key": "UpperChest",
+      "keywords": [ "upperchest", "spine_03", "spine3", "bip01_spine2", "bip_spine_2", "mixamorig:spine2" ]
+    },
+    {
+      "key": "Neck",
+      "keywords": [ "neck", "neck_01", "bip01_neck", "bip_neck", "mixamorig:neck" ]
+    },
+    {
+      "key": "Head",
+      "keywords": [ "head", "bip01_head", "bip_head", "mixamorig:head" ]
+    },
+    {
+      "key": "LeftShoulder",
+      "keywords": [ "leftshoulder", "shoulder_l", "clavicle_l", "l_clavicle", "bip01_l_clavicle", "mixamorig:leftshoulder" ]
+    },
+    {
+      "key": "LeftUpperArm",
+      "keywords": [ "leftupperarm", "upperarm_l", "l_upperarm", "arm_l", "bip01_l_upperarm", "mixamorig:leftupperarm" ]
+    },
+    {
+      "key": "LeftLowerArm",
+      "keywords": [ "leftlowerarm", "lowerarm_l", "l_lowerarm", "forearm_l", "l_forearm", "bip01_l_forearm", "mixamorig:leftforearm" ]
+    },
+    {
+      "key": "LeftHand",
+      "keywords": [ "lefthand", "hand_l", "l_hand", "bip01_l_hand", "mixamorig:lefthand" ]
+    },
+    {
+      "key": "RightShoulder",
+      "keywords": [ "rightshoulder", "shoulder_r", "clavicle_r", "r_clavicle", "bip01_r_clavicle", "mixamorig:rightshoulder" ]
+    },
+    {
+      "key": "RightUpperArm",
+      "keywords": [ "rightupperarm", "upperarm_r", "r_upperarm", "arm_r", "bip01_r_upperarm", "mixamorig:rightupperarm" ]
+    },
+    {
+      "key": "RightLowerArm",
+      "keywords": [ "rightlowerarm", "lowerarm_r", "r_lowerarm", "forearm_r", "r_forearm", "bip01_r_forearm", "mixamorig:rightforearm" ]
+    },
+    {
+      "key": "RightHand",
+      "keywords": [ "righthand", "hand_r", "r_hand", "bip01_r_hand", "mixamorig:righthand" ]
+    },
+    {
+      "key": "LeftUpperLeg",
+      "keywords": [ "leftupperleg", "upperleg_l", "l_upperleg", "thigh_l", "l_thigh", "bip01_l_thigh", "mixamorig:leftupleg" ]
+    },
+    {
+      "key": "LeftLowerLeg",
+      "keywords": [ "leftlowerleg", "lowerleg_l", "l_lowerleg", "calf_l", "l_calf", "bip01_l_calf", "mixamorig:leftleg" ]
+    },
+    {
+      "key": "LeftFoot",
+      "keywords": [ "leftfoot", "foot_l", "l_foot", "bip01_l_foot", "mixamorig:leftfoot" ]
+    },
+    {
+      "key": "LeftToes",
+      "keywords": [ "lefttoes", "toes_l", "l_toes", "toe_l", "bip01_l_toe0", "mixamorig:lefttoebase" ]
+    },
+    {
+      "key": "RightUpperLeg",
+      "keywords": [ "rightupperleg", "upperleg_r", "r_upperleg", "thigh_r", "r_thigh", "bip01_r_thigh", "mixamorig:rightupleg" ]
+    },
+    {
+      "key": "RightLowerLeg",
+      "keywords": [ "rightlowerleg", "lowerleg_r", "r_lowerleg", "calf_r", "r_calf", "bip01_r_calf", "mixamorig:rightleg" ]
+    },
+    {
+      "key": "RightFoot",
+      "keywords": [ "rightfoot", "foot_r", "r_foot", "bip01_r_foot", "mixamorig:rightfoot" ]
+    },
+    {
+      "key": "RightToes",
+      "keywords": [ "righttoes", "toes_r", "r_toes", "toe_r", "bip01_r_toe0", "mixamorig:righttoebase" ]
+    },
+    {
+      "key": "LeftThumbProximal",
+      "keywords": [ "leftthumbproximal", "thumb_01_l", "l_thumb1", "bip01_l_finger0", "mixamorig:lefthandthumb1" ]
+    },
+    {
+      "key": "LeftThumbIntermediate",
+      "keywords": [ "leftthumbintermediate", "thumb_02_l", "l_thumb2", "bip01_l_finger01", "mixamorig:lefthandthumb2" ]
+    },
+    {
+      "key": "LeftThumbDistal",
+      "keywords": [ "leftthumbdistal", "thumb_03_l", "l_thumb3", "bip01_l_finger02", "mixamorig:lefthandthumb3" ]
+    },
+    {
+      "key": "LeftIndexProximal",
+      "keywords": [ "leftindexproximal", "index_01_l", "l_index1", "bip01_l_finger1", "mixamorig:lefthandindex1" ]
+    },
+    {
+      "key": "LeftIndexIntermediate",
+      "keywords": [ "leftindexintermediate", "index_02_l", "l_index2", "bip01_l_finger11", "mixamorig:lefthandindex2" ]
+    },
+    {
+      "key": "LeftIndexDistal",
+      "keywords": [ "leftindexdistal", "index_03_l", "l_index3", "bip01_l_finger12", "mixamorig:lefthandindex3" ]
+    },
+    {
+      "key": "LeftMiddleProximal",
+      "keywords": [ "leftmiddleproximal", "middle_01_l", "l_middle1", "bip01_l_finger2", "mixamorig:lefthandmiddle1" ]
+    },
+    {
+      "key": "LeftMiddleIntermediate",
+      "keywords": [ "leftmiddleintermediate", "middle_02_l", "l_middle2", "bip01_l_finger21", "mixamorig:lefthandmiddle2" ]
+    },
+    {
+      "key": "LeftMiddleDistal",
+      "keywords": [ "leftmiddledistal", "middle_03_l", "l_middle3", "bip01_l_finger22", "mixamorig:lefthandmiddle3" ]
+    },
+    {
+      "key": "LeftRingProximal",
+      "keywords": [ "leftringproximal", "ring_01_l", "l_ring1", "bip01_l_finger3", "mixamorig:lefthandring1" ]
+    },
+    {
+      "key": "LeftRingIntermediate",
+      "keywords": [ "leftringintermediate", "ring_02_l", "l_ring2", "bip01_l_finger31", "mixamorig:lefthandring2" ]
+    },
+    {
+      "key": "LeftRingDistal",
+      "keywords": [ "leftringdistal", "ring_03_l", "l_ring3", "bip01_l_finger32", "mixamorig:lefthandring3" ]
+    },
+    {
+      "key": "LeftPinkyProximal",
+      "keywords": [ "leftpinkyproximal", "pinky_01_l", "l_pinky1", "bip01_l_finger4", "mixamorig:lefthandpinky1" ]
+    },
+    {
+      "key": "LeftPinkyIntermediate",
+      "keywords": [ "leftpinkyintermediate", "pinky_02_l", "l_pinky2", "bip01_l_finger41", "mixamorig:lefthandpinky2" ]
+    },
+    {
+      "key": "LeftPinkyDistal",
+      "keywords": [ "leftpinkydistal", "pinky_03_l", "l_pinky3", "bip01_l_finger42", "mixamorig:lefthandpinky3" ]
+    },
+    {
+      "key": "RightThumbProximal",
+      "keywords": [ "rightthumbproximal", "thumb_01_r", "r_thumb1", "bip01_r_finger0", "mixamorig:righthandthumb1" ]
+    },
+    {
+      "key": "RightThumbIntermediate",
+      "keywords": [ "rightthumbintermediate", "thumb_02_r", "r_thumb2", "bip01_r_finger01", "mixamorig:righthandthumb2" ]
+    },
+    {
+      "key": "RightThumbDistal",
+      "keywords": [ "rightthumbdistal", "thumb_03_r", "r_thumb3", "bip01_r_finger02", "mixamorig:righthandthumb3" ]
+    },
+    {
+      "key": "RightIndexProximal",
+      "keywords": [ "rightindexproximal", "index_01_r", "r_index1", "bip01_r_finger1", "mixamorig:righthandindex1" ]
+    },
+    {
+      "key": "RightIndexIntermediate",
+      "keywords": [ "rightindexintermediate", "index_02_r", "r_index2", "bip01_r_finger11", "mixamorig:righthandindex2" ]
+    },
+    {
+      "key": "RightIndexDistal",
+      "keywords": [ "rightindexdistal", "index_03_r", "r_index3", "bip01_r_finger12", "mixamorig:righthandindex3" ]
+    },
+    {
+      "key": "RightMiddleProximal",
+      "keywords": [ "rightmiddleproximal", "middle_01_r", "r_middle1", "bip01_r_finger2", "mixamorig:righthandmiddle1" ]
+    },
+    {
+      "key": "RightMiddleIntermediate",
+      "keywords": [ "rightmiddleintermediate", "middle_02_r", "r_middle2", "bip01_r_finger21", "mixamorig:righthandmiddle2" ]
+    },
+    {
+      "key": "RightMiddleDistal",
+      "keywords": [ "rightmiddledistal", "middle_03_r", "r_middle3", "bip01_r_finger22", "mixamorig:righthandmiddle3" ]
+    },
+    {
+      "key": "RightRingProximal",
+      "keywords": [ "rightringproximal", "ring_01_r", "r_ring1", "bip01_r_finger3", "mixamorig:righthandring1" ]
+    },
+    {
+      "key": "RightRingIntermediate",
+      "keywords": [ "rightringintermediate", "ring_02_r", "r_ring2", "bip01_r_finger31", "mixamorig:righthandring2" ]
+    },
+    {
+      "key": "RightRingDistal",
+      "keywords": [ "rightringdistal", "ring_03_r", "r_ring3", "bip01_r_finger32", "mixamorig:righthandring3" ]
+    },
+    {
+      "key": "RightPinkyProximal",
+      "keywords": [ "rightpinkyproximal", "pinky_01_r", "r_pinky1", "bip01_r_finger4", "mixamorig:righthandpinky1" ]
+    },
+    {
+      "key": "RightPinkyIntermediate",
+      "keywords": [ "rightpinkyintermediate", "pinky_02_r", "r_pinky2", "bip01_r_finger41", "mixamorig:righthandpinky2" ]
+    },
+    {
+      "key": "RightPinkyDistal",
+      "keywords": [ "rightpinkydistal", "pinky_03_r", "r_pinky3", "bip01_r_finger42", "mixamorig:righthandpinky3" ]
+    }
+  ]
+}

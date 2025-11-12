@@ -47,6 +47,7 @@ enum class ResourceType
     Material,
     Texture,
     Model,
+    ModelAvatar,
     Skeleton,
     etc,
 };
