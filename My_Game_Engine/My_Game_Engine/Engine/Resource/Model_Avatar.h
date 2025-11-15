@@ -10,8 +10,7 @@ public:
     virtual ~Model_Avatar() = default;
 
     virtual bool LoadFromFile(std::string path, const RendererContext& ctx) override;
-    virtual bool SaveToFile() const;
-
+    virtual bool SaveToFile(const std::string& outputPath = "") const;
     void SetDefinitionType(DefinitionType type);
     void AutoMap(std::shared_ptr<Skeleton> skeleton);
 

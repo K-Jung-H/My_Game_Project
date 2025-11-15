@@ -24,9 +24,12 @@ private:
     std::unordered_map<std::string, int> NameToIndex;
 
 public:
-    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) { return false; }
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) override;
+    virtual bool SaveToFile(const std::string& path) const;
+
     void SortBoneList();
     UINT GetBoneCount() const { return BoneList.size(); }
+    const std::vector<Bone>& GetBoneList() const { return BoneList; }
 
     void BuildNameToIndex()
     {

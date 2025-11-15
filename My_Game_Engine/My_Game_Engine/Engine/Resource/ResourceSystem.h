@@ -4,6 +4,7 @@
 #include "Texture.h"
 #include "Material.h"
 #include "Model.h"
+#include "Model_Avatar.h"
 #include "Skeleton.h"
 #include "MetaIO.h"
 
@@ -33,6 +34,7 @@ public:
     template<typename T> std::shared_ptr<T> GetByGUID(const std::string& guid) const;
     template<typename T> std::shared_ptr<T> GetByPath(const std::string& path) const;
     template<typename T> std::shared_ptr<T> GetByAlias(const std::string& alias) const;
+    template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
 
     // Meta
     std::string GetOrCreateGUID(const std::string& path);
@@ -66,7 +68,8 @@ private:
     std::vector<std::shared_ptr<Texture>>  mTextures;
     std::vector<std::shared_ptr<Model>>    mModels;
     std::vector<std::shared_ptr<Skeleton>> mSkeletons;
-
+    std::vector<std::shared_ptr<Model_Avatar>> mAvatars;
+    
     // GUID Ä³½Ì (meta scan)
     std::unordered_map<std::string, std::string> mPathToGUID;
 
@@ -104,4 +107,57 @@ std::shared_ptr<T> ResourceSystem::GetByAlias(const std::string& alias) const
     if (auto it = mAliasToId.find(alias); it != mAliasToId.end())
         return GetById<T>(it->second);
     return nullptr;
+}
+
+template<typename T>
+std::shared_ptr<T> ResourceSystem::LoadOrReuse(
+    const std::string& path,
+    const std::string& alias,
+    const RendererContext& ctx,
+    std::function<std::shared_ptr<T>()> createCallback
+)
+{
+    if (auto cached = GetByPath<T>(path))
+    {
+        return cached;
+    }
+
+    std::shared_ptr<T> resource;
+    bool existing = std::filesystem::exists(path);
+
+    if (existing)
+    {
+        resource = std::make_shared<T>();
+        if (!resource->LoadFromFile(path, ctx))
+        {
+            OutputDebugStringA(("[ResourceSystem] Load failed: " + path + "\n").c_str());
+            return nullptr;
+        }
+        OutputDebugStringA(("[ResourceSystem] Reused existing resource: " + path + "\n").c_str());
+    }
+    else
+    {
+        OutputDebugStringA(("[ResourceSystem] New resource will be created: " + path + "\n").c_str());
+
+        resource = createCallback();
+        if (!resource)
+        {
+            OutputDebugStringA(("[ResourceSystem] Create failed: " + path + "\n").c_str());
+                return nullptr;
+        }
+
+        resource->SetPath(path);
+        resource->SetAlias(alias);
+
+        if (!resource->SaveToFile(path))
+        {
+            OutputDebugStringA(("[ResourceSystem] Save failed: " + path + "\n").c_str());
+        }
+    }
+
+    resource->SetAlias(alias);
+    resource->SetPath(path);
+    RegisterResource(resource);
+
+    return resource;
 }

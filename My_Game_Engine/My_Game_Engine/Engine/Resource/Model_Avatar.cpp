@@ -31,7 +31,7 @@ const std::string& Model_Avatar::GetMappedBoneName(const std::string& abstractKe
     return emptyString;
 }
 
-bool Model_Avatar::SaveToFile() const
+bool Model_Avatar::SaveToFile(const std::string& outputPath) const
 {
     using namespace rapidjson;
     Document doc(kObjectType);

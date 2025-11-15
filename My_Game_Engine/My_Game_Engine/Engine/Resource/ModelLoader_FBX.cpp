@@ -1,10 +1,10 @@
 #include "ModelLoader_FBX.h"
 #include "GameEngine.h"
-#include "MaterialLoader.h"
 #include "TextureLoader.h"
 #include "MetaIO.h"
 #include "DXMathUtils.h"
 #include "Mesh.h"
+#include "Model_Avatar.h"
 
 ModelLoader_FBX::ModelLoader_FBX() 
 {
@@ -63,20 +63,18 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         else matNameCount[baseName] = 0;
 
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
-        auto mat = MaterialLoader::LoadOrReuse(ctx, matFilePath, uniqueName, path);
+
+        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx, 
+            [&]() -> std::shared_ptr<Material> {
+                auto newMat = std::make_shared<Material>();
+                newMat->FromFbxSDK(fbxMat);
+                auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, path, newMat);
+                result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
+                return newMat;
+            }
+        );
+
         if (!mat) continue;
-
-        mat->SetGUID(MetaIO::CreateGUID(path, uniqueName));
-
-        if (!std::filesystem::exists(matFilePath))
-        {
-            mat->FromFbxSDK(fbxMat);
-            auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, path, mat);
-            result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
-            mat->SaveToFile(matFilePath);
-        }
-
-        rs->RegisterResource(mat);
         matMap[fbxMat] = mat->GetId();
         result.materialIds.push_back(mat->GetId());
     }
@@ -85,14 +83,24 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     if (scene->GetRootNode())
         model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, path, loadedMeshes));
 
-    auto skeletonRes = BuildSkeleton(scene);
-    std::string skelAlias = model->GetAlias() + "_Skeleton";
-    skeletonRes->SetAlias(skelAlias);
-    skeletonRes->SetPath(MakeSubresourcePath(path, "skeleton", skelAlias));
-    skeletonRes->SetGUID(MetaIO::CreateGUID(skeletonRes->GetPath(), skelAlias));
-    rs->RegisterResource(skeletonRes);
-
+    std::string skelPath = path + ".skel";
+    auto skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx, 
+        [&]() -> std::shared_ptr<Skeleton> {
+            return BuildSkeleton(scene);
+        }
+    );
     model->SetSkeleton(skeletonRes);
+
+    std::string avatarPath = path + ".avatar";
+    auto modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx, 
+        [&]() -> std::shared_ptr<Model_Avatar> {
+            auto avatar = std::make_shared<Model_Avatar>();
+            avatar->SetDefinitionType(DefinitionType::Humanoid);
+            avatar->AutoMap(skeletonRes);
+            return avatar;
+        }
+    );
+    model->SetAvatarID(modelAvatar->GetId());
 
     for (auto& mesh : loadedMeshes)
     {

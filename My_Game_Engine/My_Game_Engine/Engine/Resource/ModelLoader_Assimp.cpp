@@ -1,14 +1,14 @@
 #include "ModelLoader_Assimp.h"
-#include "MaterialLoader.h"
 #include "TextureLoader.h"
-#include "MetaIO.h"
 #include "GameEngine.h"
+#include "MetaIO.h"
+#include "Model_Avatar.h"
+
 
 
 ModelLoader_Assimp::ModelLoader_Assimp()
 {
 }
-
 
 bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
@@ -52,31 +52,41 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
 
-        auto mat = MaterialLoader::LoadOrReuse(ctx, matFilePath, uniqueName, path);
+        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx, 
+            [&]() -> std::shared_ptr<Material> {
+                auto newMat = std::make_shared<Material>();
+                newMat->FromAssimp(aiMat);
+                auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, newMat);
+                result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
+                return newMat;
+            }
+        );
+
         if (!mat) continue;
-
-        if (!std::filesystem::exists(matFilePath))
-        {
-            mat->FromAssimp(aiMat);
-            auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, mat);
-            result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
-            mat->SaveToFile(matFilePath);
-        }
-
-        rs->RegisterResource(mat);
         matIdTable[i] = mat->GetId();
         result.materialIds.push_back(mat->GetId());
     }
 
     if (ai_scene->mNumAnimations > 0 || ai_scene->HasMeshes())
     {
-        auto skeletonRes = BuildSkeleton(ai_scene);
-        std::string skelAlias = model->GetAlias() + "_Skeleton";
-        skeletonRes->SetAlias(skelAlias);
-        skeletonRes->SetPath(MakeSubresourcePath(path, "skeleton", skelAlias));
-        skeletonRes->SetGUID(MetaIO::CreateGUID(skeletonRes->GetPath(), skelAlias));
-        rs->RegisterResource(skeletonRes);
+        std::string skelPath = path + ".skel";
+        auto skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx, 
+            [&]() -> std::shared_ptr<Skeleton> {
+                return BuildSkeleton(ai_scene);
+            }
+        );
         model->SetSkeleton(skeletonRes);
+
+        std::string avatarPath = path + ".avatar";
+        auto modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx, 
+            [&]() -> std::shared_ptr<Model_Avatar> {
+                auto avatar = std::make_shared<Model_Avatar>();
+                avatar->SetDefinitionType(DefinitionType::Humanoid);
+                avatar->AutoMap(skeletonRes);
+                return avatar;
+            }
+        );
+        model->SetAvatarID(modelAvatar->GetId());
     }
 
     std::unordered_map<std::string, int> nameCount;
@@ -100,7 +110,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             nameCount[baseName] = 0;
 
         mesh->SetAlias(baseName);
-        mesh->SetGUID(MetaIO::CreateGUID(path, baseName));
         mesh->SetPath(path + "#" + baseName);
 
         Mesh::Submesh sub{};

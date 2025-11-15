@@ -2,7 +2,6 @@
 #include "GameEngine.h"
 #include "ModelLoader_Assimp.h"
 #include "ModelLoader_FBX.h"
-#include "MaterialLoader.h"
 #include "TextureLoader.h"
 
 
@@ -79,10 +78,16 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     case ResourceType::Texture:  mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
     case ResourceType::Model:    mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
     case ResourceType::Skeleton: mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
+    case ResourceType::ModelAvatar: mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
     default: break;
     }
 
-    MetaIO::SaveSimpleMeta(res);
+    if (res->GetPath().find('#') == std::string::npos)
+    {
+        MetaIO::SaveSimpleMeta(res);
+    }
+
+
 }
 
 void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadResult& result)
@@ -151,10 +156,14 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     // ----------------------------------------------
     case FileCategory::Material:
     {
-        auto mat = MaterialLoader::LoadOrReuse(ctx, path, std::string(alias), path);
+        auto mat = LoadOrReuse<Material>(path, std::string(alias), ctx, 
+            [&]() -> std::shared_ptr<Material> {
+                return std::make_shared<Material>();
+            }
+        );
+
         if (mat)
         {
-            RegisterResource(mat);
             result.materialIds.push_back(mat->GetId());
         }
         break;

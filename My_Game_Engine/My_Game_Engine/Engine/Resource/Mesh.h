@@ -48,7 +48,9 @@ public:
 
     Mesh();
     virtual ~Mesh() = default;
-    virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) { return false; }
+    virtual bool SaveToFile(const std::string& outputPath) const { return false; }
+
     virtual void FromAssimp(const aiMesh* mesh);
     virtual void FromFbxSDK(FbxMesh* fbxMesh);
     virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;

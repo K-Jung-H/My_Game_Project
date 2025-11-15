@@ -79,7 +79,7 @@ void AvatarDefinitionManager::Initialize(const std::string& definitionFolderPath
     {
         if (entry.path().extension() == ".json")
         {
-            auto def = std::make_shared<Engine_AvatarDefinition>();
+            auto def = std::make_shared<Engine_AvatarDefinition>(DefinitionType::None);
 
             if (def->LoadFromFile(entry.path().string()))
             {

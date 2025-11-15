@@ -16,8 +16,6 @@ static inline void CreateDefaultBufferWithUpload(
 
 Mesh::Mesh() : Game_Resource(ResourceType::Mesh) {}
 
-bool Mesh::LoadFromFile(std::string, const RendererContext&) { return true; }
-
 void Mesh::BuildInterleavedBuffers()
 {
     mVertexFlags = VertexFlags::None;

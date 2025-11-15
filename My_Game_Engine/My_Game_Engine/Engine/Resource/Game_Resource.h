@@ -67,8 +67,9 @@ protected:
 public:
     Game_Resource(ResourceType new_resource_type = ResourceType::etc) : resource_type(new_resource_type) { resource_id = Engine::INVALID_ID; };
     virtual ~Game_Resource() = default;
-    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) = 0;
 
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) = 0;
+    virtual bool SaveToFile(const std::string& path) const = 0; 
 
     void SetId(UINT id) { resource_id = id; }
     void SetGUID(const std::string& guid) { GUID = guid; }
