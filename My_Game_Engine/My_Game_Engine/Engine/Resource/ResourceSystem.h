@@ -6,6 +6,7 @@
 #include "Model.h"
 #include "Model_Avatar.h"
 #include "Skeleton.h"
+#include "AnimationClip.h"
 #include "MetaIO.h"
 
 struct LoadResult
@@ -69,7 +70,8 @@ private:
     std::vector<std::shared_ptr<Model>>    mModels;
     std::vector<std::shared_ptr<Skeleton>> mSkeletons;
     std::vector<std::shared_ptr<Model_Avatar>> mAvatars;
-    
+    std::vector<std::shared_ptr<AnimationClip>> mAnimationClips;
+
     // GUID Ä³½Ì (meta scan)
     std::unordered_map<std::string, std::string> mPathToGUID;
 

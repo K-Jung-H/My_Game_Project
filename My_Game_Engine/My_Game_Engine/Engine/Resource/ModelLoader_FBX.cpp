@@ -5,10 +5,12 @@
 #include "DXMathUtils.h"
 #include "Mesh.h"
 #include "Model_Avatar.h"
+#include "AnimationClip.h"
 
 ModelLoader_FBX::ModelLoader_FBX() 
 {
 }
+
 
 bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
@@ -64,7 +66,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
 
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
 
-        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx, 
+        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
             [&]() -> std::shared_ptr<Material> {
                 auto newMat = std::make_shared<Material>();
                 newMat->FromFbxSDK(fbxMat);
@@ -84,7 +86,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, path, loadedMeshes));
 
     std::string skelPath = path + ".skel";
-    auto skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx, 
+    auto skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx,
         [&]() -> std::shared_ptr<Skeleton> {
             return BuildSkeleton(scene);
         }
@@ -92,7 +94,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     model->SetSkeleton(skeletonRes);
 
     std::string avatarPath = path + ".avatar";
-    auto modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx, 
+    auto modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx,
         [&]() -> std::shared_ptr<Model_Avatar> {
             auto avatar = std::make_shared<Model_Avatar>();
             avatar->SetDefinitionType(DefinitionType::Humanoid);
@@ -101,6 +103,94 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         }
     );
     model->SetAvatarID(modelAvatar->GetId());
+
+    std::vector<std::shared_ptr<AnimationClip>> loadedClips;
+    if (scene->GetSrcObjectCount<FbxAnimStack>() > 0 && modelAvatar)
+    {
+        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
+        std::filesystem::create_directories(clipDir);
+
+        for (int i = 0; i < scene->GetSrcObjectCount<FbxAnimStack>(); i++)
+        {
+            FbxAnimStack* animStack = scene->GetSrcObject<FbxAnimStack>(i);
+            if (!animStack) continue;
+
+            std::string clipName = animStack->GetName();
+            if (clipName.empty())
+            {
+                clipName = "Take_" + std::to_string(i + 1);
+            }
+            std::string clipPath = (clipDir / (clipName + ".anim")).string();
+
+            auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, clipName, ctx,
+                [&]() -> std::shared_ptr<AnimationClip>
+                {
+                    auto newClip = std::make_shared<AnimationClip>();
+
+                    FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
+                    FbxTime::EMode timeMode = scene->GetGlobalSettings().GetTimeMode();
+                    float ticksPerSecond = (float)FbxTime::GetFrameRate(timeMode);
+
+                    newClip->mTicksPerSecond = ticksPerSecond;
+                    newClip->mDuration = (float)timeSpan.GetDuration().GetSecondDouble();
+                    newClip->mAvatarDefinitionType = DefinitionType::Humanoid;
+
+                    std::map<std::string, std::string> boneNameToKeyMap;
+                    for (auto const& [key, realBoneName] : modelAvatar->GetBoneMap())
+                    {
+                        boneNameToKeyMap[realBoneName] = key;
+                    }
+
+                    FbxAnimLayer* animLayer = animStack->GetMember<FbxAnimLayer>(0);
+                    if (!animLayer) return newClip;
+
+                    for (const auto& bone : skeletonRes->GetBoneList())
+                    {
+                        auto it = boneNameToKeyMap.find(bone.name);
+                        if (it == boneNameToKeyMap.end()) continue;
+
+                        std::string abstractKey = it->second;
+                        AnimationTrack track;
+
+                        FbxNode* boneNode = scene->FindNodeByName(bone.name.c_str());
+                        if (!boneNode) continue;
+
+                        auto ReadKeys = [&](FbxAnimCurve* curve, auto& keyVector, auto valueExtractor) {
+                            if (!curve) return;
+                            int keyCount = curve->KeyGetCount();
+                            keyVector.reserve(keyCount);
+                            for (int k = 0; k < keyCount; k++)
+                            {
+                                FbxAnimCurveKey fbxKey = curve->KeyGet(k);
+                                float time = (float)fbxKey.GetTime().GetSecondDouble();
+                                keyVector.push_back({ time, valueExtractor(fbxKey) });
+                            }
+                            };
+
+                        ReadKeys(boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X), track.PositionKeys, [&](auto k) { return XMFLOAT3(k.GetValue(), 0, 0); });
+                        ReadKeys(boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y), track.PositionKeys, [&](auto k) { return XMFLOAT3(0, k.GetValue(), 0); });
+                        ReadKeys(boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z), track.PositionKeys, [&](auto k) { return XMFLOAT3(0, 0, k.GetValue()); });
+
+                        ReadKeys(boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X), track.RotationKeys, [&](auto k) { return XMFLOAT4(k.GetValue(), 0, 0, 0); });
+                        ReadKeys(boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y), track.RotationKeys, [&](auto k) { return XMFLOAT4(0, k.GetValue(), 0, 0); });
+                        ReadKeys(boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z), track.RotationKeys, [&](auto k) { return XMFLOAT4(0, 0, k.GetValue(), 0); });
+
+                        ReadKeys(boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X), track.ScaleKeys, [&](auto k) { return XMFLOAT3(k.GetValue(), 1, 1); });
+                        ReadKeys(boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y), track.ScaleKeys, [&](auto k) { return XMFLOAT3(1, k.GetValue(), 1); });
+                        ReadKeys(boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z), track.ScaleKeys, [&](auto k) { return XMFLOAT3(1, 1, k.GetValue()); });
+
+                        newClip->mTracks[abstractKey] = std::move(track);
+                    }
+                    return newClip;
+                }
+            );
+
+            if (animationClip)
+            {
+                loadedClips.push_back(animationClip);
+            }
+        }
+    }
 
     for (auto& mesh : loadedMeshes)
     {
@@ -142,6 +232,15 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         s.name = tex->GetAlias();
         s.type = "TEXTURE";
         s.guid = tex->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    for (auto& clip : loadedClips)
+    {
+        SubResourceMeta s{};
+        s.name = clip->GetAlias();
+        s.type = "ANIMATION_CLIP";
+        s.guid = clip->GetGUID();
         meta.sub_resources.push_back(s);
     }
 

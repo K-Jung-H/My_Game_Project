@@ -1,5 +1,17 @@
 #pragma once
 
+namespace Vector3
+{
+	inline XMFLOAT3 Lerp(const XMFLOAT3& v0, const XMFLOAT3& v1, float t)
+	{
+		XMFLOAT3 result;
+		XMVECTOR xmV0 = XMLoadFloat3(&v0);
+		XMVECTOR xmV1 = XMLoadFloat3(&v1);
+		XMStoreFloat3(&result, XMVectorLerp(xmV0, xmV1, t));
+		return result;
+	}
+}
+
 namespace Matrix4x4
 {
 	inline XMFLOAT4X4 Identity()

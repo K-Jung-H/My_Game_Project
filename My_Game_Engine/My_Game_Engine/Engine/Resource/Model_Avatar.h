@@ -17,7 +17,9 @@ public:
 	// void SetMapping(const std::string& key, const std::string& value); // 수동매핑 가능하게 할 때 필요
 
     DefinitionType GetDefinitionType() const { return mDefinitionType; }
+    
     const std::string& GetMappedBoneName(const std::string& abstractKey) const;
+	const std::map<std::string, std::string>& GetBoneMap() const { return mBoneMap; }
 
 private:
     DefinitionType mDefinitionType = DefinitionType::None;

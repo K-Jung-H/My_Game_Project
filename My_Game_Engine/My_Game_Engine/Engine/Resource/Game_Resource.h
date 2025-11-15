@@ -49,6 +49,7 @@ enum class ResourceType
     Model,
     ModelAvatar,
     Skeleton,
+    AnimationClip,
     etc,
 };
 

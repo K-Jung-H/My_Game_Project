@@ -3,7 +3,7 @@
 #include "GameEngine.h"
 #include "MetaIO.h"
 #include "Model_Avatar.h"
-
+#include "AnimationClip.h"
 
 
 ModelLoader_Assimp::ModelLoader_Assimp()
@@ -52,7 +52,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
         std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
 
-        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx, 
+        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
             [&]() -> std::shared_ptr<Material> {
                 auto newMat = std::make_shared<Material>();
                 newMat->FromAssimp(aiMat);
@@ -67,10 +67,13 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         result.materialIds.push_back(mat->GetId());
     }
 
+    std::shared_ptr<Model_Avatar> modelAvatar = nullptr;
+    std::shared_ptr<Skeleton> skeletonRes = nullptr;
+
     if (ai_scene->mNumAnimations > 0 || ai_scene->HasMeshes())
     {
         std::string skelPath = path + ".skel";
-        auto skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx, 
+        skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx,
             [&]() -> std::shared_ptr<Skeleton> {
                 return BuildSkeleton(ai_scene);
             }
@@ -78,7 +81,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         model->SetSkeleton(skeletonRes);
 
         std::string avatarPath = path + ".avatar";
-        auto modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx, 
+        modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx,
             [&]() -> std::shared_ptr<Model_Avatar> {
                 auto avatar = std::make_shared<Model_Avatar>();
                 avatar->SetDefinitionType(DefinitionType::Humanoid);
@@ -87,6 +90,81 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             }
         );
         model->SetAvatarID(modelAvatar->GetId());
+    }
+
+    std::vector<std::shared_ptr<AnimationClip>> loadedClips;
+
+    if (ai_scene->mNumAnimations > 0 && modelAvatar)
+    {
+        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
+        std::filesystem::create_directories(clipDir);
+
+        for (unsigned int i = 0; i < ai_scene->mNumAnimations; i++)
+        {
+            aiAnimation* anim = ai_scene->mAnimations[i];
+            if (!anim) continue;
+
+            std::string clipName = anim->mName.C_Str();
+            if (clipName.empty())
+            {
+                clipName = "Take_" + std::to_string(i + 1);
+            }
+            std::string clipPath = (clipDir / (clipName + ".anim")).string();
+
+            auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, clipName, ctx,
+                [&]() -> std::shared_ptr<AnimationClip>
+                {
+                    auto newClip = std::make_shared<AnimationClip>();
+
+                    newClip->mTicksPerSecond = (float)anim->mTicksPerSecond > 0 ? (float)anim->mTicksPerSecond : 24.0f;
+                    newClip->mDuration = (float)anim->mDuration / newClip->mTicksPerSecond;
+                    newClip->mAvatarDefinitionType = DefinitionType::Humanoid;
+
+                    std::map<std::string, std::string> boneNameToKeyMap;
+                    for (auto const& [key, realBoneName] : modelAvatar->GetBoneMap())
+                    {
+                        boneNameToKeyMap[realBoneName] = key;
+                    }
+
+                    for (unsigned int c = 0; c < anim->mNumChannels; c++)
+                    {
+                        aiNodeAnim* channel = anim->mChannels[c];
+                        std::string channelBoneName = channel->mNodeName.C_Str();
+
+                        auto it = boneNameToKeyMap.find(channelBoneName);
+                        if (it == boneNameToKeyMap.end()) continue;
+
+                        std::string abstractKey = it->second;
+                        AnimationTrack track;
+
+                        for (unsigned int k = 0; k < channel->mNumPositionKeys; k++)
+                        {
+                            auto key = channel->mPositionKeys[k];
+                            track.PositionKeys.push_back({ (float)key.mTime / newClip->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z} });
+                        }
+                        for (unsigned int k = 0; k < channel->mNumRotationKeys; k++)
+                        {
+                            auto key = channel->mRotationKeys[k];
+                            track.RotationKeys.push_back({ (float)key.mTime / newClip->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w} });
+                        }
+                        for (unsigned int k = 0; k < channel->mNumScalingKeys; k++)
+                        {
+                            auto key = channel->mScalingKeys[k];
+                            track.ScaleKeys.push_back({ (float)key.mTime / newClip->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z} });
+                        }
+
+                        newClip->mTracks[abstractKey] = std::move(track);
+                    }
+                    return newClip;
+                }
+            );
+
+            if (animationClip)
+            {
+                loadedClips.push_back(animationClip);
+                // model->AddAnimationClip(animationClip->GetId());
+            }
+        }
     }
 
     std::unordered_map<std::string, int> nameCount;
@@ -169,6 +247,15 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.name = tex->GetAlias();
         s.type = "TEXTURE";
         s.guid = tex->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    for (auto& clip : loadedClips)
+    {
+        SubResourceMeta s{};
+        s.name = clip->GetAlias();
+        s.type = "ANIMATION_CLIP";
+        s.guid = clip->GetGUID();
         meta.sub_resources.push_back(s);
     }
 
