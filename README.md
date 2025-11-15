@@ -60,7 +60,7 @@
 - `ResourceSystem`에 등록하여 `.avatar` 파일로 저장.
 - `Model` 리소스가 이 `.avatar` 파일의 ID/GUID를 참조하도록 `Model` 클래스 수정.
 
-5T단계: AnimationClip 리소스 정의
+5단계: AnimationClip 리소스 정의
 - `Game_Resource`를 상속받는 `AnimationClip` 리소스 클래스 정의.
 - 내부에 `TKey<T>` (키프레임), `AnimationTrack` (뼈 기반 Pos/Rot/Sca) 구조체 정의.
 - `AnimationClip` 멤버:
@@ -89,6 +89,13 @@
 ────────────────────────────────────
 
 - 애니메이션 관리 구조 및 구현 로드맵 설계 완료
+- 5~6단계 일부까지 진행 완료 // ModelLoader`에서 애니메이션을 AnimationClip 리소스로 추출 까지 진행
+
+다음 할 일:	
+- AnimationClip을 리소스로 저장하기, 불러오기 동작 추가하기 // .anim 파일로 저장 및 .meta 파일 생성
+- 테스트용 AnimationClip 데이터를 생성하기 // 현재 사용하는 모델 파일에 Animation이 없음. 외부에서 fbx 파일에 Clip을 추가하여 준비해야 함
+- Model_Avatar::AutoMap 함수 구현해서 클립과 대상 Model_Avatar가 같은 Key를 보유하는지 동작 테스트 하기
+
 
 ────────────────────────────────────
 
