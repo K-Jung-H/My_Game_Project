@@ -40,7 +40,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_ResourceSystem = std::make_unique<ResourceSystem>();
 	m_ResourceSystem->Initialize("Assets");
 	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
-	m_AvatarSystem->Initialize("Engine/AvatarDefinition/");
+	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
 
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();

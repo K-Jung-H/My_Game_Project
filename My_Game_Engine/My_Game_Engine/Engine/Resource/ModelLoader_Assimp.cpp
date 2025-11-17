@@ -23,7 +23,10 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         aiProcess_Triangulate |
         aiProcess_CalcTangentSpace |
         aiProcess_JoinIdenticalVertices |
-        aiProcess_GenNormals);
+        aiProcess_GenNormals |
+        aiProcess_PopulateArmatureData |
+        aiProcess_FindInstances |
+        aiProcess_ValidateDataStructure);
 
     if (!ai_scene)
     {
@@ -315,7 +318,10 @@ std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, con
     return node;
 }
 
-void FindBoneParent(aiNode* node, const std::unordered_map<std::string, int>& boneMap, std::vector<Bone>& boneList)
+void FindBoneParent(
+    aiNode* node,
+    const std::unordered_map<std::string, int>& boneMap,
+    std::vector<Bone>& boneList)
 {
     std::string nodeName = node->mName.C_Str();
 
@@ -362,6 +368,25 @@ std::shared_ptr<Skeleton> ModelLoader_Assimp::BuildSkeleton(const aiScene* scene
             bdata.parentIndex = -1;
             XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&bone->mOffsetMatrix)));
             XMStoreFloat4x4(&bdata.inverseBind, xm);
+
+            boneMap[name] = (int)skeletonRes->BoneList.size();
+            skeletonRes->BoneList.push_back(bdata);
+        }
+    }
+
+    for (unsigned int a = 0; a < scene->mNumAnimations; a++)
+    {
+        aiAnimation* anim = scene->mAnimations[a];
+        for (unsigned int c = 0; c < anim->mNumChannels; c++)
+        {
+            aiNodeAnim* channel = anim->mChannels[c];
+            std::string name = channel->mNodeName.C_Str();
+            if (boneMap.count(name)) continue;
+
+            Bone bdata{};
+            bdata.name = name;
+            bdata.parentIndex = -1;
+            XMStoreFloat4x4(&bdata.inverseBind, XMMatrixIdentity());
 
             boneMap[name] = (int)skeletonRes->BoneList.size();
             skeletonRes->BoneList.push_back(bdata);

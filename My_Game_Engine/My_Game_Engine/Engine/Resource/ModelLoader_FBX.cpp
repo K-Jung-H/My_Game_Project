@@ -457,64 +457,89 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     return mesh;
 }
 
+// [In file: ModelLoader_FBX.cpp]
+
 std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 {
     auto skeletonRes = std::make_shared<Skeleton>();
-
     if (!fbxScene)
     {
         return skeletonRes;
     }
 
     std::unordered_map<std::string, int> boneNameToIndex;
-    int nodeCount = fbxScene->GetNodeCount();
 
-    for (int n = 0; n < nodeCount; n++)
+    int skinCount = fbxScene->GetSrcObjectCount<FbxSkin>();
+    for (int s = 0; s < skinCount; s++)
     {
-        FbxNode* node = fbxScene->GetNode(n);
-        if (!node) continue;
+        FbxSkin* skin = fbxScene->GetSrcObject<FbxSkin>(s);
+        if (!skin) continue;
 
-        FbxMesh* fbxMesh = node->GetMesh();
-        if (!fbxMesh) continue;
-
-        int skinCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
-        for (int s = 0; s < skinCount; s++)
+        int clusterCount = skin->GetClusterCount();
+        for (int c = 0; c < clusterCount; c++)
         {
-            FbxSkin* skin = static_cast<FbxSkin*>(fbxMesh->GetDeformer(s, FbxDeformer::eSkin));
-            if (!skin) continue;
+            FbxCluster* cluster = skin->GetCluster(c);
+            if (!cluster) continue;
 
-            int clusterCount = skin->GetClusterCount();
-            for (int c = 0; c < clusterCount; c++)
+            FbxNode* linkNode = cluster->GetLink();
+            if (!linkNode) continue;
+
+            std::string boneName = linkNode->GetName();
+            if (boneNameToIndex.count(boneName)) continue;
+
+            Bone bone{};
+            bone.name = boneName;
+            bone.parentIndex = -1;
+
+            FbxAMatrix linkMatrix, modelMatrix;
+            cluster->GetTransformLinkMatrix(linkMatrix);
+            cluster->GetTransformMatrix(modelMatrix);
+
+            FbxAMatrix invBindMatrix = linkMatrix.Inverse() * modelMatrix;
+
+            XMFLOAT4X4 m;
+            for (int r = 0; r < 4; ++r)
+                for (int c = 0; c < 4; ++c)
+                    m.m[r][c] = static_cast<float>(invBindMatrix.Get(r, c));
+
+            bone.inverseBind = m;
+
+            boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
+            skeletonRes->BoneList.push_back(bone);
+        }
+    }
+
+
+    int animStackCount = fbxScene->GetSrcObjectCount<FbxAnimStack>();
+    if (skinCount == 0 && animStackCount > 0)
+    {
+        for (int i = 0; i < animStackCount; i++)
+        {
+            FbxAnimStack* animStack = fbxScene->GetSrcObject<FbxAnimStack>(i);
+            FbxAnimLayer* animLayer = animStack->GetMember<FbxAnimLayer>(0);
+            if (!animLayer) continue;
+
+			int nodeCount = fbxScene->GetNodeCount();
+            for (int n = 0; n < nodeCount; n++)
             {
-                FbxCluster* cluster = skin->GetCluster(c);
-                if (!cluster) continue;
+                FbxNode* node = fbxScene->GetNode(n);
+                if (!node) continue;
 
-                FbxNode* linkNode = cluster->GetLink();
-                if (!linkNode) continue;
+                if (node->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X) ||
+                    node->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X) ||
+                    node->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X))
+                {
+                    std::string boneName = node->GetName();
+                    if (boneNameToIndex.count(boneName)) continue;
 
-                std::string boneName = linkNode->GetName();
-                if (boneNameToIndex.count(boneName)) continue;
+                    Bone bone{};
+                    bone.name = boneName;
+                    bone.parentIndex = -1;
+                    bone.inverseBind = Matrix4x4::Identity(); 
 
-                Bone bone{};
-                bone.name = boneName;
-                bone.parentIndex = -1;
-
-                FbxAMatrix linkMatrix, modelMatrix;
-                cluster->GetTransformLinkMatrix(linkMatrix);
-                cluster->GetTransformMatrix(modelMatrix);
-
-                FbxAMatrix invBindMatrix = linkMatrix.Inverse() * modelMatrix;
-
-                XMFLOAT4X4 m;
-                for (int r = 0; r < 4; ++r)
-                    for (int c = 0; c < 4; ++c)
-                        m.m[r][c] = static_cast<float>(invBindMatrix.Get(r, c));
-
-                bone.inverseBind = m;
-
-
-                boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
-                skeletonRes->BoneList.push_back(bone);
+                    boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
+                    skeletonRes->BoneList.push_back(bone);
+                }
             }
         }
     }
@@ -534,7 +559,6 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
     }
 
     skeletonRes->SortBoneList();
-
     skeletonRes->BuildNameToIndex();
 
     return skeletonRes;
