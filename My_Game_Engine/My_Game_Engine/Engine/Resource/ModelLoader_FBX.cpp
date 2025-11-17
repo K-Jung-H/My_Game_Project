@@ -36,81 +36,114 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     importer->Import(scene);
     importer->Destroy();
 
-    auto model = std::make_shared<Model>();
-    model->SetAlias(std::filesystem::path(path).stem().string());
-    model->SetPath(path);
-    rs->RegisterResource(model);
-    result.modelId = model->GetId();
+    bool hasMeshes = (scene->GetSrcObjectCount<FbxMesh>() > 0);
+    int a = scene->GetSrcObjectCount<FbxMesh>();
+    int animStackCount = scene->GetSrcObjectCount<FbxAnimStack>();
+    bool hasAnims = (animStackCount > 0);
+
+    if (!hasMeshes && !hasAnims)
+    {
+        fbxManager->Destroy();
+        return false;
+    }
+
+    std::shared_ptr<Model> model = nullptr;
+    if (hasMeshes)
+    {
+        model = std::make_shared<Model>();
+        model->SetAlias(std::filesystem::path(path).stem().string());
+        model->SetPath(path);
+        rs->RegisterResource(model);
+        result.modelId = model->GetId();
+    }
 
     std::unordered_map<std::string, int> matNameCount;
     std::unordered_map<FbxSurfaceMaterial*, UINT> matMap;
 
-    std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
-    std::filesystem::create_directories(matDir);
-
-    int matCount = scene->GetMaterialCount();
-    for (int i = 0; i < matCount; i++)
+    if (hasMeshes)
     {
-        FbxSurfaceMaterial* fbxMat = scene->GetMaterial(i);
-        if (!fbxMat) continue;
+        int matCount = scene->GetMaterialCount();
 
-        std::string baseName = fbxMat->GetName();
-        if (baseName.empty()) baseName = "Material_" + std::to_string(i);
-        std::string uniqueName = baseName;
-        if (matNameCount.find(baseName) != matNameCount.end())
+        if (matCount > 0)
         {
-            int count = ++matNameCount[baseName];
-            uniqueName = baseName + "_" + std::to_string(count);
+            std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+            std::filesystem::create_directories(matDir);
+
+            for (int i = 0; i < matCount; i++)
+            {
+                FbxSurfaceMaterial* fbxMat = scene->GetMaterial(i);
+                if (!fbxMat) continue;
+
+                std::string baseName = fbxMat->GetName();
+                if (baseName.empty()) baseName = "Material_" + std::to_string(i);
+                std::string uniqueName = baseName;
+                if (matNameCount.find(baseName) != matNameCount.end())
+                {
+                    int count = ++matNameCount[baseName];
+                    uniqueName = baseName + "_" + std::to_string(count);
+                }
+                else matNameCount[baseName] = 0;
+
+                std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+
+                auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
+                    [&]() -> std::shared_ptr<Material> {
+                        auto newMat = std::make_shared<Material>();
+                        newMat->FromFbxSDK(fbxMat);
+                        auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, path, newMat);
+                        result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
+                        return newMat;
+                    }
+                );
+
+                if (!mat) continue;
+                matMap[fbxMat] = mat->GetId();
+                result.materialIds.push_back(mat->GetId());
+            }
         }
-        else matNameCount[baseName] = 0;
+    }
 
-        std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+    std::shared_ptr<Model_Avatar> modelAvatar = nullptr;
+    std::shared_ptr<Skeleton> skeletonRes = nullptr;
 
-        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
-            [&]() -> std::shared_ptr<Material> {
-                auto newMat = std::make_shared<Material>();
-                newMat->FromFbxSDK(fbxMat);
-                auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, path, newMat);
-                result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
-                return newMat;
+    if (hasAnims || hasMeshes)
+    {
+        std::string skelAlias = hasMeshes ? model->GetAlias() : std::filesystem::path(path).stem().string();
+        std::string skelPath = path + ".skel";
+        skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, skelAlias + "_Skeleton", ctx,
+            [&]() -> std::shared_ptr<Skeleton> {
+                return BuildSkeleton(scene);
             }
         );
 
-        if (!mat) continue;
-        matMap[fbxMat] = mat->GetId();
-        result.materialIds.push_back(mat->GetId());
+        std::string avatarPath = path + ".avatar";
+        modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
+            [&]() -> std::shared_ptr<Model_Avatar> {
+                auto avatar = std::make_shared<Model_Avatar>();
+                avatar->SetDefinitionType(DefinitionType::Humanoid);
+                avatar->AutoMap(skeletonRes);
+                return avatar;
+            }
+        );
+
+        if (model)
+        {
+            model->SetSkeleton(skeletonRes);
+            model->SetAvatarID(modelAvatar->GetId());
+        }
     }
 
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
-    if (scene->GetRootNode())
+    if (hasMeshes && scene->GetRootNode())
         model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, path, loadedMeshes));
 
-    std::string skelPath = path + ".skel";
-    auto skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx,
-        [&]() -> std::shared_ptr<Skeleton> {
-            return BuildSkeleton(scene);
-        }
-    );
-    model->SetSkeleton(skeletonRes);
-
-    std::string avatarPath = path + ".avatar";
-    auto modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx,
-        [&]() -> std::shared_ptr<Model_Avatar> {
-            auto avatar = std::make_shared<Model_Avatar>();
-            avatar->SetDefinitionType(DefinitionType::Humanoid);
-            avatar->AutoMap(skeletonRes);
-            return avatar;
-        }
-    );
-    model->SetAvatarID(modelAvatar->GetId());
-
     std::vector<std::shared_ptr<AnimationClip>> loadedClips;
-    if (scene->GetSrcObjectCount<FbxAnimStack>() > 0 && modelAvatar)
+    if (hasAnims && modelAvatar)
     {
         std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
         std::filesystem::create_directories(clipDir);
 
-        for (int i = 0; i < scene->GetSrcObjectCount<FbxAnimStack>(); i++)
+        for (int i = 0; i < animStackCount; i++)
         {
             FbxAnimStack* animStack = scene->GetSrcObject<FbxAnimStack>(i);
             if (!animStack) continue;
@@ -130,9 +163,10 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                     FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
                     FbxTime::EMode timeMode = scene->GetGlobalSettings().GetTimeMode();
                     float ticksPerSecond = (float)FbxTime::GetFrameRate(timeMode);
+                    float duration = (float)timeSpan.GetDuration().GetSecondDouble();
 
                     newClip->mTicksPerSecond = ticksPerSecond;
-                    newClip->mDuration = (float)timeSpan.GetDuration().GetSecondDouble();
+                    newClip->mDuration = duration;
                     newClip->mAvatarDefinitionType = DefinitionType::Humanoid;
 
                     std::map<std::string, std::string> boneNameToKeyMap;
@@ -155,29 +189,62 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                         FbxNode* boneNode = scene->FindNodeByName(bone.name.c_str());
                         if (!boneNode) continue;
 
-                        auto ReadKeys = [&](FbxAnimCurve* curve, auto& keyVector, auto valueExtractor) {
-                            if (!curve) return;
-                            int keyCount = curve->KeyGetCount();
-                            keyVector.reserve(keyCount);
-                            for (int k = 0; k < keyCount; k++)
-                            {
-                                FbxAnimCurveKey fbxKey = curve->KeyGet(k);
-                                float time = (float)fbxKey.GetTime().GetSecondDouble();
-                                keyVector.push_back({ time, valueExtractor(fbxKey) });
+                        FbxAnimCurve* curveT_X = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
+                        FbxAnimCurve* curveT_Y = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
+                        FbxAnimCurve* curveT_Z = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+                        FbxAnimCurve* curveR_X = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
+                        FbxAnimCurve* curveR_Y = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
+                        FbxAnimCurve* curveR_Z = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+                        FbxAnimCurve* curveS_X = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
+                        FbxAnimCurve* curveS_Y = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
+                        FbxAnimCurve* curveS_Z = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+                        std::set<float> keyTimes;
+                        auto CollectKeyTimes = [&](FbxAnimCurve* curve) {
+                            if (curve) {
+                                for (int k = 0; k < curve->KeyGetCount(); k++)
+                                    keyTimes.insert((float)curve->KeyGet(k).GetTime().GetSecondDouble());
                             }
                             };
 
-                        ReadKeys(boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X), track.PositionKeys, [&](auto k) { return XMFLOAT3(k.GetValue(), 0, 0); });
-                        ReadKeys(boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y), track.PositionKeys, [&](auto k) { return XMFLOAT3(0, k.GetValue(), 0); });
-                        ReadKeys(boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z), track.PositionKeys, [&](auto k) { return XMFLOAT3(0, 0, k.GetValue()); });
+                        CollectKeyTimes(curveT_X); CollectKeyTimes(curveT_Y); CollectKeyTimes(curveT_Z);
+                        CollectKeyTimes(curveR_X); CollectKeyTimes(curveR_Y); CollectKeyTimes(curveR_Z);
+                        CollectKeyTimes(curveS_X); CollectKeyTimes(curveS_Y); CollectKeyTimes(curveS_Z);
 
-                        ReadKeys(boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X), track.RotationKeys, [&](auto k) { return XMFLOAT4(k.GetValue(), 0, 0, 0); });
-                        ReadKeys(boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y), track.RotationKeys, [&](auto k) { return XMFLOAT4(0, k.GetValue(), 0, 0); });
-                        ReadKeys(boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z), track.RotationKeys, [&](auto k) { return XMFLOAT4(0, 0, k.GetValue(), 0); });
+                        if (keyTimes.empty() && duration > 0.0f)
+                        {
+                            keyTimes.insert(0.0f);
+                        }
 
-                        ReadKeys(boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X), track.ScaleKeys, [&](auto k) { return XMFLOAT3(k.GetValue(), 1, 1); });
-                        ReadKeys(boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y), track.ScaleKeys, [&](auto k) { return XMFLOAT3(1, k.GetValue(), 1); });
-                        ReadKeys(boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z), track.ScaleKeys, [&](auto k) { return XMFLOAT3(1, 1, k.GetValue()); });
+                        FbxTime fbxTime;
+                        for (float time : keyTimes)
+                        {
+                            fbxTime.SetSecondDouble(time);
+
+                            XMFLOAT3 pos = {
+                                curveT_X ? curveT_X->Evaluate(fbxTime) : 0.0f,
+                                curveT_Y ? curveT_Y->Evaluate(fbxTime) : 0.0f,
+                                curveT_Z ? curveT_Z->Evaluate(fbxTime) : 0.0f
+                            };
+                            XMFLOAT3 rotEuler = {
+                                curveR_X ? curveR_X->Evaluate(fbxTime) : 0.0f,
+                                curveR_Y ? curveR_Y->Evaluate(fbxTime) : 0.0f,
+                                curveR_Z ? curveR_Z->Evaluate(fbxTime) : 0.0f
+                            };
+                            XMFLOAT3 scl = {
+                                curveS_X ? curveS_X->Evaluate(fbxTime) : 1.0f,
+                                curveS_Y ? curveS_Y->Evaluate(fbxTime) : 1.0f,
+                                curveS_Z ? curveS_Z->Evaluate(fbxTime) : 1.0f
+                            };
+
+                            XMFLOAT4 rotQuat = Matrix4x4::QuaternionFromEuler(rotEuler.x, rotEuler.y, rotEuler.z);
+
+                            track.PositionKeys.push_back({ time, pos });
+                            track.RotationKeys.push_back({ time, rotQuat });
+                            track.ScaleKeys.push_back({ time, scl });
+                        }
 
                         newClip->mTracks[abstractKey] = std::move(track);
                     }
@@ -192,16 +259,26 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         }
     }
 
-    for (auto& mesh : loadedMeshes)
+    if (hasMeshes)
     {
-        if (auto skinned = std::dynamic_pointer_cast<SkinnedMesh>(mesh))
+        for (auto& mesh : loadedMeshes)
         {
-            skinned->Skinning_Skeleton_Bones(skeletonRes);
+            if (auto skinned = std::dynamic_pointer_cast<SkinnedMesh>(mesh))
+            {
+                skinned->Skinning_Skeleton_Bones(skeletonRes);
+            }
         }
     }
 
     FbxMeta meta;
-    meta.guid = model->GetGUID();
+    if (model)
+    {
+        meta.guid = model->GetGUID();
+    }
+    else
+    {
+        meta.guid = rs->GetOrCreateGUID(path);
+    }
     meta.path = path;
 
     for (auto& mesh : loadedMeshes)

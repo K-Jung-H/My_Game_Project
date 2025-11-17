@@ -1,4 +1,5 @@
 #include "Model_Avatar.h"
+#include "GameEngine.h"
 
 Model_Avatar::Model_Avatar() : Game_Resource(ResourceType::ModelAvatar)
 {
@@ -11,13 +12,46 @@ void Model_Avatar::SetDefinitionType(DefinitionType type)
 
 void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
 {
-    // (구현 보류)
-    // mBoneMap.clear();
-    // if (mDefinitionType == DefinitionType::None || !skeleton) return;
-    // ...
-    // (나중에 여기에 자동 추측 로직 구현)
-    // ...
-    OutputDebugStringA(("[Model_Avatar] AutoMap: " + GetAlias() + " - (구현 보류됨)\n").c_str());
+    mBoneMap.clear();
+    if (mDefinitionType == DefinitionType::None || !skeleton)
+    {
+        OutputDebugStringA("[Model_Avatar] AutoMap: DefinitionType이 None이거나 Skeleton이 Null입니다.\n");
+        return;
+    }
+
+    auto definitionMgr = GameEngine::Get().GetAvatarSystem(); 
+    auto definition = definitionMgr->GetDefinition(mDefinitionType);
+
+    if (!definition)
+    {
+        OutputDebugStringA("[Model_Avatar] AutoMap failed: DefinitionType을 찾을 수 없음\n");
+        return;
+    }
+
+    const auto& definitionList = definition->GetBoneDefinitions();
+    const auto& skeletonBones = skeleton->GetBoneList();
+
+    for (const BoneDefinition& def : definitionList)
+    {
+        bool foundMatch = false;
+        for (const Bone& bone : skeletonBones)
+        {
+            std::string lowerBoneName = ToLower(bone.name);
+
+            for (const std::string& keyword : def.keywords)
+            {
+                if (lowerBoneName.find(keyword) != std::string::npos)
+                {
+                    mBoneMap[def.key] = bone.name; 
+                    foundMatch = true;
+                    break;
+                }
+            }
+            if (foundMatch) break;
+        }
+    }
+    
+    OutputDebugStringA(("[Model_Avatar] AutoMap: " + GetAlias() + " 완료. " + std::to_string(mBoneMap.size()) + "개의 뼈가 매핑됨.\n").c_str());
 }
 
 const std::string& Model_Avatar::GetMappedBoneName(const std::string& abstractKey) const

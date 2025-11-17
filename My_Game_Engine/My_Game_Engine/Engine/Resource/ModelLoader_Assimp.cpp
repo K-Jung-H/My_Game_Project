@@ -31,57 +31,74 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         return false;
     }
 
-    auto model = std::make_shared<Model>();
-    model->SetAlias(std::filesystem::path(path).stem().string());
-    model->SetPath(path);
-    rs->RegisterResource(model);
-    result.modelId = model->GetId();
+    bool hasMeshes = ai_scene->HasMeshes();
+    bool hasAnims = ai_scene->HasAnimations();
+
+    if (!hasMeshes && !hasAnims)
+    {
+        OutputDebugStringA(("[Assimp] Empty file: " + path + "\n").c_str());
+        return false;
+    }
+
+    std::shared_ptr<Model> model = nullptr;
+    if (hasMeshes)
+    {
+        model = std::make_shared<Model>();
+        model->SetAlias(std::filesystem::path(path).stem().string());
+        model->SetPath(path);
+        rs->RegisterResource(model);
+        result.modelId = model->GetId();
+    }
 
     std::unordered_map<std::string, int> matNameCount;
     std::vector<UINT> matIdTable(ai_scene->mNumMaterials);
-    std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
-    std::filesystem::create_directories(matDir);
 
-    for (unsigned int i = 0; i < ai_scene->mNumMaterials; i++)
+    if (hasMeshes && ai_scene->mNumMaterials > 0)
     {
-        aiMaterial* aiMat = ai_scene->mMaterials[i];
-        aiString aiMatName;
-        aiMat->Get(AI_MATKEY_NAME, aiMatName);
+        std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+        std::filesystem::create_directories(matDir);
 
-        std::string baseName = aiMatName.length > 0 ? aiMatName.C_Str() : "Material_" + std::to_string(i);
-        std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
-        std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+        for (unsigned int i = 0; i < ai_scene->mNumMaterials; i++)
+        {
+            aiMaterial* aiMat = ai_scene->mMaterials[i];
+            aiString aiMatName;
+            aiMat->Get(AI_MATKEY_NAME, aiMatName);
 
-        auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
-            [&]() -> std::shared_ptr<Material> {
-                auto newMat = std::make_shared<Material>();
-                newMat->FromAssimp(aiMat);
-                auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, newMat);
-                result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
-                return newMat;
-            }
-        );
+            std::string baseName = aiMatName.length > 0 ? aiMatName.C_Str() : "Material_" + std::to_string(i);
+            std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
+            std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
 
-        if (!mat) continue;
-        matIdTable[i] = mat->GetId();
-        result.materialIds.push_back(mat->GetId());
+            auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
+                [&]() -> std::shared_ptr<Material> {
+                    auto newMat = std::make_shared<Material>();
+                    newMat->FromAssimp(aiMat);
+                    auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, newMat);
+                    result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
+                    return newMat;
+                }
+            );
+
+            if (!mat) continue;
+            matIdTable[i] = mat->GetId();
+            result.materialIds.push_back(mat->GetId());
+        }
     }
 
     std::shared_ptr<Model_Avatar> modelAvatar = nullptr;
     std::shared_ptr<Skeleton> skeletonRes = nullptr;
 
-    if (ai_scene->mNumAnimations > 0 || ai_scene->HasMeshes())
+    if (hasAnims || hasMeshes)
     {
+        std::string skelAlias = hasMeshes ? model->GetAlias() : std::filesystem::path(path).stem().string();
         std::string skelPath = path + ".skel";
-        skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, model->GetAlias() + "_Skeleton", ctx,
+        skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, skelAlias + "_Skeleton", ctx,
             [&]() -> std::shared_ptr<Skeleton> {
                 return BuildSkeleton(ai_scene);
             }
         );
-        model->SetSkeleton(skeletonRes);
 
         std::string avatarPath = path + ".avatar";
-        modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, model->GetAlias() + "_Avatar", ctx,
+        modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
             [&]() -> std::shared_ptr<Model_Avatar> {
                 auto avatar = std::make_shared<Model_Avatar>();
                 avatar->SetDefinitionType(DefinitionType::Humanoid);
@@ -89,12 +106,16 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
                 return avatar;
             }
         );
-        model->SetAvatarID(modelAvatar->GetId());
+
+        if (model)
+        {
+            model->SetSkeleton(skeletonRes);
+            model->SetAvatarID(modelAvatar->GetId());
+        }
     }
 
     std::vector<std::shared_ptr<AnimationClip>> loadedClips;
-
-    if (ai_scene->mNumAnimations > 0 && modelAvatar)
+    if (hasAnims && modelAvatar)
     {
         std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
         std::filesystem::create_directories(clipDir);
@@ -162,61 +183,74 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             if (animationClip)
             {
                 loadedClips.push_back(animationClip);
-                // model->AddAnimationClip(animationClip->GetId());
             }
         }
     }
 
     std::unordered_map<std::string, int> nameCount;
 
-    for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
+    if (hasMeshes)
     {
-        aiMesh* ai_mesh = ai_scene->mMeshes[i];
-        const bool isSkinned = ai_mesh->HasBones();
-
-        std::shared_ptr<Mesh> mesh = isSkinned ?
-            std::make_shared<SkinnedMesh>() :
-            std::make_shared<Mesh>();
-
-        mesh->FromAssimp(ai_mesh);
-
-        std::string baseName = ai_mesh->mName.C_Str();
-        if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
-        if (nameCount.count(baseName) > 0)
-            baseName += "_" + std::to_string(++nameCount[baseName]);
-        else
-            nameCount[baseName] = 0;
-
-        mesh->SetAlias(baseName);
-        mesh->SetPath(path + "#" + baseName);
-
-        Mesh::Submesh sub{};
-        sub.indexCount = (UINT)mesh->indices.size();
-        sub.startIndexLocation = 0;
-        sub.baseVertexLocation = 0;
-        sub.materialId = ai_mesh->mMaterialIndex < matIdTable.size()
-            ? matIdTable[ai_mesh->mMaterialIndex]
-            : Engine::INVALID_ID;
-        mesh->submeshes.push_back(sub);
-
-        if (isSkinned)
+        for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
         {
-            SkinnedMesh* skinned = static_cast<SkinnedMesh*>(mesh.get());
-            skinned->Skinning_Skeleton_Bones(model->GetSkeleton());
+            aiMesh* ai_mesh = ai_scene->mMeshes[i];
+            const bool isSkinned = ai_mesh->HasBones();
+
+            std::shared_ptr<Mesh> mesh = isSkinned ?
+                std::make_shared<SkinnedMesh>() :
+                std::make_shared<Mesh>();
+
+            mesh->FromAssimp(ai_mesh);
+
+            std::string baseName = ai_mesh->mName.C_Str();
+            if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
+            if (nameCount.count(baseName) > 0)
+                baseName += "_" + std::to_string(++nameCount[baseName]);
+            else
+                nameCount[baseName] = 0;
+
+            mesh->SetAlias(baseName);
+            mesh->SetPath(path + "#" + baseName);
+
+            Mesh::Submesh sub{};
+            sub.indexCount = (UINT)mesh->indices.size();
+            sub.startIndexLocation = 0;
+            sub.baseVertexLocation = 0;
+            sub.materialId = ai_mesh->mMaterialIndex < matIdTable.size()
+                ? matIdTable[ai_mesh->mMaterialIndex]
+                : Engine::INVALID_ID;
+            mesh->submeshes.push_back(sub);
+
+            if (isSkinned)
+            {
+                SkinnedMesh* skinned = static_cast<SkinnedMesh*>(mesh.get());
+                skinned->Skinning_Skeleton_Bones(model->GetSkeleton());
+            }
+
+            rs->RegisterResource(mesh);
+            mesh->SetAABB();
+            m_loadedMeshes.push_back(mesh);
+            result.meshIds.push_back(mesh->GetId());
+
+            if (model)
+            {
+                model->AddMesh(mesh);
+            }
         }
 
-        rs->RegisterResource(mesh);
-        mesh->SetAABB();
-        m_loadedMeshes.push_back(mesh);
-        result.meshIds.push_back(mesh->GetId());
-        model->AddMesh(mesh);
+        if (model && ai_scene->mRootNode)
+            model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene));
     }
 
-    if (ai_scene->mRootNode)
-        model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene));
-
     FbxMeta meta;
-    meta.guid = model->GetGUID();
+    if (model)
+    {
+        meta.guid = model->GetGUID();
+    }
+    else
+    {
+        meta.guid = rs->GetOrCreateGUID(path);
+    }
     meta.path = path;
 
     for (auto& mesh : m_loadedMeshes)

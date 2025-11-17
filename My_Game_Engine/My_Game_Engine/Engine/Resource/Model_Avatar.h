@@ -25,3 +25,14 @@ private:
     DefinitionType mDefinitionType = DefinitionType::None;
     std::map<std::string, std::string> mBoneMap;
 };
+
+namespace
+{
+    std::string ToLower(std::string s)
+    {
+        std::transform(s.begin(), s.end(), s.begin(),
+            [](unsigned char c) { return (char)std::tolower(c); }
+        );
+        return s;
+    }
+}

@@ -1,6 +1,7 @@
 #pragma once
 #include "DX_Graphics/Renderer.h"
 #include "Resource/ResourceSystem.h"
+#include "AvatarSystem.h"
 #include "InputManager.h"
 #include "GameTimer.h"
 #include "Scene_Manager.h"
@@ -45,6 +46,7 @@ public:
     GameTimer* GetTimer() { return mTimer.get(); }
     PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
     ResourceSystem* GetResourceSystem() { return m_ResourceSystem.get(); }
+	AvatarDefinitionManager* GetAvatarSystem() { return m_AvatarSystem.get(); }
 
     RendererContext Get_RenderContext() const { return mRenderer->Get_RenderContext(); };
     RendererContext Get_UploadContext() const { return mRenderer->Get_UploadContext(); };
@@ -61,6 +63,7 @@ private:
 
     bool Is_Initialized = false;
     
+	std::unique_ptr<AvatarDefinitionManager> m_AvatarSystem;
     std::unique_ptr<PhysicsSystem> m_PhysicsSystem;
     std::unique_ptr<ResourceSystem> m_ResourceSystem;
     std::unique_ptr<GameTimer> mTimer;

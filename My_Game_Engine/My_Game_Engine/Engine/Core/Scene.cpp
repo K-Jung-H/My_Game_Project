@@ -57,6 +57,8 @@ void Scene::Build()
 	
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	const std::string path_2 = "Assets/Model/Anya.fbx";
+	const std::string path_3 = "Assets/Animation/Start Walking.fbx";
 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 
@@ -90,7 +92,7 @@ void Scene::Build()
 
 	{
 		LoadResult result;
-		rsm->Load(path_1, "Test_1", result);
+		rsm->Load(path_2, "Test_1", result);
 
 		auto model_ptr = rsm->GetById<Model>(result.modelId);
 		for (int i = 0; i < 3; ++i)
@@ -105,6 +107,9 @@ void Scene::Build()
 		}
 	}
 
+
+	LoadResult result;
+	rsm->Load(path_3, "Test_10", result);
 
 //	// For Debug
 	bool is_debugging = false;
