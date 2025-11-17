@@ -92,10 +92,15 @@
 - 5~6단계 일부까지 진행 완료 // ModelLoader`에서 애니메이션을 AnimationClip 리소스로 추출 까지 진행
 
 다음 할 일:	
-- AnimationClip을 리소스로 저장하기, 불러오기 동작 추가하기 // .anim 파일로 저장 및 .meta 파일 생성
-- 테스트용 AnimationClip 데이터를 생성하기 // 현재 사용하는 모델 파일에 Animation이 없음. 외부에서 fbx 파일에 Clip을 추가하여 준비해야 함
-- Model_Avatar::AutoMap 함수 구현해서 클립과 대상 Model_Avatar가 같은 Key를 보유하는지 동작 테스트 하기
+- 리타게팅 일부 성공
+	- FBX_SDK 방식 리타게팅 성공
+	- Assimp 방식에서 동작은 성공하지만, 오류코드 발생 중
+		= 오류코드:
+		- 예외 발생(0x00007FFC591280DA, MyGame.exe): Microsoft C++ 예외: DeadlyImportError, 메모리 위치 0x000000A8A0EFA540. 
+		- 예외 발생(0x00007FFC591280DA, MyGame.exe): Microsoft C++ 예외: DeadlyImportError, 메모리 위치 0x000000A8A0EFA540. 
+		- 예외 발생(0x00007FFC591280DA, MyGame.exe): Microsoft C++ 예외: DeadlyImportError, 메모리 위치 0x000000A8A0EFA540.
 
+문제 해결 필요
 
 ────────────────────────────────────
 
