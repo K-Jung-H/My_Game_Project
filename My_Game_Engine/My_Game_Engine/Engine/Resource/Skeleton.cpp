@@ -30,6 +30,7 @@ bool Skeleton::LoadFromFile(std::string path, const RendererContext& ctx)
         }
     }
     BuildNameToIndex();
+    BuildBindPoseTransforms();
     return true;
 }
 
@@ -120,4 +121,55 @@ void Skeleton::SortBoneList()
     }
 
     BoneList = std::move(sortedList);
+    BuildBindPoseTransforms();
+
+}
+
+void Skeleton::BuildNameToIndex()
+{
+    NameToIndex.clear();
+    for (size_t i = 0; i < BoneList.size(); i++)
+        NameToIndex[BoneList[i].name] = static_cast<int>(i);
+}
+
+void Skeleton::BuildBindPoseTransforms()
+{
+    using namespace DirectX;
+
+    const size_t boneCount = BoneList.size();
+    if (boneCount == 0)
+    {
+        mBindGlobal.clear();
+        mBindLocal.clear();
+        return;
+    }
+
+    mBindGlobal.resize(boneCount);
+    mBindLocal.resize(boneCount);
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        XMMATRIX invBind = XMLoadFloat4x4(&BoneList[i].inverseBind);
+        XMMATRIX globalBind = XMMatrixInverse(nullptr, invBind); 
+        XMStoreFloat4x4(&mBindGlobal[i], globalBind);
+    }
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        int parentIdx = BoneList[i].parentIndex;
+
+        XMMATRIX globalBind = XMLoadFloat4x4(&mBindGlobal[i]);
+        if (parentIdx < 0)
+        {
+            XMStoreFloat4x4(&mBindLocal[i], globalBind);
+        }
+        else
+        {
+            XMMATRIX parentGlobal = XMLoadFloat4x4(&mBindGlobal[parentIdx]);
+            XMMATRIX parentInvGlobal = XMMatrixInverse(nullptr, parentGlobal);
+
+            XMMATRIX localBind = globalBind * parentInvGlobal;
+            XMStoreFloat4x4(&mBindLocal[i], localBind);
+        }
+    }
 }

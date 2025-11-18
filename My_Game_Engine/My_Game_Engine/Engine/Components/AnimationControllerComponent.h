@@ -1,6 +1,8 @@
 #pragma once
 #include "Core/Component.h"
 #include "Resource/Skeleton.h"
+#include "Resource/Model_Avatar.h"
+#include "Resource/AnimationClip.h"
 
 struct BoneMatrixData
 {
@@ -18,24 +20,35 @@ public:
     virtual ~AnimationControllerComponent() = default;
 
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton);
+    void SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar);
 
-    void Update(float deltaTime);
-    UINT GetBoneMatrixSRV() const;
-
-    bool IsReady() const { return mBoneMatrixSRVSlot != UINT_MAX && mSkeleton != nullptr; }
     std::shared_ptr<Skeleton> GetSkeleton() { return mSkeleton; }
+	std::shared_ptr<Model_Avatar> GetModelAvatar() { return mAvatar; }
+    UINT GetBoneMatrixSRV() const { return mBoneMatrixSRVSlot; }
+
+    bool IsReady() const;
+    void Update(float deltaTime);
+    void Play(std::shared_ptr<AnimationClip> clip, bool isLooping = true);
+
+
 
 private:
     void CreateBoneMatrixBuffer();
     void EvaluateAnimation(float time);
 
 private:
+    std::shared_ptr<Model_Avatar> mAvatar;
     std::shared_ptr<Skeleton> mSkeleton;
+
+    std::shared_ptr<AnimationClip> mCurrentClip;
+    bool mIsLooping = false;
+    float mCurrentTime = 0.0f;
+
+
     std::vector<BoneMatrixData> mCpuBoneMatrices;
 
     ComPtr<ID3D12Resource> mBoneMatrixBuffer;
     BoneMatrixData* mMappedBoneBuffer = nullptr;
     UINT mBoneMatrixSRVSlot = UINT_MAX;
 
-    float mCurrentTime = 0.0f;
 };

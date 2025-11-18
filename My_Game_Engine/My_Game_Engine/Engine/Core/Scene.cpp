@@ -58,15 +58,17 @@ void Scene::Build()
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
-	const std::string path_3 = "Assets/Animation/Start Walking.fbx";
+	const std::string animation_clip_path = "Assets/Animation/Catwalk Walk.fbx";
 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
-
 	{
-		LoadResult result;
-		rsm->Load(path_0, "Test_0", result);
+		LoadResult animation_result;
+		rsm->Load(animation_clip_path, "Test_10", animation_result);
 
-		auto model_ptr = rsm->GetById<Model>(result.modelId);
+		LoadResult model_result;
+		rsm->Load(path_2, "Test_0", model_result);
+
+		auto model_ptr = rsm->GetById<Model>(model_result.modelId);
 		if (!model_ptr)
 		{
 			OutputDebugStringA("[Scene::Build] Model load failed.\n");
@@ -88,30 +90,39 @@ void Scene::Build()
 		{
 			renderer->Initialize();
 		}
-	}
 
-	{
-		LoadResult result;
-		rsm->Load(path_2, "Test_1", result);
+		animController->SetModelAvatar(rsm->GetById<Model_Avatar>(model_result.avatarId));
+		animController->SetSkeleton(rsm->GetById<Skeleton>(model_result.skeletonId));
 
-		auto model_ptr = rsm->GetById<Model>(result.modelId);
-		for (int i = 0; i < 3; ++i)
+		if (animation_result.clipIds.size() > 0)
 		{
-			Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
-			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
-			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-			test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
-			auto rb = test_obj->AddComponent<RigidbodyComponent>();
-			rb->SetUseGravity(false);
-
+			auto clip = rsm->GetById<AnimationClip>(animation_result.clipIds[0]);
+			if (clip)
+			{
+				animController->Play(clip, true);
+			}
 		}
+
 	}
 
+	//{
+	//	LoadResult result;
+	//	rsm->Load(path_2, "Test_1", result);
 
-	LoadResult result;
-	rsm->Load(path_3, "Test_10", result);
+	//	auto model_ptr = rsm->GetById<Model>(result.modelId);
+	//	for (int i = 0; i < 3; ++i)
+	//	{
+	//		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
+	//		m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
+	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+	//		test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
+	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
+	//		rb->SetUseGravity(false);
 
-//	// For Debug
+	//	}
+	//}
+
+
 	bool is_debugging = false;
 	if (is_debugging)
 	{

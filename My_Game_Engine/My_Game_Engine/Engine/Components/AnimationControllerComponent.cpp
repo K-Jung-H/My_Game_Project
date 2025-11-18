@@ -9,21 +9,6 @@ AnimationControllerComponent::AnimationControllerComponent()
 {
 }
 
-void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
-{
-    if (mSkeleton == skeleton) return;
-
-    mSkeleton = skeleton;
-
-    if (mSkeleton && !mBoneMatrixBuffer)
-    {
-        CreateBoneMatrixBuffer();
-    }
-    else if (!mSkeleton)
-    {
-    }
-}
-
 void AnimationControllerComponent::CreateBoneMatrixBuffer()
 {
     if (!mSkeleton || mBoneMatrixBuffer) return;
@@ -52,7 +37,7 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
         return;
     }
 
-    mBoneMatrixSRVSlot = heap->Allocate(HeapRegion::SRV_Frame);
+    mBoneMatrixSRVSlot = heap->Allocate(HeapRegion::SRV_Static);
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Format = DXGI_FORMAT_UNKNOWN;
@@ -62,76 +47,172 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
     rc.device->CreateShaderResourceView(mBoneMatrixBuffer.Get(), &srvDesc, heap->GetCpuHandle(mBoneMatrixSRVSlot));
 }
 
+void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
+{
+    if (mSkeleton == skeleton) return;
+
+    mSkeleton = skeleton;
+
+    if (mSkeleton && !mBoneMatrixBuffer)
+    {
+        CreateBoneMatrixBuffer();
+    }
+    else if (!mSkeleton)
+    {
+        if (mMappedBoneBuffer)
+        {
+            mBoneMatrixBuffer->Unmap(0, nullptr);
+            mMappedBoneBuffer = nullptr;
+        }
+
+        if (mBoneMatrixSRVSlot != UINT_MAX)
+        {
+            const RendererContext ctx = GameEngine::Get().Get_UploadContext();
+
+            mBoneMatrixBuffer.Reset();
+            ctx.resourceHeap->FreeDeferred(HeapRegion::SRV_Static, mBoneMatrixSRVSlot);
+
+            mBoneMatrixSRVSlot = UINT_MAX;
+        }
+    }
+}
+
+void AnimationControllerComponent::SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar)
+{
+    mAvatar = model_avatar;
+}
+
+bool AnimationControllerComponent::IsReady() const
+{
+    return mSkeleton != nullptr && mAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
+}
+
+void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, bool isLooping)
+{
+    mCurrentClip = clip;
+    mIsLooping = isLooping;
+    mCurrentTime = 0.0f;
+
+    if (mCurrentClip && mAvatar)
+    {
+        if (mCurrentClip->GetDefinitionType() != mAvatar->GetDefinitionType())
+        {
+            OutputDebugStringA("[AnimationControllerComponent] Warning: Avatar와 Clip의 DefinitionType이 일치하지 않습니다.\n");
+            mCurrentClip = nullptr;
+        }
+    }
+}
+
 void AnimationControllerComponent::Update(float deltaTime)
 {
-    if (!mSkeleton || !mMappedBoneBuffer) return;
+    if (!IsReady())
+    {
+        return;
+    }
 
-    mCurrentTime += deltaTime;
+    if (mCurrentClip)
+    {
+        mCurrentTime += deltaTime;
 
-    EvaluateAnimation(mCurrentTime);
+        float duration = mCurrentClip->GetDuration();
+        if (duration > 0.0f)
+        {
+            if (mCurrentTime > duration)
+            {
+                if (mIsLooping)
+                {
+                    mCurrentTime = fmod(mCurrentTime, duration);
+                }
+                else
+                {
+                    mCurrentTime = duration;
+                }
+            }
+        }
 
-    memcpy(mMappedBoneBuffer, mCpuBoneMatrices.data(), sizeof(BoneMatrixData) * mCpuBoneMatrices.size());
+        EvaluateAnimation(mCurrentTime);
+    }
+    else
+    {
+        EvaluateAnimation(0.0f);
+    }
+
+    if (mMappedBoneBuffer)
+    {
+        memcpy(mMappedBoneBuffer, mCpuBoneMatrices.data(), sizeof(BoneMatrixData) * mCpuBoneMatrices.size());
+    }
 }
 
 void AnimationControllerComponent::EvaluateAnimation(float time)
 {
     using namespace DirectX;
-    const size_t boneCount = mSkeleton->BoneList.size();
+    if (!mSkeleton || !mAvatar) return;
+
+    const size_t boneCount = mSkeleton->GetBoneCount();
     if (boneCount == 0) return;
 
+    const auto& boneList = mSkeleton->GetBoneList();
+    const auto& bindLocalList = mSkeleton->GetBindLocalList();
 
     std::vector<XMMATRIX> localTransforms(boneCount);
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        const Bone& bone = boneList[i];
+        const XMFLOAT4X4& bindLocalF = bindLocalList[i];
+        XMMATRIX bindLocal = XMLoadFloat4x4(&bindLocalF);
+
+        std::string abstractKey = "";
+        for (const auto& [key, value] : mAvatar->GetBoneMap())
+        {
+            if (value == bone.name)
+            {
+                abstractKey = key;
+                break;
+            }
+        }
+
+        const AnimationTrack* track = nullptr;
+        if (mCurrentClip && !abstractKey.empty())
+        {
+            track = mCurrentClip->GetTrack(abstractKey);
+        }
+
+        if (track)
+        {
+            XMVECTOR S_bind, R_bind, T_bind;
+            XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);
+
+            XMFLOAT4 r_anim_f = track->SampleRotation(time);
+            XMVECTOR R_anim = XMLoadFloat4(&r_anim_f);
+
+            XMMATRIX local =
+                XMMatrixScalingFromVector(S_bind) *
+                XMMatrixRotationQuaternion(R_anim) *
+                XMMatrixTranslationFromVector(T_bind);
+
+            localTransforms[i] = local;
+        }
+        else
+        {
+            localTransforms[i] = bindLocal;
+        }
+    }
+
     std::vector<XMMATRIX> globalTransforms(boneCount);
-
     for (size_t i = 0; i < boneCount; ++i)
     {
-        const Bone& bone = mSkeleton->BoneList[i];
-        XMMATRIX invBind = XMLoadFloat4x4(&bone.inverseBind);
-        XMMATRIX globalT_Pose = XMMatrixInverse(nullptr, invBind);
-
-        int parentIdx = bone.parentIndex;
+        int parentIdx = boneList[i].parentIndex;
         if (parentIdx == -1)
-        {
-            localTransforms[i] = globalT_Pose;
-        }
+            globalTransforms[i] = localTransforms[i];
         else
-        {
-
-            const Bone& parentBone = mSkeleton->BoneList[parentIdx];
-            XMMATRIX parentInvBind = XMLoadFloat4x4(&parentBone.inverseBind);
-            XMMATRIX parentGlobalT_Pose = XMMatrixInverse(nullptr, parentInvBind);
-            localTransforms[i] = globalT_Pose * XMMatrixInverse(nullptr, parentGlobalT_Pose);
-        }
-
-        if (bone.name == "Spine1")
-        {
-            XMMATRIX rotation = XMMatrixRotationZ(sin(time * 2.0f) * 0.5f);
-            localTransforms[i] = rotation * localTransforms[i];
-        }
-    }
-
-    for (size_t i = 0; i < boneCount; ++i)
-    {
-        int parentIdx = mSkeleton->BoneList[i].parentIndex;
-        if (parentIdx == -1)
-        {
-            globalTransforms[i] = localTransforms[i]; 
-        }
-        else
-        {
             globalTransforms[i] = localTransforms[i] * globalTransforms[parentIdx];
-        }
     }
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        XMMATRIX invBind = XMLoadFloat4x4(&mSkeleton->BoneList[i].inverseBind);
-
+        XMMATRIX invBind = XMLoadFloat4x4(&boneList[i].inverseBind);
         XMMATRIX final = XMMatrixTranspose(invBind * globalTransforms[i]);
         XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, final);
     }
-}
-UINT AnimationControllerComponent::GetBoneMatrixSRV() const
-{
-    return mBoneMatrixSRVSlot;
 }

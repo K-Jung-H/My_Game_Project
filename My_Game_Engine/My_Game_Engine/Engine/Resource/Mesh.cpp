@@ -404,7 +404,7 @@ void SkinnedMesh::FromAssimp(const aiMesh* mesh)
     {
         RendererContext rc = GameEngine::Get().Get_UploadContext();
         DescriptorManager* heap = rc.resourceHeap;
-        HotInputSRV = heap->Allocate(HeapRegion::SRV_Texture);
+        HotInputSRV = heap->Allocate(HeapRegion::SRV_Static);
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -457,7 +457,7 @@ void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
     {
         RendererContext rc = GameEngine::Get().Get_UploadContext();
         DescriptorManager* heap = rc.resourceHeap;
-        HotInputSRV = heap->Allocate(HeapRegion::SRV_Texture);
+        HotInputSRV = heap->Allocate(HeapRegion::SRV_Static);
 
         D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
         srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -538,7 +538,7 @@ void SkinnedMesh::Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes)
     );
 
     DescriptorManager* heap = rc.resourceHeap;
-    SkinDataSRV = heap->Allocate(HeapRegion::SRV_Texture);
+    SkinDataSRV = heap->Allocate(HeapRegion::SRV_Static);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;

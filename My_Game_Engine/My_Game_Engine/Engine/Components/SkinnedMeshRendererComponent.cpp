@@ -30,24 +30,13 @@ void SkinnedMeshRendererComponent::CacheAnimController()
     {
         OutputDebugStringA("[SkinnedMeshRendererComponent] Warning: 루트에서 AnimationController를 찾지 못했습니다.\n");
     }
-
-    if (mCachedAnimController)
-    {
-        if (auto mesh = GetMesh())
-        {
-            if (auto skinnedMesh = std::dynamic_pointer_cast<SkinnedMesh>(mesh))
-            {
-                mCachedAnimController->SetSkeleton(skinnedMesh->GetSkeleton());
-            }
-        }
-    }
 }
 
 void SkinnedMeshRendererComponent::SetMesh(UINT id)
 {
     MeshRendererComponent::SetMesh(id);
 
-    if (auto mesh = GetMesh()) 
+    if (auto mesh = GetMesh())
     {
         auto skinnedMesh = std::dynamic_pointer_cast<SkinnedMesh>(mesh);
         if (skinnedMesh)

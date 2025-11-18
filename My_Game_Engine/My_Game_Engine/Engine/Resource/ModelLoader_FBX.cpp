@@ -37,7 +37,6 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     importer->Destroy();
 
     bool hasMeshes = (scene->GetSrcObjectCount<FbxMesh>() > 0);
-    int a = scene->GetSrcObjectCount<FbxMesh>();
     int animStackCount = scene->GetSrcObjectCount<FbxAnimStack>();
     bool hasAnims = (animStackCount > 0);
 
@@ -115,6 +114,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                 return BuildSkeleton(scene);
             }
         );
+        result.skeletonId = skeletonRes->GetId();
 
         std::string avatarPath = path + ".avatar";
         modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
@@ -125,6 +125,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                 return avatar;
             }
         );
+        result.avatarId = modelAvatar->GetId();
 
         if (model)
         {
@@ -255,6 +256,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
             if (animationClip)
             {
                 loadedClips.push_back(animationClip);
+                result.clipIds.push_back(animationClip->GetId());
             }
         }
     }
@@ -456,8 +458,6 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
 
     return mesh;
 }
-
-// [In file: ModelLoader_FBX.cpp]
 
 std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 {

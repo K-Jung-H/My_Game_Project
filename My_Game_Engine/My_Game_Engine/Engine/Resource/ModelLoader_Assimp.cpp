@@ -24,8 +24,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         aiProcess_CalcTangentSpace |
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals |
-        aiProcess_PopulateArmatureData |
-        aiProcess_FindInstances |
         aiProcess_ValidateDataStructure);
 
     if (!ai_scene)
@@ -99,6 +97,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
                 return BuildSkeleton(ai_scene);
             }
         );
+        result.skeletonId = skeletonRes->GetId();
 
         std::string avatarPath = path + ".avatar";
         modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
@@ -109,6 +108,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
                 return avatar;
             }
         );
+        result.avatarId = modelAvatar->GetId();
 
         if (model)
         {
@@ -153,6 +153,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
                     for (unsigned int c = 0; c < anim->mNumChannels; c++)
                     {
                         aiNodeAnim* channel = anim->mChannels[c];
+                        if (!channel || !channel->mNodeName.C_Str()) continue;
                         std::string channelBoneName = channel->mNodeName.C_Str();
 
                         auto it = boneNameToKeyMap.find(channelBoneName);
@@ -186,6 +187,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             if (animationClip)
             {
                 loadedClips.push_back(animationClip);
+                result.clipIds.push_back(animationClip->GetId());
             }
         }
     }

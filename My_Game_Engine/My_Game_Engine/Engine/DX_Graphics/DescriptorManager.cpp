@@ -22,8 +22,8 @@ DescriptorManager::DescriptorManager(ID3D12Device* device,
     {
         UINT offset = 0;
 
-        mRegions[HeapRegion::SRV_Texture] = { offset, MAX_SRV_TEXTURE, 0 };
-        offset += MAX_SRV_TEXTURE;
+        mRegions[HeapRegion::SRV_Static] = { offset, MAX_SRV_STATIC, 0 };
+        offset += MAX_SRV_STATIC;
 
         mRegions[HeapRegion::SRV_Frame] = { offset, MAX_SRV_FRAME, 0 };
         offset += MAX_SRV_FRAME;

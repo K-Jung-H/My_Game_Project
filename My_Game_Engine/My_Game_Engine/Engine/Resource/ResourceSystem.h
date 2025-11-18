@@ -14,7 +14,11 @@ struct LoadResult
     std::vector<UINT> meshIds;
     std::vector<UINT> materialIds;
     std::vector<UINT> textureIds;
+	std::vector<UINT> clipIds;
+
     UINT modelId = Engine::INVALID_ID;
+	UINT skeletonId = Engine::INVALID_ID;
+	UINT avatarId = Engine::INVALID_ID;
 };
 
 inline std::string MakeSubresourcePath(const std::string& containerPath, const char* kind, const std::string& nameOrIndex)

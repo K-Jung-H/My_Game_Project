@@ -21,6 +21,9 @@ private:
     std::vector<Bone> BoneList;
     std::unordered_set<std::string> BoneNames;
 
+    std::vector<XMFLOAT4X4> mBindGlobal;
+    std::vector<XMFLOAT4X4> mBindLocal;
+
     std::unordered_map<std::string, int> NameToIndex;
 
 public:
@@ -30,11 +33,14 @@ public:
     void SortBoneList();
     UINT GetBoneCount() const { return BoneList.size(); }
     const std::vector<Bone>& GetBoneList() const { return BoneList; }
+    const std::unordered_map<std::string, int>& GetNameToIndexMap() const { return NameToIndex; }
 
-    void BuildNameToIndex()
-    {
-        NameToIndex.clear();
-        for (size_t i = 0; i < BoneList.size(); i++)
-            NameToIndex[BoneList[i].name] = static_cast<int>(i);
-    }
+    const std::vector<XMFLOAT4X4>& GetBindGlobalList() const { return mBindGlobal; }
+    const std::vector<XMFLOAT4X4>& GetBindLocalList() const { return mBindLocal; }
+
+    const XMFLOAT4X4& GetBindGlobal(int index) const { return mBindGlobal[index]; }
+    const XMFLOAT4X4& GetBindLocal(int index) const { return mBindLocal[index]; }
+
+    void BuildNameToIndex();
+    void BuildBindPoseTransforms();
 };
