@@ -55,6 +55,7 @@ public:
 	const std::vector<XMFLOAT4X4>& GetBindGlobalList() const { return mBindGlobal; }
 	const XMFLOAT4X4& GetBindGlobal(int index) const { return mBindGlobal[index]; }
 
+	int GetBoneIndex(const std::string& name) const;
 
 	void BuildNameToIndex();
 	void BuildBindPoseTransforms();

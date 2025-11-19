@@ -224,27 +224,15 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                         {
                             fbxTime.SetSecondDouble(time);
 
-                            XMFLOAT3 pos = {
-                                curveT_X ? curveT_X->Evaluate(fbxTime) : 0.0f,
-                                curveT_Y ? curveT_Y->Evaluate(fbxTime) : 0.0f,
-                                curveT_Z ? curveT_Z->Evaluate(fbxTime) : 0.0f
-                            };
-                            XMFLOAT3 rotEuler = {
-                                curveR_X ? curveR_X->Evaluate(fbxTime) : 0.0f,
-                                curveR_Y ? curveR_Y->Evaluate(fbxTime) : 0.0f,
-                                curveR_Z ? curveR_Z->Evaluate(fbxTime) : 0.0f
-                            };
-                            XMFLOAT3 scl = {
-                                curveS_X ? curveS_X->Evaluate(fbxTime) : 1.0f,
-                                curveS_Y ? curveS_Y->Evaluate(fbxTime) : 1.0f,
-                                curveS_Z ? curveS_Z->Evaluate(fbxTime) : 1.0f
-                            };
+                            FbxAMatrix local = boneNode->EvaluateLocalTransform(fbxTime);
 
-                            XMFLOAT4 rotQuat = Matrix4x4::QuaternionFromEuler(rotEuler.x, rotEuler.y, rotEuler.z);
+                            FbxQuaternion q = local.GetQ();
+                            FbxVector4 t = local.GetT();
+                            FbxVector4 s = local.GetS();
 
-                            track.PositionKeys.push_back({ time, pos });
-                            track.RotationKeys.push_back({ time, rotQuat });
-                            track.ScaleKeys.push_back({ time, scl });
+                            track.RotationKeys.push_back({ time, XMFLOAT4((float)q[0], (float)q[1], (float)q[2], (float)q[3]) });
+                            track.PositionKeys.push_back({ time, XMFLOAT3((float)t[0], (float)t[1], (float)t[2]) });
+                            track.ScaleKeys.push_back({ time, XMFLOAT3((float)s[0], (float)s[1], (float)s[2]) });
                         }
 
                         newClip->mTracks[abstractKey] = std::move(track);
@@ -255,6 +243,9 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
 
             if (animationClip)
             {
+				animationClip->SetAvatar(modelAvatar);
+                animationClip->SetSkeleton(skeletonRes);
+
                 loadedClips.push_back(animationClip);
                 result.clipIds.push_back(animationClip->GetId());
             }
@@ -629,9 +620,7 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
         FbxAMatrix l;
 
         if (parentIdx < 0)
-        {
             l = g;
-        }
         else
         {
             FbxAMatrix parentG = globalBindFbx[parentIdx];
@@ -639,10 +628,18 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
             l = parentInvG * g;
         }
 
+
+        FbxAMatrix flip;
+        flip.SetIdentity();
+        flip[2][2] = -1.0;
+
+        FbxAMatrix gDX = flip * g * flip;
+        FbxAMatrix lDX = flip * l * flip;
+
         XMFLOAT4X4 localM;
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 4; ++c)
-                localM.m[r][c] = static_cast<float>(l.Get(r, c));
+                localM.m[r][c] = (float)lDX.Get(r, c);
 
         skeletonRes->BoneList[i].bindLocal = localM;
         skeletonRes->mBindLocal[i] = localM;
@@ -650,13 +647,12 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
         XMFLOAT4X4 globalM;
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 4; ++c)
-                globalM.m[r][c] = static_cast<float>(g.Get(r, c));
+                globalM.m[r][c] = (float)gDX.Get(r, c);
 
         skeletonRes->mBindGlobal[i] = globalM;
 
-        XMMATRIX gDX = XMLoadFloat4x4(&globalM);
-        XMMATRIX invDX = XMMatrixInverse(nullptr, gDX);
-
+        XMMATRIX gDXMatrix = XMLoadFloat4x4(&globalM);
+        XMMATRIX invDX = XMMatrixInverse(nullptr, gDXMatrix);
         XMStoreFloat4x4(&skeletonRes->mInverseBind[i], invDX);
     }
 

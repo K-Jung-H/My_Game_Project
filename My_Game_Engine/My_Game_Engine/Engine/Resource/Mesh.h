@@ -151,7 +151,7 @@ public:
     UINT GetVertexCount() const { return static_cast<UINT>(positions.size()); }
     UINT GetHotStride() const { return mHotLayout.stride; }
 
-    std::shared_ptr<Skeleton> GetSkeleton() const { return mSkeleton; }
+    std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }
     
     std::vector<VertexBoneDataCPU> bone_vertex_data;
     std::vector<BoneMappingData>   bone_mapping_data;
@@ -160,7 +160,7 @@ protected:
     UINT SkinDataSRV = UINT_MAX;
     UINT HotInputSRV = UINT_MAX;
 
-    std::shared_ptr<Skeleton> mSkeleton;
+    std::shared_ptr<Skeleton> mModelSkeleton;
     ComPtr<ID3D12Resource> mSkinData;
     ComPtr<ID3D12Resource> mSkinDataUpload;
 };

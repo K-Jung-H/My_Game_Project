@@ -4,6 +4,7 @@
 #include "GameEngine.h"
 #include "DX_Graphics/ResourceUtils.h"
 
+
 AnimationControllerComponent::AnimationControllerComponent()
     : Component()
 {
@@ -11,9 +12,9 @@ AnimationControllerComponent::AnimationControllerComponent()
 
 void AnimationControllerComponent::CreateBoneMatrixBuffer()
 {
-    if (!mSkeleton || mBoneMatrixBuffer) return;
+    if (!mModelSkeleton || mBoneMatrixBuffer) return;
 
-    const size_t boneCount = mSkeleton->BoneList.size();
+    const size_t boneCount = mModelSkeleton->BoneList.size();
     if (boneCount == 0) return;
 
     mCpuBoneMatrices.resize(boneCount);
@@ -49,15 +50,15 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
 
 void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
 {
-    if (mSkeleton == skeleton) return;
+    if (mModelSkeleton == skeleton) return;
 
-    mSkeleton = skeleton;
+    mModelSkeleton = skeleton;
 
-    if (mSkeleton && !mBoneMatrixBuffer)
+    if (mModelSkeleton && !mBoneMatrixBuffer)
     {
         CreateBoneMatrixBuffer();
     }
-    else if (!mSkeleton)
+    else if (!mModelSkeleton)
     {
         if (mMappedBoneBuffer)
         {
@@ -79,29 +80,67 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
 
 void AnimationControllerComponent::SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar)
 {
-    mAvatar = model_avatar;
+    mModelAvatar = model_avatar;
 }
 
 bool AnimationControllerComponent::IsReady() const
 {
-    return mSkeleton != nullptr && mAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
+    return mModelSkeleton != nullptr && mModelAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
 }
 
 void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, bool isLooping)
 {
+    if (!clip)
+        return;
+
     mCurrentClip = clip;
     mIsLooping = isLooping;
     mCurrentTime = 0.0f;
 
-    if (mCurrentClip && mAvatar)
+    mClipAvatar = clip->GetAvatar();
+    mClipSkeleton = clip->GetSkeleton();
+
+    if (!mClipAvatar || !mClipSkeleton || !mModelAvatar || !mModelSkeleton)
     {
-        if (mCurrentClip->GetDefinitionType() != mAvatar->GetDefinitionType())
-        {
-            OutputDebugStringA("[AnimationControllerComponent] Warning: Avatar와 Clip의 DefinitionType이 일치하지 않습니다.\n");
-            mCurrentClip = nullptr;
-        }
+        OutputDebugStringA("[AnimationControllerComponent] Error: 필요한 Avatar 또는 Skeleton 부재.\n");
+        mCurrentClip = nullptr;
+        return;
     }
+
+    if (mClipAvatar->GetDefinitionType() != mModelAvatar->GetDefinitionType())
+    {
+        OutputDebugStringA("[AnimationControllerComponent] Warning: DefinitionType 불일치.\n");
+        mCurrentClip = nullptr;
+        return;
+    }
+
+    mMappedClipBoneIndex.clear();
+    mMappedModelBoneIndex.clear();
+
+    const auto& modelMap = mModelAvatar->GetBoneMap();
+    const auto& clipMap = mClipAvatar->GetBoneMap();
+
+    for (const auto& [abstractKey, modelBoneName] : modelMap)
+    {
+        auto itClip = clipMap.find(abstractKey);
+        if (itClip == clipMap.end())
+            continue;
+
+        const std::string& clipBoneName = itClip->second;
+
+        int clipIndex = mClipSkeleton->GetBoneIndex(clipBoneName);
+        int modelIndex = mModelSkeleton->GetBoneIndex(modelBoneName);
+
+        if (clipIndex < 0 || modelIndex < 0)
+            continue;
+
+        mMappedClipBoneIndex[abstractKey] = clipIndex;
+        mMappedModelBoneIndex[abstractKey] = modelIndex;
+    }
+
+    OutputDebugStringA("[AnimationControllerComponent] Play(): Bone 매핑 완료.\n");
 }
+
 
 void AnimationControllerComponent::Update(float deltaTime)
 {
@@ -147,14 +186,14 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 {
     using namespace DirectX;
 
-    if (!mSkeleton || !mAvatar) return;
+    if (!mModelSkeleton || !mModelAvatar) return;
 
-    const size_t boneCount = mSkeleton->GetBoneCount();
+    const size_t boneCount = mModelSkeleton->GetBoneCount();
     if (boneCount == 0) return;
 
-    const auto& boneList = mSkeleton->GetBoneList();
-    const auto& bindLocalArr = mSkeleton->GetBindLocalList();
-    const auto& invBindArr = mSkeleton->GetInverseBindList();
+    const auto& boneList = mModelSkeleton->GetBoneList();
+    const auto& bindLocalArr = mModelSkeleton->GetBindLocalList();
+    const auto& invBindArr = mModelSkeleton->GetInverseBindList();
 
     std::vector<XMMATRIX> localTransforms(boneCount);
 
@@ -165,7 +204,7 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
         XMMATRIX bindLocal = XMLoadFloat4x4(&bindLocalArr[i]);
 
         std::string abstractKey;
-        for (auto& [k, v] : mAvatar->GetBoneMap())
+        for (auto& [k, v] : mModelAvatar->GetBoneMap())
         {
             if (v == bone.name)
             {

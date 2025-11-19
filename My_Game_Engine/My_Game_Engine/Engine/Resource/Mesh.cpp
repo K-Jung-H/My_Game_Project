@@ -472,16 +472,16 @@ void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
 
 void SkinnedMesh::Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes) 
 {
-    mSkeleton = skeletonRes;
-    if (!mSkeleton) return; 
+    mModelSkeleton = skeletonRes;
+    if (!mModelSkeleton) return; 
 
     bone_vertex_data.clear();
     bone_vertex_data.resize(positions.size());
 
     for (auto& m : bone_mapping_data)
     {
-        auto it = mSkeleton->NameToIndex.find(m.boneName); 
-        if (it == mSkeleton->NameToIndex.end()) continue;
+        auto it = mModelSkeleton->NameToIndex.find(m.boneName); 
+        if (it == mModelSkeleton->NameToIndex.end()) continue;
 
         uint16_t boneIdx = static_cast<uint16_t>(it->second);
         uint32_t vtx = m.vertexId;

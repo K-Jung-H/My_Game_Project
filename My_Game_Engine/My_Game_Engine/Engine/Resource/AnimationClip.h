@@ -1,6 +1,8 @@
 #pragma once
 #include "Game_Resource.h"
 #include "AvatarSystem.h"
+#include "Model_Avatar.h"
+#include "Skeleton.h"
 
 template<typename T>
 struct TKey
@@ -40,11 +42,20 @@ public:
     float GetDuration() const { return mDuration; }
     const AnimationTrack* GetTrack(const std::string& boneKey) const;
 
+	void SetAvatar(std::shared_ptr<Model_Avatar> avatar) { mModelAvatar = avatar; }
+    void SetSkeleton(std::shared_ptr<Skeleton> skeleton) { mModelSkeleton = skeleton; }
+
+	std::shared_ptr<Model_Avatar> GetAvatar() const { return mModelAvatar; }
+	std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }
+
 public:
     DefinitionType mAvatarDefinitionType = DefinitionType::None;
     float mDuration = 0.0f;
     float mTicksPerSecond = 0.0f;
 
-    // <추상 뼈 이름, 해당 뼈의 트랙>
+	std::shared_ptr<Model_Avatar> mModelAvatar;
+	std::shared_ptr<Skeleton> mModelSkeleton;
+
     std::map<std::string, AnimationTrack> mTracks;
+
 };

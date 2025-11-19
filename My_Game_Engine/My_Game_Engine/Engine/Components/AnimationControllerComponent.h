@@ -22,8 +22,8 @@ public:
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton);
     void SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar);
 
-    std::shared_ptr<Skeleton> GetSkeleton() { return mSkeleton; }
-	std::shared_ptr<Model_Avatar> GetModelAvatar() { return mAvatar; }
+    std::shared_ptr<Skeleton> GetSkeleton() { return mModelSkeleton; }
+	std::shared_ptr<Model_Avatar> GetModelAvatar() { return mModelAvatar; }
     UINT GetBoneMatrixSRV() const { return mBoneMatrixSRVSlot; }
 
     bool IsReady() const;
@@ -37,10 +37,15 @@ private:
     void EvaluateAnimation(float time);
 
 private:
-    std::shared_ptr<Model_Avatar> mAvatar;
-    std::shared_ptr<Skeleton> mSkeleton;
+    std::shared_ptr<Model_Avatar> mModelAvatar;
+    std::shared_ptr<Skeleton> mModelSkeleton;
+    std::unordered_map<std::string, int> mMappedModelBoneIndex;
 
     std::shared_ptr<AnimationClip> mCurrentClip;
+    std::shared_ptr<Model_Avatar> mClipAvatar;
+    std::shared_ptr<Skeleton> mClipSkeleton;
+    std::unordered_map<std::string, int> mMappedClipBoneIndex;
+
     bool mIsLooping = false;
     float mCurrentTime = 0.0f;
 

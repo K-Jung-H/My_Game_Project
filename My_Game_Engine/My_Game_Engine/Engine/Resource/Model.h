@@ -34,8 +34,8 @@ public:
     const std::vector<std::shared_ptr<Mesh>>& GetAllMeshes() const { return meshes; }
     void AddMesh(const std::shared_ptr<Mesh>& mesh) { meshes.push_back(mesh); }
 
-    std::shared_ptr<Skeleton> GetSkeleton() const { return mSkeleton; }
-	void SetSkeleton(std::shared_ptr<Skeleton> s) { mSkeleton = s; }
+    std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }
+	void SetSkeleton(std::shared_ptr<Skeleton> s) { mModelSkeleton = s; }
 
     void SetAvatarID(UINT id) { mAvatarID = id; }
     UINT GetAvatarID() const { return mAvatarID; }
@@ -44,6 +44,6 @@ private:
     std::shared_ptr<Node> root;
     std::vector<std::shared_ptr<Mesh>> meshes;       // 전체 Mesh 목록
 
-    std::shared_ptr<Skeleton> mSkeleton;
+    std::shared_ptr<Skeleton> mModelSkeleton;
     UINT mAvatarID = Engine::INVALID_ID;
 };

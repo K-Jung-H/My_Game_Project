@@ -160,6 +160,14 @@ void Skeleton::SortBoneList()
     BoneList.swap(sortedList);
 }
 
+int Skeleton::GetBoneIndex(const std::string& name) const
+{
+    auto it = NameToIndex.find(name);
+    if (it != NameToIndex.end())
+        return it->second;
+    return -1;
+}
+
 
 void Skeleton::BuildNameToIndex()
 {
