@@ -556,7 +556,7 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
     for (auto& pair : boneNameToIndex)
     {
         const std::string& boneName = pair.first;
-        int                boneIdx = pair.second;
+        int  boneIdx = pair.second;
 
         FbxNode* boneNode = fbxScene->FindNodeByName(boneName.c_str());
         if (!boneNode)
