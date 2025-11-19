@@ -183,10 +183,6 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
             localTransforms[i] = bindLocal;
             continue;
         }
-        else
-        { 
-            OutputDebugStringA(("Track: " + abstractKey + "\n").c_str());
-        }
 
         XMVECTOR S_bind, R_bind, T_bind;
         XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);

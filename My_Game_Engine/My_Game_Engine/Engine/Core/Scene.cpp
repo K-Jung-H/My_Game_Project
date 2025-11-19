@@ -58,15 +58,15 @@ void Scene::Build()
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
-	const std::string animation_clip_path = "Assets/Animation/Ymca Dance.fbx"; // Catwalk Walk
+	const std::string animation_clip_path = "Assets/Animation/Y.fbx"; // Catwalk Walk
  	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	{
-		LoadResult animation_result;
-		rsm->Load(animation_clip_path, "Test_10", animation_result);
+		//LoadResult animation_result;
+		//rsm->Load(animation_clip_path, "Test_10", animation_result);
 
 		LoadResult model_result;
-		rsm->Load(path_2, "Test_0", model_result);
+		rsm->Load(animation_clip_path, "Test_0", model_result);
 
 		auto model_ptr = rsm->GetById<Model>(model_result.modelId);
 		if (!model_ptr)
@@ -94,9 +94,9 @@ void Scene::Build()
 		animController->SetModelAvatar(rsm->GetById<Model_Avatar>(model_result.avatarId));
 		animController->SetSkeleton(rsm->GetById<Skeleton>(model_result.skeletonId));
 
-		if (animation_result.clipIds.size() > 0)
+		if (model_result.clipIds.size() > 0)
 		{
-			auto clip = rsm->GetById<AnimationClip>(animation_result.clipIds[0]);
+			auto clip = rsm->GetById<AnimationClip>(model_result.clipIds[0]);
 			if (clip)
 			{
 				animController->Play(clip, true);

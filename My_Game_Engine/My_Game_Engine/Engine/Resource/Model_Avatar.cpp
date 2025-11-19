@@ -154,6 +154,9 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
             used.insert(idx);
         }
     }
+
+    OutputDebugStringA(("[AutoMap] Final mapped bones: " + std::to_string(mBoneMap.size()) + "\n").c_str());
+
 }
 
 
