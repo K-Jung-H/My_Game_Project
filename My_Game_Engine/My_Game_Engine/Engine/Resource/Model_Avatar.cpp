@@ -13,101 +13,88 @@ void Model_Avatar::SetDefinitionType(DefinitionType type)
 void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
 {
     mBoneMap.clear();
-
     if (!skeleton || mDefinitionType == DefinitionType::None)
-    {
-        OutputDebugStringA("[AutoMap] Invalid skeleton or definition.\n");
         return;
-    }
 
-    auto definitionMgr = GameEngine::Get().GetAvatarSystem();
-    auto definition = definitionMgr->GetDefinition(mDefinitionType);
-
+    auto defMgr = GameEngine::Get().GetAvatarSystem();
+    auto definition = defMgr->GetDefinition(mDefinitionType);
     if (!definition)
-    {
-        OutputDebugStringA("[AutoMap] Definition not found.\n");
         return;
-    }
 
-    const auto& defs = definition->GetBoneDefinitions();
+    const auto defs = definition->GetBoneDefinitions();
     const auto& bones = skeleton->GetBoneList();
 
     std::vector<std::string> lowerNames;
     lowerNames.reserve(bones.size());
-    for (auto& b : bones)
-        lowerNames.push_back(ToLower(b.name));
+    for (auto& b : bones) lowerNames.push_back(ToLower(b.name));
 
     std::unordered_set<int> used;
-
-    auto isBlacklisted = [](const std::string& s) -> bool
-        {
-            static const char* BAD[] = {
-                "hair", "tail", "cloth", "skirt", "dress", "hood", "cape",
-                "coat", "jacket", "fur", "ear", "wing", "helmet", "mask", "braid"
-            };
-            for (auto& k : BAD)
-                if (s.find(k) != std::string::npos)
-                    return true;
-            return false;
-        };
 
     auto toLowerVec = [&](const std::vector<std::string>& src)
         {
             std::vector<std::string> out;
             out.reserve(src.size());
-            for (auto& s : src)
-                out.push_back(ToLower(s));
+            for (auto& s : src) out.push_back(ToLower(s));
             return out;
         };
 
-    auto containsAny = [&](const std::string& name, const std::vector<std::string>& words)
+    auto containsAny = [&](const std::string& name, const std::vector<std::string>& list)
         {
-            for (auto& w : words)
-                if (name.find(w) != std::string::npos)
+            for (auto& s : list)
+                if (name.find(s) != std::string::npos)
                     return true;
             return false;
         };
 
-    const std::vector<std::string> ARM = { "arm", "upperarm", "lowerarm", "forearm", "shoulder" };
-    const std::vector<std::string> LEG = { "leg", "upperleg", "lowerleg", "upleg", "calf", "thigh" };
-    const std::vector<std::string> FOOT = { "foot" };
-    const std::vector<std::string> TOE = { "toe" };
-    const std::vector<std::string> HAND = { "hand" };
-    const std::vector<std::string> HEAD = { "head" };
-    const std::vector<std::string> NECK = { "neck" };
-    const std::vector<std::string> SPINE = { "spine", "chest" };
+    const std::vector<std::string> FOREARM_SET = {
+        "forearm", "lowerarm", "elbow", "ulna", "_twist", "twist"
+    };
 
-    auto findBone = [&](const BoneDefinition& def) -> int
+    auto isForeArmName = [&](const std::string& n)
+        {
+            return containsAny(n, FOREARM_SET);
+        };
+
+    std::vector<BoneDefinition> orderedDefs = defs;
+    std::stable_sort(orderedDefs.begin(), orderedDefs.end(),
+        [&](const BoneDefinition& a, const BoneDefinition& b)
+        {
+            const std::string A = ToLower(a.key);
+            const std::string B = ToLower(b.key);
+            bool aLow = A.find("lowerarm") != std::string::npos ||
+                A.find("forearm") != std::string::npos ||
+                A.find("elbow") != std::string::npos;
+            bool bLow = B.find("lowerarm") != std::string::npos ||
+                B.find("forearm") != std::string::npos ||
+                B.find("elbow") != std::string::npos;
+            if (aLow != bLow) return aLow;
+            return false;
+        }
+    );
+
+    auto findBone = [&](const BoneDefinition& def)
         {
             std::string key = ToLower(def.key);
             auto kw = toLowerVec(def.keywords);
-
             bool needLeft = key.find("left") != std::string::npos;
             bool needRight = key.find("right") != std::string::npos;
 
-            bool tagArm = containsAny(key, ARM);
-            bool tagLeg = containsAny(key, LEG);
-            bool tagFoot = containsAny(key, FOOT);
-            bool tagToe = containsAny(key, TOE);
-            bool tagHand = containsAny(key, HAND);
-            bool tagHead = containsAny(key, HEAD);
-            bool tagNeck = containsAny(key, NECK);
-            bool tagSpine = containsAny(key, SPINE);
+            bool isLowerArm = key.find("lowerarm") != std::string::npos ||
+                key.find("forearm") != std::string::npos ||
+                key.find("elbow") != std::string::npos;
 
-            bool tagUpper = (key.find("upper") != std::string::npos || key.find("upleg") != std::string::npos);
-            bool tagLower = (key.find("lower") != std::string::npos);
+            bool isUpperArm = key.find("upperarm") != std::string::npos &&
+                (key.find("lowerarm") == std::string::npos &&
+                    key.find("forearm") == std::string::npos);
 
-            int bestScore = -9999;
             int bestIdx = -1;
+            int bestScore = -9999;
 
             for (int i = 0; i < (int)bones.size(); i++)
             {
                 if (used.count(i)) continue;
 
                 const std::string& name = lowerNames[i];
-
-                if (isBlacklisted(name))
-                    continue;
 
                 if (needLeft)
                 {
@@ -125,40 +112,25 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
                 }
 
                 int score = 0;
-                bool semanticHit = false;
 
                 for (auto& w : kw)
                 {
-                    if (name == w)           score += 50, semanticHit = true;
-                    else if (name.find(w) != std::string::npos)
-                        score += 12, semanticHit = true;
+                    if (name == w) score += 50;
+                    else if (name.find(w) != std::string::npos) score += 12;
                 }
 
-                auto tagMatch = [&](bool tag, const std::vector<std::string>& list)
-                    {
-                        if (!tag) return;
-                        if (containsAny(name, list))
-                        {
-                            score += 10;
-                            semanticHit = true;
-                        }
-                    };
-                tagMatch(tagArm, ARM);
-                tagMatch(tagLeg, LEG);
-                tagMatch(tagFoot, FOOT);
-                tagMatch(tagToe, TOE);
-                tagMatch(tagHand, HAND);
-                tagMatch(tagHead, HEAD);
-                tagMatch(tagNeck, NECK);
-                tagMatch(tagSpine, SPINE);
+                bool boneIsFore = isForeArmName(name);
 
-                if (tagUpper && (name.find("up") != std::string::npos || name.find("upper") != std::string::npos))
-                    score += 4;
-                if (tagLower && name.find("lower") != std::string::npos)
-                    score += 4;
+                if (isLowerArm)
+                {
+                    if (boneIsFore) score += 100;
+                    else score -= 999;
+                }
 
-                if (!semanticHit)
-                    continue;
+                if (isUpperArm)
+                {
+                    if (boneIsFore) score -= 500;
+                }
 
                 if (score > bestScore)
                 {
@@ -173,7 +145,7 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
             return bestIdx;
         };
 
-    for (auto& def : defs)
+    for (auto& def : orderedDefs)
     {
         int idx = findBone(def);
         if (idx != -1)
@@ -182,9 +154,8 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
             used.insert(idx);
         }
     }
-
-    OutputDebugStringA(("[AutoMap] Final mapped bones: " + std::to_string(mBoneMap.size()) + "\n").c_str());
 }
+
 
 const std::string& Model_Avatar::GetMappedBoneName(const std::string& abstractKey) const
 {

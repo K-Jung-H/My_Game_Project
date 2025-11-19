@@ -58,8 +58,8 @@ void Scene::Build()
 	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
-	const std::string animation_clip_path = "Assets/Animation/Catwalk Walk.fbx";
-	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
+	const std::string animation_clip_path = "Assets/Animation/Ymca Dance.fbx"; // Catwalk Walk
+ 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	{
 		LoadResult animation_result;

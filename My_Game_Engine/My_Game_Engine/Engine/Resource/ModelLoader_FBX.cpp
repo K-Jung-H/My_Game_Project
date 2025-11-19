@@ -459,24 +459,29 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
     return mesh;
 }
 
+
 std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 {
+    using namespace DirectX;
+
     auto skeletonRes = std::make_shared<Skeleton>();
     if (!fbxScene)
-    {
         return skeletonRes;
-    }
 
     std::unordered_map<std::string, int> boneNameToIndex;
+    boneNameToIndex.reserve(128);
+
+    std::unordered_map<std::string, FbxAMatrix> boneGlobalBindFbx;
+    boneGlobalBindFbx.reserve(128);
 
     int skinCount = fbxScene->GetSrcObjectCount<FbxSkin>();
-    for (int s = 0; s < skinCount; s++)
+    for (int s = 0; s < skinCount; ++s)
     {
         FbxSkin* skin = fbxScene->GetSrcObject<FbxSkin>(s);
         if (!skin) continue;
 
         int clusterCount = skin->GetClusterCount();
-        for (int c = 0; c < clusterCount; c++)
+        for (int c = 0; c < clusterCount; ++c)
         {
             FbxCluster* cluster = skin->GetCluster(c);
             if (!cluster) continue;
@@ -485,81 +490,175 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
             if (!linkNode) continue;
 
             std::string boneName = linkNode->GetName();
-            if (boneNameToIndex.count(boneName)) continue;
+            if (boneNameToIndex.count(boneName))
+            {
+                FbxAMatrix linkMatrix;
+                cluster->GetTransformLinkMatrix(linkMatrix);
+                boneGlobalBindFbx[boneName] = linkMatrix;
+                continue;
+            }
 
             Bone bone{};
             bone.name = boneName;
             bone.parentIndex = -1;
+            XMStoreFloat4x4(&bone.bindLocal, XMMatrixIdentity());
 
-            FbxAMatrix linkMatrix, modelMatrix;
-            cluster->GetTransformLinkMatrix(linkMatrix);
-            cluster->GetTransformMatrix(modelMatrix);
-
-            FbxAMatrix invBindMatrix = linkMatrix.Inverse() * modelMatrix;
-
-            XMFLOAT4X4 m;
-            for (int r = 0; r < 4; ++r)
-                for (int c = 0; c < 4; ++c)
-                    m.m[r][c] = static_cast<float>(invBindMatrix.Get(r, c));
-
-            bone.inverseBind = m;
-
-            boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
+            int newIndex = static_cast<int>(skeletonRes->BoneList.size());
+            boneNameToIndex[boneName] = newIndex;
             skeletonRes->BoneList.push_back(bone);
+
+            FbxAMatrix linkMatrix;
+            cluster->GetTransformLinkMatrix(linkMatrix);
+            boneGlobalBindFbx[boneName] = linkMatrix;
         }
     }
-
 
     int animStackCount = fbxScene->GetSrcObjectCount<FbxAnimStack>();
     if (skinCount == 0 && animStackCount > 0)
     {
-        for (int i = 0; i < animStackCount; i++)
-        {
-            FbxAnimStack* animStack = fbxScene->GetSrcObject<FbxAnimStack>(i);
-            FbxAnimLayer* animLayer = animStack->GetMember<FbxAnimLayer>(0);
-            if (!animLayer) continue;
+        FbxAnimStack* animStack = fbxScene->GetSrcObject<FbxAnimStack>(0);
+        FbxAnimLayer* animLayer = animStack ? animStack->GetMember<FbxAnimLayer>(0) : nullptr;
 
-			int nodeCount = fbxScene->GetNodeCount();
-            for (int n = 0; n < nodeCount; n++)
+        if (animLayer)
+        {
+            int nodeCount = fbxScene->GetNodeCount();
+            for (int n = 0; n < nodeCount; ++n)
             {
                 FbxNode* node = fbxScene->GetNode(n);
                 if (!node) continue;
 
-                if (node->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X) ||
+                bool hasCurve =
+                    node->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X) ||
+                    node->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y) ||
+                    node->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z) ||
                     node->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X) ||
-                    node->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X))
-                {
-                    std::string boneName = node->GetName();
-                    if (boneNameToIndex.count(boneName)) continue;
+                    node->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y) ||
+                    node->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z) ||
+                    node->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X) ||
+                    node->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y) ||
+                    node->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
 
-                    Bone bone{};
-                    bone.name = boneName;
-                    bone.parentIndex = -1;
-                    bone.inverseBind = Matrix4x4::Identity(); 
+                if (!hasCurve)
+                    continue;
 
-                    boneNameToIndex[boneName] = (int)skeletonRes->BoneList.size();
-                    skeletonRes->BoneList.push_back(bone);
-                }
+                std::string boneName = node->GetName();
+                if (boneNameToIndex.count(boneName))
+                    continue;
+
+                Bone bone{};
+                bone.name = boneName;
+                bone.parentIndex = -1;
+                XMStoreFloat4x4(&bone.bindLocal, XMMatrixIdentity());
+
+                int newIndex = static_cast<int>(skeletonRes->BoneList.size());
+                boneNameToIndex[boneName] = newIndex;
+                skeletonRes->BoneList.push_back(bone);
+
+                FbxTime t0;
+                t0.SetSecondDouble(0.0);
+                FbxAMatrix globalAt0 = node->EvaluateGlobalTransform(t0);
+                boneGlobalBindFbx[boneName] = globalAt0;
             }
         }
     }
 
-    for (auto& [boneName, idx] : boneNameToIndex)
+    for (auto& pair : boneNameToIndex)
     {
+        const std::string& boneName = pair.first;
+        int                boneIdx = pair.second;
+
         FbxNode* boneNode = fbxScene->FindNodeByName(boneName.c_str());
-        if (boneNode && boneNode->GetParent())
+        if (!boneNode)
+            continue;
+
+        FbxNode* parentNode = boneNode->GetParent();
+        if (!parentNode)
+            continue;
+
+        std::string parentName = parentNode->GetName();
+        auto itParent = boneNameToIndex.find(parentName);
+        if (itParent != boneNameToIndex.end())
         {
-            std::string parentName = boneNode->GetParent()->GetName();
-            auto it = boneNameToIndex.find(parentName);
-            if (it != boneNameToIndex.end())
-            {
-                skeletonRes->BoneList[idx].parentIndex = it->second;
-            }
+            skeletonRes->BoneList[boneIdx].parentIndex = itParent->second;
+        }
+        else
+        {
+            skeletonRes->BoneList[boneIdx].parentIndex = -1;
         }
     }
 
     skeletonRes->SortBoneList();
     skeletonRes->BuildNameToIndex();
+
+    const size_t boneCount = skeletonRes->BoneList.size();
+    skeletonRes->mBindLocal.resize(boneCount);
+    skeletonRes->mBindGlobal.resize(boneCount);
+    skeletonRes->mInverseBind.resize(boneCount);
+
+    std::vector<FbxAMatrix> globalBindFbx(boneCount);
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        const std::string& boneName = skeletonRes->BoneList[i].name;
+
+        auto it = boneGlobalBindFbx.find(boneName);
+        if (it != boneGlobalBindFbx.end())
+        {
+            globalBindFbx[i] = it->second;
+        }
+        else
+        {
+            FbxNode* node = fbxScene->FindNodeByName(boneName.c_str());
+            if (node)
+            {
+                FbxTime t0;
+                t0.SetSecondDouble(0.0);
+                globalBindFbx[i] = node->EvaluateGlobalTransform(t0);
+            }
+            else
+            {
+                globalBindFbx[i].SetIdentity();
+            }
+        }
+    }
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        int parentIdx = skeletonRes->BoneList[i].parentIndex;
+
+        FbxAMatrix g = globalBindFbx[i];
+        FbxAMatrix l;
+
+        if (parentIdx < 0)
+        {
+            l = g;
+        }
+        else
+        {
+            FbxAMatrix parentG = globalBindFbx[parentIdx];
+            FbxAMatrix parentInvG = parentG.Inverse();
+            l = parentInvG * g;
+        }
+
+        XMFLOAT4X4 localM;
+        for (int r = 0; r < 4; ++r)
+            for (int c = 0; c < 4; ++c)
+                localM.m[r][c] = static_cast<float>(l.Get(r, c));
+
+        skeletonRes->BoneList[i].bindLocal = localM;
+        skeletonRes->mBindLocal[i] = localM;
+
+        XMFLOAT4X4 globalM;
+        for (int r = 0; r < 4; ++r)
+            for (int c = 0; c < 4; ++c)
+                globalM.m[r][c] = static_cast<float>(g.Get(r, c));
+
+        skeletonRes->mBindGlobal[i] = globalM;
+
+        XMMATRIX gDX = XMLoadFloat4x4(&globalM);
+        XMMATRIX invDX = XMMatrixInverse(nullptr, gDX);
+
+        XMStoreFloat4x4(&skeletonRes->mInverseBind[i], invDX);
+    }
 
     return skeletonRes;
 }

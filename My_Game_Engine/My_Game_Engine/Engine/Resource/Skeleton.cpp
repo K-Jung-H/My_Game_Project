@@ -7,28 +7,47 @@ bool Skeleton::LoadFromFile(std::string path, const RendererContext& ctx)
     std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
     ifs.close();
 
+
     Document doc;
     if (doc.Parse(json.c_str()).HasParseError()) return false;
 
+
     BoneList.clear();
+    mInverseBind.clear();
+
+
     if (doc.HasMember("BoneList") && doc["BoneList"].IsArray())
     {
         for (auto& entry : doc["BoneList"].GetArray())
         {
-            Bone bone;
-            bone.name = entry["name"].GetString();
-            bone.parentIndex = entry["parentIndex"].GetInt();
+            Bone b;
+            b.name = entry["name"].GetString();
+            b.parentIndex = entry["parentIndex"].GetInt();
 
-            const auto& m = entry["inverseBind"].GetArray();
-            bone.inverseBind = XMFLOAT4X4(
-                m[0].GetFloat(), m[1].GetFloat(), m[2].GetFloat(), m[3].GetFloat(),
-                m[4].GetFloat(), m[5].GetFloat(), m[6].GetFloat(), m[7].GetFloat(),
-                m[8].GetFloat(), m[9].GetFloat(), m[10].GetFloat(), m[11].GetFloat(),
-                m[12].GetFloat(), m[13].GetFloat(), m[14].GetFloat(), m[15].GetFloat()
+
+            const auto& bl = entry["bindLocal"].GetArray();
+            b.bindLocal = XMFLOAT4X4(
+                bl[0].GetFloat(), bl[1].GetFloat(), bl[2].GetFloat(), bl[3].GetFloat(),
+                bl[4].GetFloat(), bl[5].GetFloat(), bl[6].GetFloat(), bl[7].GetFloat(),
+                bl[8].GetFloat(), bl[9].GetFloat(), bl[10].GetFloat(), bl[11].GetFloat(),
+                bl[12].GetFloat(), bl[13].GetFloat(), bl[14].GetFloat(), bl[15].GetFloat()
             );
-            BoneList.push_back(bone);
+
+
+            const auto& ib = entry["inverseBind"].GetArray();
+            mInverseBind.emplace_back(
+                ib[0].GetFloat(), ib[1].GetFloat(), ib[2].GetFloat(), ib[3].GetFloat(),
+                ib[4].GetFloat(), ib[5].GetFloat(), ib[6].GetFloat(), ib[7].GetFloat(),
+                ib[8].GetFloat(), ib[9].GetFloat(), ib[10].GetFloat(), ib[11].GetFloat(),
+                ib[12].GetFloat(), ib[13].GetFloat(), ib[14].GetFloat(), ib[15].GetFloat()
+            );
+
+
+            BoneList.push_back(b);
         }
     }
+
+
     BuildNameToIndex();
     BuildBindPoseTransforms();
     return true;
@@ -39,24 +58,41 @@ bool Skeleton::SaveToFile(const std::string& path) const
     Document doc(kObjectType);
     auto& alloc = doc.GetAllocator();
 
-    Value bones(kArrayType);
-    for (const auto& bone : BoneList)
-    {
-        Value entry(kObjectType);
-        entry.AddMember("name", Value(bone.name.c_str(), alloc), alloc);
-        entry.AddMember("parentIndex", bone.parentIndex, alloc);
 
-        Value m(kArrayType);
-        for (int r = 0; r < 4; ++r) for (int c = 0; c < 4; ++c) m.PushBack(bone.inverseBind.m[r][c], alloc);
-        entry.AddMember("inverseBind", m, alloc);
+    Value bones(kArrayType);
+    for (size_t i = 0; i < BoneList.size(); i++)
+    {
+        const Bone& b = BoneList[i];
+
+
+        Value entry(kObjectType);
+        entry.AddMember("name", Value(b.name.c_str(), alloc), alloc);
+        entry.AddMember("parentIndex", b.parentIndex, alloc);
+
+
+        Value bl(kArrayType);
+        for (int r = 0; r < 4; r++)
+            for (int c = 0; c < 4; c++)
+                bl.PushBack(b.bindLocal.m[r][c], alloc);
+        entry.AddMember("bindLocal", bl, alloc);
+
+
+        Value ib(kArrayType);
+        for (int r = 0; r < 4; r++)
+            for (int c = 0; c < 4; c++)
+                ib.PushBack(mInverseBind[i].m[r][c], alloc);
+        entry.AddMember("inverseBind", ib, alloc);
+
 
         bones.PushBack(entry, alloc);
     }
     doc.AddMember("BoneList", bones, alloc);
 
+
     StringBuffer buffer;
-    PrettyWriter<StringBuffer> writer(buffer);
+    Writer<StringBuffer> writer(buffer);
     doc.Accept(writer);
+
 
     std::ofstream ofs(path, std::ios::trunc);
     if (!ofs.is_open()) return false;
@@ -67,63 +103,63 @@ bool Skeleton::SaveToFile(const std::string& path) const
 
 void Skeleton::SortBoneList()
 {
-    size_t boneCount = BoneList.size();
-    if (boneCount == 0) return;
+    const size_t boneCount = BoneList.size();
+    if (boneCount == 0)
+        return;
 
     std::vector<Bone> sortedList;
     sortedList.reserve(boneCount);
 
-    std::vector<int> oldToNewIndex(boneCount, -1);
+    std::vector<int>  oldToNewIndex(boneCount, -1);
     std::vector<bool> visited(boneCount, false);
 
-    std::function<void(int)> visit;
-    visit = [&](int oldBoneIndex)
+    std::function<void(int)> visit = [&](int oldIdx)
         {
-            if (oldBoneIndex == -1 || visited[oldBoneIndex])
-            {
+            if (oldIdx < 0 || visited[oldIdx])
                 return;
-            }
 
-            int oldParentIndex = BoneList[oldBoneIndex].parentIndex;
-            if (oldParentIndex != -1)
-            {
-                visit(oldParentIndex);
-            }
+            int oldParent = BoneList[oldIdx].parentIndex;
+            if (oldParent >= 0)
+                visit(oldParent);
 
-            visited[oldBoneIndex] = true;
-            oldToNewIndex[oldBoneIndex] = (int)sortedList.size();
-            sortedList.push_back(BoneList[oldBoneIndex]);
+            visited[oldIdx] = true;
+            oldToNewIndex[oldIdx] = static_cast<int>(sortedList.size());
+            sortedList.push_back(BoneList[oldIdx]);
         };
 
-    for (int i = 0; i < boneCount; ++i)
+    for (int i = 0; i < static_cast<int>(boneCount); ++i)
     {
         if (BoneList[i].parentIndex == -1)
-        {
             visit(i);
-        }
     }
 
-    for (int i = 0; i < boneCount; ++i)
+    for (int i = 0; i < static_cast<int>(boneCount); ++i)
     {
         if (!visited[i])
-        {
             visit(i);
-        }
     }
 
-    for (size_t i = 0; i < sortedList.size(); ++i)
+    for (auto& b : sortedList)
     {
-        int oldParentIndex = sortedList[i].parentIndex;
-        if (oldParentIndex != -1)
-        {
-            sortedList[i].parentIndex = oldToNewIndex[oldParentIndex];
-        }
+        if (b.parentIndex >= 0)
+            b.parentIndex = oldToNewIndex[b.parentIndex];
     }
 
-    BoneList = std::move(sortedList);
-    BuildBindPoseTransforms();
+    if (mInverseBind.size() == boneCount)
+    {
+        std::vector<XMFLOAT4X4> newInv(boneCount);
+        for (size_t oldIdx = 0; oldIdx < boneCount; ++oldIdx)
+        {
+            int newIdx = oldToNewIndex[oldIdx];
+            if (newIdx >= 0)
+                newInv[newIdx] = mInverseBind[oldIdx];
+        }
+        mInverseBind.swap(newInv);
+    }
 
+    BoneList.swap(sortedList);
 }
+
 
 void Skeleton::BuildNameToIndex()
 {
@@ -139,37 +175,33 @@ void Skeleton::BuildBindPoseTransforms()
     const size_t boneCount = BoneList.size();
     if (boneCount == 0)
     {
-        mBindGlobal.clear();
         mBindLocal.clear();
+        mBindGlobal.clear();
         return;
     }
 
-    mBindGlobal.resize(boneCount);
     mBindLocal.resize(boneCount);
+    mBindGlobal.resize(boneCount);
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        XMMATRIX invBind = XMLoadFloat4x4(&BoneList[i].inverseBind);
-        XMMATRIX globalBind = XMMatrixInverse(nullptr, invBind); 
-        XMStoreFloat4x4(&mBindGlobal[i], globalBind);
+        mBindLocal[i] = BoneList[i].bindLocal;
     }
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        int parentIdx = BoneList[i].parentIndex;
+        const int parentIdx = BoneList[i].parentIndex;
 
-        XMMATRIX globalBind = XMLoadFloat4x4(&mBindGlobal[i]);
+        XMMATRIX localM = XMLoadFloat4x4(&mBindLocal[i]);
         if (parentIdx < 0)
         {
-            XMStoreFloat4x4(&mBindLocal[i], globalBind);
+            XMStoreFloat4x4(&mBindGlobal[i], localM);
         }
         else
         {
             XMMATRIX parentGlobal = XMLoadFloat4x4(&mBindGlobal[parentIdx]);
-            XMMATRIX parentInvGlobal = XMMatrixInverse(nullptr, parentGlobal);
-
-            XMMATRIX localBind = globalBind * parentInvGlobal;
-            XMStoreFloat4x4(&mBindLocal[i], localBind);
+            XMMATRIX globalM = XMMatrixMultiply(localM, parentGlobal);
+            XMStoreFloat4x4(&mBindGlobal[i], globalM);
         }
     }
 }

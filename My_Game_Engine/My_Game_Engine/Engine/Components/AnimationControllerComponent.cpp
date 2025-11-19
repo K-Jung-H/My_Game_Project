@@ -146,73 +146,77 @@ void AnimationControllerComponent::Update(float deltaTime)
 void AnimationControllerComponent::EvaluateAnimation(float time)
 {
     using namespace DirectX;
+
     if (!mSkeleton || !mAvatar) return;
 
     const size_t boneCount = mSkeleton->GetBoneCount();
     if (boneCount == 0) return;
 
     const auto& boneList = mSkeleton->GetBoneList();
-    const auto& bindLocalList = mSkeleton->GetBindLocalList();
+    const auto& bindLocalArr = mSkeleton->GetBindLocalList();
+    const auto& invBindArr = mSkeleton->GetInverseBindList();
 
     std::vector<XMMATRIX> localTransforms(boneCount);
+
 
     for (size_t i = 0; i < boneCount; ++i)
     {
         const Bone& bone = boneList[i];
-        const XMFLOAT4X4& bindLocalF = bindLocalList[i];
-        XMMATRIX bindLocal = XMLoadFloat4x4(&bindLocalF);
+        XMMATRIX bindLocal = XMLoadFloat4x4(&bindLocalArr[i]);
 
-        std::string abstractKey = "";
-        for (const auto& [key, value] : mAvatar->GetBoneMap())
+        std::string abstractKey;
+        for (auto& [k, v] : mAvatar->GetBoneMap())
         {
-            if (value == bone.name)
+            if (v == bone.name)
             {
-                abstractKey = key;
+                abstractKey = k;
                 break;
             }
         }
 
         const AnimationTrack* track = nullptr;
         if (mCurrentClip && !abstractKey.empty())
-        {
             track = mCurrentClip->GetTrack(abstractKey);
-        }
 
-        if (track)
-        {
-            XMVECTOR S_bind, R_bind, T_bind;
-            XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);
-
-            XMFLOAT4 r_anim_f = track->SampleRotation(time);
-            XMVECTOR R_anim = XMLoadFloat4(&r_anim_f);
-
-            XMMATRIX local =
-                XMMatrixScalingFromVector(S_bind) *
-                XMMatrixRotationQuaternion(R_anim) *
-                XMMatrixTranslationFromVector(T_bind);
-
-            localTransforms[i] = local;
-        }
-        else
+        if (!track)
         {
             localTransforms[i] = bindLocal;
+            continue;
         }
+        else
+        { 
+            OutputDebugStringA(("Track: " + abstractKey + "\n").c_str());
+        }
+
+        XMVECTOR S_bind, R_bind, T_bind;
+        XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);
+
+        XMFLOAT4 r_anim_f = track->SampleRotation(time);
+        XMVECTOR R_anim = XMLoadFloat4(&r_anim_f);
+        XMMATRIX local =
+            XMMatrixScalingFromVector(S_bind) *
+            XMMatrixRotationQuaternion(R_anim) *
+            XMMatrixTranslationFromVector(T_bind);
+
+        localTransforms[i] = local;
     }
 
     std::vector<XMMATRIX> globalTransforms(boneCount);
+
     for (size_t i = 0; i < boneCount; ++i)
     {
-        int parentIdx = boneList[i].parentIndex;
-        if (parentIdx == -1)
+        int parent = boneList[i].parentIndex;
+        if (parent < 0)
             globalTransforms[i] = localTransforms[i];
         else
-            globalTransforms[i] = localTransforms[i] * globalTransforms[parentIdx];
+            globalTransforms[i] = localTransforms[i] * globalTransforms[parent];
     }
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        XMMATRIX invBind = XMLoadFloat4x4(&boneList[i].inverseBind);
+        XMMATRIX invBind = XMLoadFloat4x4(&invBindArr[i]);
         XMMATRIX final = XMMatrixTranspose(invBind * globalTransforms[i]);
+
         XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, final);
     }
 }

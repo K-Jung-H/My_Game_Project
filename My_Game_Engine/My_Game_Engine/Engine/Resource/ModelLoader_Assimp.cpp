@@ -354,55 +354,55 @@ std::shared_ptr<Skeleton> ModelLoader_Assimp::BuildSkeleton(const aiScene* scene
 {
     auto skeletonRes = std::make_shared<Skeleton>();
 
-    std::unordered_map<std::string, int> boneMap;
+    //std::unordered_map<std::string, int> boneMap;
 
-    for (unsigned int m = 0; m < scene->mNumMeshes; m++)
-    {
-        aiMesh* mesh = scene->mMeshes[m];
-        for (unsigned int b = 0; b < mesh->mNumBones; b++)
-        {
-            aiBone* bone = mesh->mBones[b];
-            std::string name = bone->mName.C_Str();
-            if (boneMap.count(name)) continue;
+    //for (unsigned int m = 0; m < scene->mNumMeshes; m++)
+    //{
+    //    aiMesh* mesh = scene->mMeshes[m];
+    //    for (unsigned int b = 0; b < mesh->mNumBones; b++)
+    //    {
+    //        aiBone* bone = mesh->mBones[b];
+    //        std::string name = bone->mName.C_Str();
+    //        if (boneMap.count(name)) continue;
 
-            Bone bdata{};
-            bdata.name = name;
-            bdata.parentIndex = -1;
-            XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&bone->mOffsetMatrix)));
-            XMStoreFloat4x4(&bdata.inverseBind, xm);
+    //        Bone bdata{};
+    //        bdata.name = name;
+    //        bdata.parentIndex = -1;
+    //        XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&bone->mOffsetMatrix)));
+    //        XMStoreFloat4x4(&bdata.inverseBind, xm);
 
-            boneMap[name] = (int)skeletonRes->BoneList.size();
-            skeletonRes->BoneList.push_back(bdata);
-        }
-    }
+    //        boneMap[name] = (int)skeletonRes->BoneList.size();
+    //        skeletonRes->BoneList.push_back(bdata);
+    //    }
+    //}
 
-    for (unsigned int a = 0; a < scene->mNumAnimations; a++)
-    {
-        aiAnimation* anim = scene->mAnimations[a];
-        for (unsigned int c = 0; c < anim->mNumChannels; c++)
-        {
-            aiNodeAnim* channel = anim->mChannels[c];
-            std::string name = channel->mNodeName.C_Str();
-            if (boneMap.count(name)) continue;
+    //for (unsigned int a = 0; a < scene->mNumAnimations; a++)
+    //{
+    //    aiAnimation* anim = scene->mAnimations[a];
+    //    for (unsigned int c = 0; c < anim->mNumChannels; c++)
+    //    {
+    //        aiNodeAnim* channel = anim->mChannels[c];
+    //        std::string name = channel->mNodeName.C_Str();
+    //        if (boneMap.count(name)) continue;
 
-            Bone bdata{};
-            bdata.name = name;
-            bdata.parentIndex = -1;
-            XMStoreFloat4x4(&bdata.inverseBind, XMMatrixIdentity());
+    //        Bone bdata{};
+    //        bdata.name = name;
+    //        bdata.parentIndex = -1;
+    //        XMStoreFloat4x4(&bdata.inverseBind, XMMatrixIdentity());
 
-            boneMap[name] = (int)skeletonRes->BoneList.size();
-            skeletonRes->BoneList.push_back(bdata);
-        }
-    }
+    //        boneMap[name] = (int)skeletonRes->BoneList.size();
+    //        skeletonRes->BoneList.push_back(bdata);
+    //    }
+    //}
 
-    if (scene->mRootNode)
-    {
-        FindBoneParent(scene->mRootNode, boneMap, skeletonRes->BoneList);
-    }
+    //if (scene->mRootNode)
+    //{
+    //    FindBoneParent(scene->mRootNode, boneMap, skeletonRes->BoneList);
+    //}
 
-    skeletonRes->SortBoneList();
+    //skeletonRes->SortBoneList();
 
-    skeletonRes->BuildNameToIndex();
+    //skeletonRes->BuildNameToIndex();
 
     return skeletonRes;
 }
