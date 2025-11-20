@@ -151,7 +151,7 @@ void AnimationControllerComponent::Update(float deltaTime)
 
     if (mCurrentClip)
     {
-        mCurrentTime += deltaTime;
+        mCurrentTime += deltaTime * 0.05f;
 
         float duration = mCurrentClip->GetDuration();
         if (duration > 0.0f)
