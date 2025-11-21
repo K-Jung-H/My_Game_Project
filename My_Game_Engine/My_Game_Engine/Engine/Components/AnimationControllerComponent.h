@@ -9,6 +9,13 @@ struct BoneMatrixData
     XMFLOAT4X4 transform;
 };
 
+enum class PlaybackMode
+{
+    Loop,
+    Once,
+    PingPong
+};
+
 class AnimationControllerComponent : public Component
 {
 public:
@@ -24,12 +31,19 @@ public:
 
     std::shared_ptr<Skeleton> GetSkeleton() { return mModelSkeleton; }
 	std::shared_ptr<Model_Avatar> GetModelAvatar() { return mModelAvatar; }
+    std::shared_ptr<AnimationClip> GetCurrentClip() const { return mCurrentClip; }
+
     UINT GetBoneMatrixSRV() const { return mBoneMatrixSRVSlot; }
+
+    void SetSpeed(float speed) { mSpeed = speed; }
+    float GetSpeed() const { return mSpeed; }
+
+    void SetPlaybackMode(PlaybackMode mode) { mPlaybackMode = mode; }
+    PlaybackMode GetPlaybackMode() const { return mPlaybackMode; }
 
     bool IsReady() const;
     void Update(float deltaTime);
-    void Play(std::shared_ptr<AnimationClip> clip, bool isLooping = true);
-
+    void Play(std::shared_ptr<AnimationClip> clip, PlaybackMode mode = PlaybackMode::Loop);
 
 
 private:
@@ -46,9 +60,10 @@ private:
     std::shared_ptr<Skeleton> mClipSkeleton;
     std::unordered_map<std::string, int> mMappedClipBoneIndex;
 
-    bool mIsLooping = false;
+    PlaybackMode mPlaybackMode = PlaybackMode::Loop;
+    bool mIsReverse = false;
     float mCurrentTime = 0.0f;
-
+    float mSpeed = 1.0f;
 
     std::vector<BoneMatrixData> mCpuBoneMatrices;
 

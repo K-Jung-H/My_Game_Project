@@ -39,6 +39,7 @@ public:
     template<typename T> std::shared_ptr<T> GetByGUID(const std::string& guid) const;
     template<typename T> std::shared_ptr<T> GetByPath(const std::string& path) const;
     template<typename T> std::shared_ptr<T> GetByAlias(const std::string& alias) const;
+    template<typename T> std::vector<std::shared_ptr<T>> GetAllResources();
     template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
 
     // Meta
@@ -113,6 +114,20 @@ std::shared_ptr<T> ResourceSystem::GetByAlias(const std::string& alias) const
     if (auto it = mAliasToId.find(alias); it != mAliasToId.end())
         return GetById<T>(it->second);
     return nullptr;
+}
+
+template<typename T>
+std::vector<std::shared_ptr<T>> ResourceSystem::GetAllResources()
+{
+    std::vector<std::shared_ptr<T>> result;
+    for (auto& [id, entry] : mResources)
+    {
+        if (auto casted = std::dynamic_pointer_cast<T>(entry.resource)) 
+        {
+            result.push_back(std::dynamic_pointer_cast<T>(entry.resource));
+        }
+    }
+    return result;
 }
 
 template<typename T>

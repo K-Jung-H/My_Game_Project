@@ -88,14 +88,15 @@ bool AnimationControllerComponent::IsReady() const
     return mModelSkeleton != nullptr && mModelAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
 }
 
-void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, bool isLooping)
+void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, PlaybackMode mode)
 {
     if (!clip)
         return;
 
     mCurrentClip = clip;
-    mIsLooping = isLooping;
+    mPlaybackMode = mode; 
     mCurrentTime = 0.0f;
+    mIsReverse = false;
 
     mClipAvatar = clip->GetAvatar();
     mClipSkeleton = clip->GetSkeleton();
@@ -141,30 +142,49 @@ void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, boo
     OutputDebugStringA("[AnimationControllerComponent] Play(): Bone 매핑 완료.\n");
 }
 
-
 void AnimationControllerComponent::Update(float deltaTime)
 {
-    if (!IsReady())
-    {
-        return;
-    }
+    if (!IsReady()) return;
 
     if (mCurrentClip)
     {
-        mCurrentTime += deltaTime * 0.05f;
-
         float duration = mCurrentClip->GetDuration();
+        float scaledDelta = deltaTime * mSpeed;
+
         if (duration > 0.0f)
         {
-            if (mCurrentTime > duration)
+            if (mPlaybackMode == PlaybackMode::PingPong)
             {
-                if (mIsLooping)
-                {
-                    mCurrentTime = fmod(mCurrentTime, duration);
-                }
+                if (mIsReverse)
+                    mCurrentTime -= scaledDelta;
                 else
+                    mCurrentTime += scaledDelta;
+
+                if (mCurrentTime >= duration)
                 {
                     mCurrentTime = duration;
+                    mIsReverse = true;
+                }
+                else if (mCurrentTime <= 0.0f)
+                {
+                    mCurrentTime = 0.0f;
+                    mIsReverse = false;
+                }
+            }
+            else
+            {
+                mCurrentTime += scaledDelta;
+
+                if (mCurrentTime > duration)
+                {
+                    if (mPlaybackMode == PlaybackMode::Loop)
+                    {
+                        mCurrentTime = fmod(mCurrentTime, duration);
+                    }
+                    else
+                    {
+                        mCurrentTime = duration;
+                    }
                 }
             }
         }

@@ -99,7 +99,7 @@ void Scene::Build()
 			auto clip = rsm->GetById<AnimationClip>(animation_result.clipIds[0]);
 			if (clip)
 			{
-				animController->Play(clip, true);
+				animController->Play(clip);
 			}
 		}
 

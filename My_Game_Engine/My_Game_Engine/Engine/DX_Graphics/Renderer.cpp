@@ -2782,35 +2782,107 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
     }
     break;
 
-    case AnimationController:
+    case Component_Type::AnimationController:
     {
-        std::shared_ptr<AnimationControllerComponent> ac = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
-        if (ac)
+        auto animCtrl = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
+        if (animCtrl)
         {
-            ImGui::Text("Animation Controller");
-            ImGui::Separator();
-            ImGui::Indent();
-
-            ImGui::Text("Status: %s", ac->IsReady() ? "Ready" : "Not Ready");
-            ImGui::Text("Key Frame Current Time: %.2f", -1.0f);
-            ImGui::Text("Bone SRV Slot: %u", ac->GetBoneMatrixSRV());
-
-            ImGui::Separator();
-            auto skeleton = ac->GetSkeleton();
-            if (skeleton)
+            if (ImGui::CollapsingHeader("Animation Controller", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                ImGui::Text("Skeleton: %s (ID: %u)", skeleton->GetAlias().c_str(), skeleton->GetId());
-                ImGui::Text("Bone Count: %u", (UINT)skeleton->GetBoneCount());
-            }
-            else
-            {
-                ImGui::Text("Skeleton: <None>");
-            }
+                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Status: %s",
+                    animCtrl->IsReady() ? "Ready" : "Not Ready (Missing Resources)");
 
-            ImGui::Unindent();
+                ImGui::Separator();
+                ImGui::Indent();
+
+                ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
+                auto currentSkeleton = animCtrl->GetSkeleton();
+                std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
+
+                if (ImGui::BeginCombo("Skeleton", skelName.c_str()))
+                {
+                    auto skeletons = rs->GetAllResources<Skeleton>();
+                    for (const auto& skel : skeletons)
+                    {
+                        bool isSelected = (currentSkeleton == skel);
+                        if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
+                        {
+                            animCtrl->SetSkeleton(skel);
+                        }
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+
+                auto currentAvatar = animCtrl->GetModelAvatar();
+                std::string avatarName = currentAvatar ? currentAvatar->GetAlias() : "None";
+
+                if (ImGui::BeginCombo("Avatar", avatarName.c_str()))
+                {
+                    auto avatars = rs->GetAllResources<Model_Avatar>();
+                    for (const auto& avatar : avatars)
+                    {
+                        bool isSelected = (currentAvatar == avatar);
+                        if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
+                        {
+                            animCtrl->SetModelAvatar(avatar);
+                        }
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+
+                ImGui::Separator();
+
+                ImGui::Text("Playback");
+
+                auto clips = rs->GetAllResources<AnimationClip>();
+                auto currentClip = animCtrl->GetCurrentClip();
+
+                std::string previewValue = currentClip ? currentClip->GetAlias() : "Select Clip...";
+
+                const char* modeNames[] = { "Loop", "Once", "PingPong" };
+                int currentModeIdx = (int)animCtrl->GetPlaybackMode();
+
+                if (ImGui::Combo("Mode", &currentModeIdx, modeNames, IM_ARRAYSIZE(modeNames)))
+                {
+                    animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx);
+                }
+
+                if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
+                {
+                    for (size_t i = 0; i < clips.size(); ++i)
+                    {
+                        bool isSelected = (currentClip == clips[i]);
+                        if (ImGui::Selectable(clips[i]->GetAlias().c_str(), isSelected))
+                        {
+                            animCtrl->Play(clips[i], (PlaybackMode)currentModeIdx);
+                        }
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
+                }
+
+                ImGui::SameLine();
+
+                if (ImGui::Button("Replay"))
+                {
+                    if (currentClip)
+                        animCtrl->Play(currentClip, (PlaybackMode)currentModeIdx);
+                }
+
+                float speed = animCtrl->GetSpeed();
+                if (ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 5.0f))
+                {
+                    animCtrl->SetSpeed(speed);
+                }
+
+                ImGui::Unindent();
+            }
         }
     }
-    break;
+        break;
 
     case Camera:
     {
