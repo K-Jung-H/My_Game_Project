@@ -2,61 +2,44 @@
 #include "Game_Resource.h"
 
 
-struct Bone
+struct BoneInfo
 {
-	std::string name;
-	int parentIndex;
-	XMFLOAT4X4 bindLocal;
+    int parentIndex;
+    XMFLOAT4X4 bindLocal;
+    XMFLOAT4X4 inverseBind;
 };
-
 
 class Skeleton : public Game_Resource
 {
-	friend class ModelLoader_FBX;
-	friend class ModelLoader_Assimp;
-	friend class AnimationControllerComponent;
-	friend class SkinnedMesh;
-	friend class DX12_Renderer;
-
-
-private:
-	std::vector<Bone> BoneList;
-	std::unordered_set<std::string> BoneNames;
-
-
-	std::vector<XMFLOAT4X4> mInverseBind;
-
-
-	std::vector<XMFLOAT4X4> mBindLocal;
-	std::vector<XMFLOAT4X4> mBindGlobal;
-
-	std::unordered_map<std::string, int> NameToIndex;
-
+    friend class ModelLoader_FBX;
+    friend class ModelLoader_Assimp;
+    friend class AnimationControllerComponent;
+    friend class SkinnedMesh;
+    friend class DX12_Renderer;
 
 public:
-	virtual bool LoadFromFile(std::string path, const RendererContext& ctx) override;
-	virtual bool SaveToFile(const std::string& path) const;
+    Skeleton();
+    virtual ~Skeleton() = default;
 
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) override;
+    virtual bool SaveToFile(const std::string& path) const;
 
-	void SortBoneList();
-	UINT GetBoneCount() const { return BoneList.size(); }
-	const std::vector<Bone>& GetBoneList() const { return BoneList; }
-	const std::unordered_map<std::string, int>& GetNameToIndexMap() const { return NameToIndex; }
+    void SortBoneList();
 
+    const std::vector<BoneInfo>& GetBones() const;
+    const BoneInfo& GetBone(int index) const;
+    const BoneInfo& GetBone(const std::string& name) const;
+    UINT GetBoneCount() const;
 
-	const std::vector<XMFLOAT4X4>& GetInverseBindList() const { return mInverseBind; }
-	const XMFLOAT4X4& GetInverseBind(int index) const { return mInverseBind[index]; }
+    const std::string& GetBoneName(int index) const;
+    int GetBoneIndex(const std::string& name) const;
 
+private:
+    void BuildNameToIndex();
 
-	const std::vector<XMFLOAT4X4>& GetBindLocalList() const { return mBindLocal; }
-	const XMFLOAT4X4& GetBindLocal(int index) const { return mBindLocal[index]; }
+private:
+    std::vector<std::string> mNames;
+    std::unordered_map<std::string, int> mNameToIndex;
 
-
-	const std::vector<XMFLOAT4X4>& GetBindGlobalList() const { return mBindGlobal; }
-	const XMFLOAT4X4& GetBindGlobal(int index) const { return mBindGlobal[index]; }
-
-	int GetBoneIndex(const std::string& name) const;
-
-	void BuildNameToIndex();
-	void BuildBindPoseTransforms();
+    std::vector<BoneInfo> mBones;
 };

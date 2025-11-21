@@ -14,7 +14,7 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
 {
     if (!mModelSkeleton || mBoneMatrixBuffer) return;
 
-    const size_t boneCount = mModelSkeleton->BoneList.size();
+    const size_t boneCount = mModelSkeleton->GetBoneCount();
     if (boneCount == 0) return;
 
     mCpuBoneMatrices.resize(boneCount);
@@ -188,25 +188,29 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 
     if (!mModelSkeleton || !mModelAvatar) return;
 
-    const size_t boneCount = mModelSkeleton->GetBoneCount();
+    const auto& bones = mModelSkeleton->GetBones();
+    const size_t boneCount = bones.size();
+
     if (boneCount == 0) return;
 
-    const auto& boneList = mModelSkeleton->GetBoneList();
-    const auto& bindLocalArr = mModelSkeleton->GetBindLocalList();
-    const auto& invBindArr = mModelSkeleton->GetInverseBindList();
+    if (mCpuBoneMatrices.size() != boneCount)
+    {
+        mCpuBoneMatrices.resize(boneCount);
+    }
 
     std::vector<XMMATRIX> localTransforms(boneCount);
 
-
     for (size_t i = 0; i < boneCount; ++i)
     {
-        const Bone& bone = boneList[i];
-        XMMATRIX bindLocal = XMLoadFloat4x4(&bindLocalArr[i]);
+        const BoneInfo& boneInfo = bones[i];
+        XMMATRIX bindLocal = XMLoadFloat4x4(&boneInfo.bindLocal);
+
+        std::string boneName = mModelSkeleton->GetBoneName((int)i);
 
         std::string abstractKey;
         for (auto& [k, v] : mModelAvatar->GetBoneMap())
         {
-            if (v == bone.name)
+            if (v == boneName)
             {
                 abstractKey = k;
                 break;
@@ -228,6 +232,7 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 
         XMFLOAT4 r_anim_f = track->SampleRotation(time);
         XMVECTOR R_anim = XMLoadFloat4(&r_anim_f);
+
         XMMATRIX local =
             XMMatrixScalingFromVector(S_bind) *
             XMMatrixRotationQuaternion(R_anim) *
@@ -240,7 +245,7 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        int parent = boneList[i].parentIndex;
+        int parent = bones[i].parentIndex;
         if (parent < 0)
             globalTransforms[i] = localTransforms[i];
         else
@@ -249,7 +254,7 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        XMMATRIX invBind = XMLoadFloat4x4(&invBindArr[i]);
+        XMMATRIX invBind = XMLoadFloat4x4(&bones[i].inverseBind);
         XMMATRIX final = XMMatrixTranspose(invBind * globalTransforms[i]);
 
         XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, final);

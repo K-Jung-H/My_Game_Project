@@ -7,7 +7,7 @@
 #include "Model_Avatar.h"
 #include "AnimationClip.h"
 
-ModelLoader_FBX::ModelLoader_FBX() 
+ModelLoader_FBX::ModelLoader_FBX()
 {
 }
 
@@ -179,15 +179,19 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                     FbxAnimLayer* animLayer = animStack->GetMember<FbxAnimLayer>(0);
                     if (!animLayer) return newClip;
 
-                    for (const auto& bone : skeletonRes->GetBoneList())
+
+                    size_t boneCount = skeletonRes->GetBoneCount();
+                    for (size_t bIdx = 0; bIdx < boneCount; ++bIdx)
                     {
-                        auto it = boneNameToKeyMap.find(bone.name);
+                        std::string boneName = skeletonRes->GetBoneName(bIdx);
+
+                        auto it = boneNameToKeyMap.find(boneName);
                         if (it == boneNameToKeyMap.end()) continue;
 
                         std::string abstractKey = it->second;
                         AnimationTrack track;
 
-                        FbxNode* boneNode = scene->FindNodeByName(bone.name.c_str());
+                        FbxNode* boneNode = scene->FindNodeByName(boneName.c_str());
                         if (!boneNode) continue;
 
                         FbxAnimCurve* curveT_X = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
@@ -243,7 +247,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
 
             if (animationClip)
             {
-				animationClip->SetAvatar(modelAvatar);
+                animationClip->SetAvatar(modelAvatar);
                 animationClip->SetSkeleton(skeletonRes);
 
                 loadedClips.push_back(animationClip);
@@ -345,16 +349,16 @@ std::shared_ptr<Model::Node> ModelLoader_FBX::ProcessNode(
         node->meshes.push_back(mesh);
 
         bool already_tracked = false;
-        for (const auto& existingMesh : loadedMeshes) 
+        for (const auto& existingMesh : loadedMeshes)
         {
-            if (existingMesh == mesh) 
+            if (existingMesh == mesh)
             {
                 already_tracked = true;
                 break;
             }
         }
-        if (!already_tracked) 
-            loadedMeshes.push_back(mesh);       
+        if (!already_tracked)
+            loadedMeshes.push_back(mesh);
     }
 
     int childCount = fbxNode->GetChildCount();
@@ -465,6 +469,7 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
     std::unordered_map<std::string, FbxAMatrix> boneGlobalBindFbx;
     boneGlobalBindFbx.reserve(128);
 
+
     int skinCount = fbxScene->GetSrcObjectCount<FbxSkin>();
     for (int s = 0; s < skinCount; ++s)
     {
@@ -489,14 +494,16 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
                 continue;
             }
 
-            Bone bone{};
-            bone.name = boneName;
-            bone.parentIndex = -1;
-            XMStoreFloat4x4(&bone.bindLocal, XMMatrixIdentity());
+            int newIndex = static_cast<int>(skeletonRes->mNames.size());
 
-            int newIndex = static_cast<int>(skeletonRes->BoneList.size());
+            skeletonRes->mNames.push_back(boneName);
             boneNameToIndex[boneName] = newIndex;
-            skeletonRes->BoneList.push_back(bone);
+
+            BoneInfo info;
+            info.parentIndex = -1;
+            XMStoreFloat4x4(&info.bindLocal, XMMatrixIdentity());
+            XMStoreFloat4x4(&info.inverseBind, XMMatrixIdentity());
+            skeletonRes->mBones.push_back(info);
 
             FbxAMatrix linkMatrix;
             cluster->GetTransformLinkMatrix(linkMatrix);
@@ -536,14 +543,16 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
                 if (boneNameToIndex.count(boneName))
                     continue;
 
-                Bone bone{};
-                bone.name = boneName;
-                bone.parentIndex = -1;
-                XMStoreFloat4x4(&bone.bindLocal, XMMatrixIdentity());
+                int newIndex = static_cast<int>(skeletonRes->mNames.size());
 
-                int newIndex = static_cast<int>(skeletonRes->BoneList.size());
+                skeletonRes->mNames.push_back(boneName);
                 boneNameToIndex[boneName] = newIndex;
-                skeletonRes->BoneList.push_back(bone);
+
+                BoneInfo info;
+                info.parentIndex = -1;
+                XMStoreFloat4x4(&info.bindLocal, XMMatrixIdentity());
+                XMStoreFloat4x4(&info.inverseBind, XMMatrixIdentity());
+                skeletonRes->mBones.push_back(info);
 
                 FbxTime t0;
                 t0.SetSecondDouble(0.0);
@@ -570,26 +579,22 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
         auto itParent = boneNameToIndex.find(parentName);
         if (itParent != boneNameToIndex.end())
         {
-            skeletonRes->BoneList[boneIdx].parentIndex = itParent->second;
+            skeletonRes->mBones[boneIdx].parentIndex = itParent->second;
         }
         else
         {
-            skeletonRes->BoneList[boneIdx].parentIndex = -1;
+            skeletonRes->mBones[boneIdx].parentIndex = -1;
         }
     }
 
     skeletonRes->SortBoneList();
-    skeletonRes->BuildNameToIndex();
 
-    const size_t boneCount = skeletonRes->BoneList.size();
-    skeletonRes->mBindLocal.resize(boneCount);
-    skeletonRes->mBindGlobal.resize(boneCount);
-    skeletonRes->mInverseBind.resize(boneCount);
+    const size_t boneCount = skeletonRes->mBones.size();
 
     std::vector<FbxAMatrix> globalBindFbx(boneCount);
     for (size_t i = 0; i < boneCount; ++i)
     {
-        const std::string& boneName = skeletonRes->BoneList[i].name;
+        const std::string& boneName = skeletonRes->mNames[i];
 
         auto it = boneGlobalBindFbx.find(boneName);
         if (it != boneGlobalBindFbx.end())
@@ -614,7 +619,7 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        int parentIdx = skeletonRes->BoneList[i].parentIndex;
+        int parentIdx = skeletonRes->mBones[i].parentIndex;
 
         FbxAMatrix g = globalBindFbx[i];
         FbxAMatrix l;
@@ -641,19 +646,17 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
             for (int c = 0; c < 4; ++c)
                 localM.m[r][c] = (float)lDX.Get(r, c);
 
-        skeletonRes->BoneList[i].bindLocal = localM;
-        skeletonRes->mBindLocal[i] = localM;
+        skeletonRes->mBones[i].bindLocal = localM;
 
         XMFLOAT4X4 globalM;
         for (int r = 0; r < 4; ++r)
             for (int c = 0; c < 4; ++c)
                 globalM.m[r][c] = (float)gDX.Get(r, c);
 
-        skeletonRes->mBindGlobal[i] = globalM;
-
         XMMATRIX gDXMatrix = XMLoadFloat4x4(&globalM);
         XMMATRIX invDX = XMMatrixInverse(nullptr, gDXMatrix);
-        XMStoreFloat4x4(&skeletonRes->mInverseBind[i], invDX);
+
+        XMStoreFloat4x4(&skeletonRes->mBones[i].inverseBind, invDX);
     }
 
     return skeletonRes;

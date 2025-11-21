@@ -5,6 +5,23 @@
 #include "Model_Avatar.h"
 #include "AnimationClip.h"
 
+using namespace DirectX;
+
+namespace
+{
+    XMFLOAT4X4 Mat4FromAssimp(const aiMatrix4x4& mat)
+    {
+        return XMFLOAT4X4(
+            mat.a1, mat.a2, mat.a3, mat.a4,
+            mat.b1, mat.b2, mat.b3, mat.b4,
+            mat.c1, mat.c2, mat.c3, mat.c4,
+            mat.d1, mat.d2, mat.d3, mat.d4
+        );
+    }
+
+    XMFLOAT3 Vec3FromAssimp(const aiVector3D& v) { return XMFLOAT3(v.x, v.y, v.z); }
+    XMFLOAT4 QuatFromAssimp(const aiQuaternion& q) { return XMFLOAT4(q.x, q.y, q.z, q.w); }
+}
 
 ModelLoader_Assimp::ModelLoader_Assimp()
 {
@@ -12,34 +29,36 @@ ModelLoader_Assimp::ModelLoader_Assimp()
 
 bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
-    m_loadedMeshes.clear();
+    m_meshMap.clear();
 
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     RendererContext ctx = GameEngine::Get().Get_UploadContext();
 
     Assimp::Importer importer;
-    const aiScene* ai_scene = importer.ReadFile(
-        path,
+
+    importer.SetPropertyBool(AI_CONFIG_IMPORT_FBX_PRESERVE_PIVOTS, false);
+
+    const aiScene* scene = importer.ReadFile(path,
         aiProcess_Triangulate |
         aiProcess_CalcTangentSpace |
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals |
-        aiProcess_ValidateDataStructure);
+        aiProcess_LimitBoneWeights |
+        aiProcess_ValidateDataStructure |
+        aiProcess_MakeLeftHanded |
+        aiProcess_FlipWindingOrder
+    );
 
-    if (!ai_scene)
+    if (!scene)
     {
         OutputDebugStringA(("[Assimp] Failed to load: " + path + "\n").c_str());
         return false;
     }
 
-    bool hasMeshes = ai_scene->HasMeshes();
-    bool hasAnims = ai_scene->HasAnimations();
+    bool hasMeshes = scene->HasMeshes();
+    bool hasAnims = scene->HasAnimations();
 
-    if (!hasMeshes && !hasAnims)
-    {
-        OutputDebugStringA(("[Assimp] Empty file: " + path + "\n").c_str());
-        return false;
-    }
+    if (!hasMeshes && !hasAnims) return false;
 
     std::shared_ptr<Model> model = nullptr;
     if (hasMeshes)
@@ -51,214 +70,149 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         result.modelId = model->GetId();
     }
 
-    std::unordered_map<std::string, int> matNameCount;
-    std::vector<UINT> matIdTable(ai_scene->mNumMaterials);
-
-    if (hasMeshes && ai_scene->mNumMaterials > 0)
+    std::vector<UINT> materialIDs;
+    if (hasMeshes && scene->HasMaterials())
     {
         std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
         std::filesystem::create_directories(matDir);
+        std::unordered_map<std::string, int> matNameCount;
 
-        for (unsigned int i = 0; i < ai_scene->mNumMaterials; i++)
+        for (unsigned int i = 0; i < scene->mNumMaterials; ++i)
         {
-            aiMaterial* aiMat = ai_scene->mMaterials[i];
-            aiString aiMatName;
-            aiMat->Get(AI_MATKEY_NAME, aiMatName);
+            aiMaterial* aiMat = scene->mMaterials[i];
 
-            std::string baseName = aiMatName.length > 0 ? aiMatName.C_Str() : "Material_" + std::to_string(i);
-            std::string uniqueName = baseName + (matNameCount[baseName]++ > 0 ? "_" + std::to_string(matNameCount[baseName]) : "");
-            std::string matFilePath = (matDir / (uniqueName + ".mat")).string();
+            aiString name;
+            aiMat->Get(AI_MATKEY_NAME, name);
+            std::string baseName = name.C_Str();
+            if (baseName.empty()) baseName = "Material_" + std::to_string(i);
 
-            auto mat = rs->LoadOrReuse<Material>(matFilePath, uniqueName, ctx,
-                [&]() -> std::shared_ptr<Material> {
-                    auto newMat = std::make_shared<Material>();
-                    newMat->FromAssimp(aiMat);
-                    auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, newMat);
-                    result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
-                    return newMat;
-                }
-            );
+            std::string uniqueName = baseName;
+            if (matNameCount[baseName]++ > 0) uniqueName += "_" + std::to_string(matNameCount[baseName]);
 
-            if (!mat) continue;
-            matIdTable[i] = mat->GetId();
-            result.materialIds.push_back(mat->GetId());
+            std::string matPath = (matDir / (uniqueName + ".mat")).string();
+
+            auto mat = rs->LoadOrReuse<Material>(matPath, uniqueName, ctx, [&]() {
+                auto newMat = std::make_shared<Material>();
+                auto texIds = TextureLoader::LoadFromAssimp(ctx, aiMat, path, newMat);
+                result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
+                return newMat;
+                });
+
+            if (mat)
+            {
+                materialIDs.push_back(mat->GetId());
+                result.materialIds.push_back(mat->GetId());
+            }
+            else
+            {
+                materialIDs.push_back(Engine::INVALID_ID);
+            }
         }
     }
 
-    std::shared_ptr<Model_Avatar> modelAvatar = nullptr;
     std::shared_ptr<Skeleton> skeletonRes = nullptr;
+    std::shared_ptr<Model_Avatar> modelAvatar = nullptr;
 
-    if (hasAnims || hasMeshes)
+    if (hasMeshes || hasAnims)
     {
         std::string skelAlias = hasMeshes ? model->GetAlias() : std::filesystem::path(path).stem().string();
         std::string skelPath = path + ".skel";
+
         skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, skelAlias + "_Skeleton", ctx,
             [&]() -> std::shared_ptr<Skeleton> {
-                return BuildSkeleton(ai_scene);
+                return BuildSkeleton(scene);
             }
         );
-        result.skeletonId = skeletonRes->GetId();
 
-        std::string avatarPath = path + ".avatar";
-        modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
-            [&]() -> std::shared_ptr<Model_Avatar> {
-                auto avatar = std::make_shared<Model_Avatar>();
-                avatar->SetDefinitionType(DefinitionType::Humanoid);
-                avatar->AutoMap(skeletonRes);
-                return avatar;
+        if (skeletonRes && skeletonRes->GetBoneCount() > 0)
+        {
+            result.skeletonId = skeletonRes->GetId();
+
+            std::string avatarPath = path + ".avatar";
+            modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
+                [&]() -> std::shared_ptr<Model_Avatar> {
+                    auto avatar = std::make_shared<Model_Avatar>();
+                    avatar->SetDefinitionType(DefinitionType::Humanoid);
+                    avatar->AutoMap(skeletonRes);
+                    return avatar;
+                }
+            );
+            result.avatarId = modelAvatar->GetId();
+
+            if (model)
+            {
+                model->SetSkeleton(skeletonRes);
+                model->SetAvatarID(modelAvatar->GetId());
             }
-        );
-        result.avatarId = modelAvatar->GetId();
+        }
+        else
+        {
+            skeletonRes = nullptr;
+        }
+    }
 
+    std::vector<std::shared_ptr<Mesh>> loadedMeshes;
+    if (hasMeshes && scene->mRootNode)
+    {
+        auto rootNode = ProcessNode(ctx, scene->mRootNode, scene, path, materialIDs, loadedMeshes);
         if (model)
         {
-            model->SetSkeleton(skeletonRes);
-            model->SetAvatarID(modelAvatar->GetId());
+            model->SetRoot(rootNode);
+            for (const auto& mesh : loadedMeshes)
+            {
+                model->AddMesh(mesh);
+            }
         }
     }
 
     std::vector<std::shared_ptr<AnimationClip>> loadedClips;
-    if (hasAnims && modelAvatar)
+    if (hasAnims && modelAvatar && skeletonRes)
     {
         std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
         std::filesystem::create_directories(clipDir);
 
-        for (unsigned int i = 0; i < ai_scene->mNumAnimations; i++)
+        for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
         {
-            aiAnimation* anim = ai_scene->mAnimations[i];
-            if (!anim) continue;
-
+            const aiAnimation* anim = scene->mAnimations[i];
             std::string clipName = anim->mName.C_Str();
-            if (clipName.empty())
-            {
-                clipName = "Take_" + std::to_string(i + 1);
-            }
+            if (clipName.empty()) clipName = "Take_" + std::to_string(i + 1);
+
             std::string clipPath = (clipDir / (clipName + ".anim")).string();
 
             auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, clipName, ctx,
-                [&]() -> std::shared_ptr<AnimationClip>
-                {
-                    auto newClip = std::make_shared<AnimationClip>();
-
-                    newClip->mTicksPerSecond = (float)anim->mTicksPerSecond > 0 ? (float)anim->mTicksPerSecond : 24.0f;
-                    newClip->mDuration = (float)anim->mDuration / newClip->mTicksPerSecond;
-                    newClip->mAvatarDefinitionType = DefinitionType::Humanoid;
-
-                    std::map<std::string, std::string> boneNameToKeyMap;
-                    for (auto const& [key, realBoneName] : modelAvatar->GetBoneMap())
-                    {
-                        boneNameToKeyMap[realBoneName] = key;
-                    }
-
-                    for (unsigned int c = 0; c < anim->mNumChannels; c++)
-                    {
-                        aiNodeAnim* channel = anim->mChannels[c];
-                        if (!channel || !channel->mNodeName.C_Str()) continue;
-                        std::string channelBoneName = channel->mNodeName.C_Str();
-
-                        auto it = boneNameToKeyMap.find(channelBoneName);
-                        if (it == boneNameToKeyMap.end()) continue;
-
-                        std::string abstractKey = it->second;
-                        AnimationTrack track;
-
-                        for (unsigned int k = 0; k < channel->mNumPositionKeys; k++)
-                        {
-                            auto key = channel->mPositionKeys[k];
-                            track.PositionKeys.push_back({ (float)key.mTime / newClip->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z} });
-                        }
-                        for (unsigned int k = 0; k < channel->mNumRotationKeys; k++)
-                        {
-                            auto key = channel->mRotationKeys[k];
-                            track.RotationKeys.push_back({ (float)key.mTime / newClip->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z, key.mValue.w} });
-                        }
-                        for (unsigned int k = 0; k < channel->mNumScalingKeys; k++)
-                        {
-                            auto key = channel->mScalingKeys[k];
-                            track.ScaleKeys.push_back({ (float)key.mTime / newClip->mTicksPerSecond, {key.mValue.x, key.mValue.y, key.mValue.z} });
-                        }
-
-                        newClip->mTracks[abstractKey] = std::move(track);
-                    }
-                    return newClip;
+                [&]() -> std::shared_ptr<AnimationClip> {
+                    return ProcessAnimation(anim, modelAvatar, skeletonRes);
                 }
             );
 
             if (animationClip)
             {
+                animationClip->SetAvatar(modelAvatar);
+                animationClip->SetSkeleton(skeletonRes);
+
                 loadedClips.push_back(animationClip);
                 result.clipIds.push_back(animationClip->GetId());
             }
         }
     }
 
-    std::unordered_map<std::string, int> nameCount;
-
-    if (hasMeshes)
+    if (skeletonRes && !loadedMeshes.empty())
     {
-        for (unsigned int i = 0; i < ai_scene->mNumMeshes; i++)
+        for (auto& mesh : loadedMeshes)
         {
-            aiMesh* ai_mesh = ai_scene->mMeshes[i];
-            const bool isSkinned = ai_mesh->HasBones();
-
-            std::shared_ptr<Mesh> mesh = isSkinned ?
-                std::make_shared<SkinnedMesh>() :
-                std::make_shared<Mesh>();
-
-            mesh->FromAssimp(ai_mesh);
-
-            std::string baseName = ai_mesh->mName.C_Str();
-            if (baseName.empty()) baseName = "Mesh_" + std::to_string(i);
-            if (nameCount.count(baseName) > 0)
-                baseName += "_" + std::to_string(++nameCount[baseName]);
-            else
-                nameCount[baseName] = 0;
-
-            mesh->SetAlias(baseName);
-            mesh->SetPath(path + "#" + baseName);
-
-            Mesh::Submesh sub{};
-            sub.indexCount = (UINT)mesh->indices.size();
-            sub.startIndexLocation = 0;
-            sub.baseVertexLocation = 0;
-            sub.materialId = ai_mesh->mMaterialIndex < matIdTable.size()
-                ? matIdTable[ai_mesh->mMaterialIndex]
-                : Engine::INVALID_ID;
-            mesh->submeshes.push_back(sub);
-
-            if (isSkinned)
+            if (auto skinned = std::dynamic_pointer_cast<SkinnedMesh>(mesh))
             {
-                SkinnedMesh* skinned = static_cast<SkinnedMesh*>(mesh.get());
-                skinned->Skinning_Skeleton_Bones(model->GetSkeleton());
-            }
-
-            rs->RegisterResource(mesh);
-            mesh->SetAABB();
-            m_loadedMeshes.push_back(mesh);
-            result.meshIds.push_back(mesh->GetId());
-
-            if (model)
-            {
-                model->AddMesh(mesh);
+                skinned->Skinning_Skeleton_Bones(skeletonRes);
             }
         }
-
-        if (model && ai_scene->mRootNode)
-            model->SetRoot(ProcessNode(ai_scene->mRootNode, ai_scene));
     }
 
     FbxMeta meta;
-    if (model)
-    {
-        meta.guid = model->GetGUID();
-    }
-    else
-    {
-        meta.guid = rs->GetOrCreateGUID(path);
-    }
+    if (model) meta.guid = model->GetGUID();
+    else meta.guid = rs->GetOrCreateGUID(path);
     meta.path = path;
 
-    for (auto& mesh : m_loadedMeshes)
+    for (auto& mesh : loadedMeshes)
     {
         SubResourceMeta s{};
         s.name = mesh->GetAlias();
@@ -266,10 +220,9 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = mesh->GetGUID();
         meta.sub_resources.push_back(s);
     }
-
-    for (auto& matId : result.materialIds)
+    for (UINT matId : materialIDs)
     {
-        std::shared_ptr<Material> mat = rs->GetById<Material>(matId);
+        auto mat = rs->GetById<Material>(matId);
         if (!mat) continue;
         SubResourceMeta s{};
         s.name = mat->GetAlias();
@@ -277,10 +230,9 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = mat->GetGUID();
         meta.sub_resources.push_back(s);
     }
-
     for (auto& texId : result.textureIds)
     {
-        std::shared_ptr<Texture> tex = rs->GetById<Texture>(texId);
+        auto tex = rs->GetById<Texture>(texId);
         if (!tex) continue;
         SubResourceMeta s{};
         s.name = tex->GetAlias();
@@ -288,7 +240,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = tex->GetGUID();
         meta.sub_resources.push_back(s);
     }
-
     for (auto& clip : loadedClips)
     {
         SubResourceMeta s{};
@@ -299,110 +250,237 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     }
 
     MetaIO::SaveFbxMeta(meta);
-    OutputDebugStringA(("[Assimp] Model loaded successfully: " + path + "\n").c_str());
+
     return true;
 }
 
-std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(aiNode* ainode, const aiScene* scene)
-{
-    auto node = std::make_shared<Model::Node>();
-    node->name = ainode->mName.C_Str();
-    aiMatrix4x4 aim = ainode->mTransformation;
-    XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&aim)));
-    XMStoreFloat4x4(&node->localTransform, xm);
-
-    for (unsigned int i = 0; i < ainode->mNumMeshes; i++)
-        node->meshes.push_back(m_loadedMeshes[ainode->mMeshes[i]]);
-
-    for (unsigned int i = 0; i < ainode->mNumChildren; i++)
-        node->children.push_back(ProcessNode(ainode->mChildren[i], scene));
-
-    return node;
-}
-
-void FindBoneParent(
+std::shared_ptr<Model::Node> ModelLoader_Assimp::ProcessNode(
+    const RendererContext& ctx,
     aiNode* node,
-    const std::unordered_map<std::string, int>& boneMap,
-    std::vector<Bone>& boneList)
+    const aiScene* scene,
+    const std::string& path,
+    const std::vector<UINT>& materialIDs,
+    std::vector<std::shared_ptr<Mesh>>& outLoadedMeshes)
 {
-    std::string nodeName = node->mName.C_Str();
+    auto modelNode = std::make_shared<Model::Node>();
+    modelNode->name = node->mName.C_Str();
 
-    auto it = boneMap.find(nodeName);
-    if (it != boneMap.end())
+    XMFLOAT4X4 assimpMat = Mat4FromAssimp(node->mTransformation);
+    XMStoreFloat4x4(&modelNode->localTransform, XMMatrixTranspose(XMLoadFloat4x4(&assimpMat)));
+
+    for (unsigned int i = 0; i < node->mNumMeshes; i++)
     {
-        aiNode* parentNode = node->mParent;
-        while (parentNode)
+        unsigned int meshIndex = node->mMeshes[i];
+
+        auto mesh = CreateMeshFromNode(meshIndex, scene, path, materialIDs);
+
+        if (mesh)
         {
-            std::string parentName = parentNode->mName.C_Str();
-            auto parentIt = boneMap.find(parentName);
-            if (parentIt != boneMap.end())
-            {
-                boneList[it->second].parentIndex = parentIt->second;
-                break;
-            }
-            parentNode = parentNode->mParent;
+            modelNode->meshes.push_back(mesh);
+
+            bool exists = false;
+            for (auto& m : outLoadedMeshes) if (m == mesh) { exists = true; break; }
+            if (!exists) outLoadedMeshes.push_back(mesh);
         }
     }
 
-    for (unsigned int i = 0; i < node->mNumChildren; ++i)
+    for (unsigned int i = 0; i < node->mNumChildren; i++)
     {
-        FindBoneParent(node->mChildren[i], boneMap, boneList);
+        auto childNode = ProcessNode(ctx, node->mChildren[i], scene, path, materialIDs, outLoadedMeshes);
+        if (childNode)
+        {
+            modelNode->children.push_back(childNode);
+        }
     }
+
+    return modelNode;
+}
+
+std::shared_ptr<Mesh> ModelLoader_Assimp::CreateMeshFromNode(
+    unsigned int meshIndex,
+    const aiScene* scene,
+    const std::string& path,
+    const std::vector<UINT>& materialIDs)
+{
+    if (m_meshMap.count(meshIndex))
+    {
+        return m_meshMap[meshIndex];
+    }
+
+    aiMesh* mesh = scene->mMeshes[meshIndex];
+    bool hasSkin = mesh->HasBones();
+    std::shared_ptr<Mesh> newMesh = hasSkin ? std::make_shared<SkinnedMesh>() : std::make_shared<Mesh>();
+
+    newMesh->FromAssimp(mesh);
+
+    if (newMesh->GetIndexCount() > 0)
+    {
+        Mesh::Submesh sub{};
+        sub.indexCount = newMesh->GetIndexCount();
+        sub.startIndexLocation = 0;
+        sub.baseVertexLocation = 0;
+
+        if (mesh->mMaterialIndex < materialIDs.size())
+        {
+            sub.materialId = materialIDs[mesh->mMaterialIndex];
+        }
+        else
+        {
+            sub.materialId = Engine::INVALID_ID;
+        }
+        newMesh->submeshes.push_back(sub);
+    }
+    else
+    {
+        return nullptr;
+    }
+
+    newMesh->SetAABB();
+    newMesh->SetAlias(mesh->mName.C_Str());
+    newMesh->SetGUID(MetaIO::CreateGUID(path, mesh->mName.C_Str()));
+
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+    rs->RegisterResource(newMesh);
+
+    m_meshMap[meshIndex] = newMesh;
+
+    return newMesh;
 }
 
 std::shared_ptr<Skeleton> ModelLoader_Assimp::BuildSkeleton(const aiScene* scene)
 {
-    auto skeletonRes = std::make_shared<Skeleton>();
+    if (!scene->mRootNode) return nullptr;
 
-    //std::unordered_map<std::string, int> boneMap;
+    std::unordered_set<std::string> boneNames;
 
-    //for (unsigned int m = 0; m < scene->mNumMeshes; m++)
-    //{
-    //    aiMesh* mesh = scene->mMeshes[m];
-    //    for (unsigned int b = 0; b < mesh->mNumBones; b++)
-    //    {
-    //        aiBone* bone = mesh->mBones[b];
-    //        std::string name = bone->mName.C_Str();
-    //        if (boneMap.count(name)) continue;
+    if (scene->HasMeshes())
+    {
+        for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+        {
+            const aiMesh* mesh = scene->mMeshes[i];
+            for (unsigned int b = 0; b < mesh->mNumBones; ++b)
+                boneNames.insert(mesh->mBones[b]->mName.C_Str());
+        }
+    }
+    if (scene->HasAnimations())
+    {
+        for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
+        {
+            const aiAnimation* anim = scene->mAnimations[i];
+            for (unsigned int c = 0; c < anim->mNumChannels; ++c)
+                boneNames.insert(anim->mChannels[c]->mNodeName.C_Str());
+        }
+    }
 
-    //        Bone bdata{};
-    //        bdata.name = name;
-    //        bdata.parentIndex = -1;
-    //        XMMATRIX xm = XMMatrixTranspose(XMLoadFloat4x4(reinterpret_cast<const XMFLOAT4X4*>(&bone->mOffsetMatrix)));
-    //        XMStoreFloat4x4(&bdata.inverseBind, xm);
+    if (boneNames.empty()) return nullptr;
 
-    //        boneMap[name] = (int)skeletonRes->BoneList.size();
-    //        skeletonRes->BoneList.push_back(bdata);
-    //    }
-    //}
+    auto skeleton = std::make_shared<Skeleton>();
 
-    //for (unsigned int a = 0; a < scene->mNumAnimations; a++)
-    //{
-    //    aiAnimation* anim = scene->mAnimations[a];
-    //    for (unsigned int c = 0; c < anim->mNumChannels; c++)
-    //    {
-    //        aiNodeAnim* channel = anim->mChannels[c];
-    //        std::string name = channel->mNodeName.C_Str();
-    //        if (boneMap.count(name)) continue;
+    std::unordered_map<const aiNode*, bool> keepNode;
+    std::function<bool(const aiNode*)> checkNode = [&](const aiNode* node) {
+        bool keep = (boneNames.count(node->mName.C_Str()) > 0);
+        for (unsigned int i = 0; i < node->mNumChildren; ++i)
+            if (checkNode(node->mChildren[i])) keep = true;
+        keepNode[node] = keep;
+        return keep;
+        };
+    checkNode(scene->mRootNode);
 
-    //        Bone bdata{};
-    //        bdata.name = name;
-    //        bdata.parentIndex = -1;
-    //        XMStoreFloat4x4(&bdata.inverseBind, XMMatrixIdentity());
+    std::unordered_map<const aiNode*, int> nodeToIndex;
+    std::vector<const aiNode*> linearNodes;
 
-    //        boneMap[name] = (int)skeletonRes->BoneList.size();
-    //        skeletonRes->BoneList.push_back(bdata);
-    //    }
-    //}
+    std::function<void(const aiNode*)> collectNodes = [&](const aiNode* node) {
+        if (keepNode[node])
+        {
+            int idx = (int)skeleton->mNames.size();
 
-    //if (scene->mRootNode)
-    //{
-    //    FindBoneParent(scene->mRootNode, boneMap, skeletonRes->BoneList);
-    //}
+            skeleton->mNames.push_back(node->mName.C_Str());
+            nodeToIndex[node] = idx;
+            linearNodes.push_back(node);
 
-    //skeletonRes->SortBoneList();
+            BoneInfo info;
+            info.parentIndex = -1;
 
-    //skeletonRes->BuildNameToIndex();
+            XMFLOAT4X4 localAssimp = Mat4FromAssimp(node->mTransformation);
+            XMStoreFloat4x4(&info.bindLocal, XMMatrixTranspose(XMLoadFloat4x4(&localAssimp)));
 
-    return skeletonRes;
+            XMStoreFloat4x4(&info.inverseBind, XMMatrixIdentity());
+
+            skeleton->mBones.push_back(info);
+        }
+        for (unsigned int i = 0; i < node->mNumChildren; ++i)
+            collectNodes(node->mChildren[i]);
+        };
+    collectNodes(scene->mRootNode);
+
+    for (size_t i = 0; i < linearNodes.size(); ++i)
+    {
+        const aiNode* node = linearNodes[i];
+        if (node->mParent && nodeToIndex.count(node->mParent))
+        {
+            skeleton->mBones[i].parentIndex = nodeToIndex[node->mParent];
+        }
+    }
+
+    if (scene->HasMeshes())
+    {
+        std::unordered_map<std::string, aiMatrix4x4> offsetMap;
+        for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+        {
+            const aiMesh* mesh = scene->mMeshes[i];
+            for (unsigned int b = 0; b < mesh->mNumBones; ++b)
+            {
+                offsetMap[mesh->mBones[b]->mName.C_Str()] = mesh->mBones[b]->mOffsetMatrix;
+            }
+        }
+
+        for (size_t i = 0; i < skeleton->mNames.size(); ++i)
+        {
+            const std::string& name = skeleton->mNames[i];
+            if (offsetMap.count(name))
+            {
+                XMFLOAT4X4 offMat = Mat4FromAssimp(offsetMap[name]);
+                XMStoreFloat4x4(&skeleton->mBones[i].inverseBind, XMMatrixTranspose(XMLoadFloat4x4(&offMat)));
+            }
+        }
+    }
+
+    skeleton->SortBoneList();
+    return skeleton;
+}
+
+std::shared_ptr<AnimationClip> ModelLoader_Assimp::ProcessAnimation(const aiAnimation* anim,
+    std::shared_ptr<Model_Avatar> avatar, std::shared_ptr<Skeleton> skeleton)
+{
+    auto clip = std::make_shared<AnimationClip>();
+    clip->mAvatarDefinitionType = avatar->GetDefinitionType();
+    clip->mTicksPerSecond = (anim->mTicksPerSecond != 0.0) ? (float)anim->mTicksPerSecond : 24.0f;
+    clip->mDuration = (float)(anim->mDuration / clip->mTicksPerSecond);
+
+    std::map<std::string, std::string> boneMap;
+    for (auto const& [k, v] : avatar->GetBoneMap()) boneMap[v] = k;
+
+    for (unsigned int i = 0; i < anim->mNumChannels; ++i)
+    {
+        aiNodeAnim* channel = anim->mChannels[i];
+        std::string boneName = channel->mNodeName.C_Str();
+        if (boneMap.find(boneName) == boneMap.end()) continue;
+
+        std::string key = boneMap[boneName];
+        AnimationTrack track;
+
+        auto ToTime = [&](double t) { return (float)(t / clip->mTicksPerSecond); };
+
+        for (unsigned int k = 0; k < channel->mNumPositionKeys; ++k)
+            track.PositionKeys.push_back({ ToTime(channel->mPositionKeys[k].mTime), Vec3FromAssimp(channel->mPositionKeys[k].mValue) });
+
+        for (unsigned int k = 0; k < channel->mNumRotationKeys; ++k)
+            track.RotationKeys.push_back({ ToTime(channel->mRotationKeys[k].mTime), QuatFromAssimp(channel->mRotationKeys[k].mValue) });
+
+        for (unsigned int k = 0; k < channel->mNumScalingKeys; ++k)
+            track.ScaleKeys.push_back({ ToTime(channel->mScalingKeys[k].mTime), Vec3FromAssimp(channel->mScalingKeys[k].mValue) });
+
+        clip->mTracks[key] = std::move(track);
+    }
+    return clip;
 }

@@ -470,20 +470,22 @@ void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
 }
 
 
-void SkinnedMesh::Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes) 
+void SkinnedMesh::Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes)
 {
     mModelSkeleton = skeletonRes;
-    if (!mModelSkeleton) return; 
+    if (!mModelSkeleton) return;
 
     bone_vertex_data.clear();
     bone_vertex_data.resize(positions.size());
 
     for (auto& m : bone_mapping_data)
     {
-        auto it = mModelSkeleton->NameToIndex.find(m.boneName); 
-        if (it == mModelSkeleton->NameToIndex.end()) continue;
 
-        uint16_t boneIdx = static_cast<uint16_t>(it->second);
+        int idx = mModelSkeleton->GetBoneIndex(m.boneName);
+
+        if (idx == -1) continue;
+
+        uint16_t boneIdx = static_cast<uint16_t>(idx);
         uint32_t vtx = m.vertexId;
         float w = m.weight;
         if (vtx >= bone_vertex_data.size()) continue;
@@ -548,7 +550,6 @@ void SkinnedMesh::Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes)
     srvDesc.Buffer.StructureByteStride = stride;
     rc.device->CreateShaderResourceView(mSkinData.Get(), &srvDesc, heap->GetCpuHandle(SkinDataSRV));
 }
-
 
 
 void SkinnedMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const

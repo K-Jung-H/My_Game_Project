@@ -22,11 +22,15 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
         return;
 
     const auto defs = definition->GetBoneDefinitions();
-    const auto& bones = skeleton->GetBoneList();
+
+    UINT boneCount = skeleton->GetBoneCount();
 
     std::vector<std::string> lowerNames;
-    lowerNames.reserve(bones.size());
-    for (auto& b : bones) lowerNames.push_back(ToLower(b.name));
+    lowerNames.reserve(boneCount);
+    for (UINT i = 0; i < boneCount; ++i)
+    {
+        lowerNames.push_back(ToLower(skeleton->GetBoneName(i)));
+    }
 
     std::unordered_set<int> used;
 
@@ -90,7 +94,7 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
             int bestIdx = -1;
             int bestScore = -9999;
 
-            for (int i = 0; i < (int)bones.size(); i++)
+            for (int i = 0; i < (int)boneCount; i++)
             {
                 if (used.count(i)) continue;
 
@@ -150,15 +154,13 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
         int idx = findBone(def);
         if (idx != -1)
         {
-            mBoneMap[def.key] = bones[idx].name;
+            mBoneMap[def.key] = skeleton->GetBoneName(idx);
             used.insert(idx);
         }
     }
 
     OutputDebugStringA(("[AutoMap] Final mapped bones: " + std::to_string(mBoneMap.size()) + "\n").c_str());
-
 }
-
 
 const std::string& Model_Avatar::GetMappedBoneName(const std::string& abstractKey) const
 {

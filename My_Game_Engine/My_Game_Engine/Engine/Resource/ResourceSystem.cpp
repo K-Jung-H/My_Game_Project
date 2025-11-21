@@ -97,7 +97,6 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
     FileCategory category = DetectFileCategory(path);
 
-    // 캐시 검사: 이미 로드된 리소스가 있으면 결과에 ID만 기록
     if (auto it = mPathToId.find(path); it != mPathToId.end())
     {
         if (auto res = GetById<Game_Resource>(it->second))
@@ -115,9 +114,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         }
     }
 
-    // -------------------------------
-    // 리소스 타입별 로드
-    // -------------------------------
+
     switch (category)
     {
     case FileCategory::FBX:

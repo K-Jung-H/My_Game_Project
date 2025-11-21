@@ -1957,7 +1957,7 @@ void DX12_Renderer::SkinningPass()
             skinMesh->GetVertexCount(),
             skinMesh->GetHotStride(),
             sizeof(GPU_SkinData),
-            (UINT)skeleton->BoneList.size()
+            (UINT)skeleton->GetBoneCount()
         };
 
         mCommandList->SetComputeRoot32BitConstants(0, 4, &constants, 0);
