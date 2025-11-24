@@ -102,6 +102,8 @@ protected:
 
     BoundingBox mLocalAABB;
 
+	std::vector<std::vector<UINT>> mCpToVertexMap; // Tempory Container for Control point to vertex mapping for FBX
+
 public:
     std::vector<Submesh> submeshes;
 };

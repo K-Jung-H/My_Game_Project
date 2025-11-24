@@ -262,54 +262,66 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
     positions.clear(); normals.clear(); tangents.clear();
     uvs.clear(); uv1s.clear(); colors.clear(); indices.clear(); submeshes.clear();
 
-    const int cpCount = fbxMesh->GetControlPointsCount();
-    positions.resize(cpCount);
-    for (int i = 0; i < cpCount; ++i)
-    {
-        FbxVector4 p = fbxMesh->GetControlPointAt(i);
-        positions[i] = XMFLOAT3((float)p[0], (float)p[1], (float)p[2]);
-    }
+    mCpToVertexMap.clear();
 
-    FbxGeometryElementNormal* nElem = fbxMesh->GetElementNormal(0);
-    FbxGeometryElementTangent* tElem = fbxMesh->GetElementTangent(0);
-    bool nOK = ReadElemVec3_ByControlPoint(fbxMesh, nElem, normals);
-    bool tOK = ReadElemVec3_ByControlPoint(fbxMesh, tElem, tangents);
+    if (!fbxMesh) return;
 
-    const int polyCount = fbxMesh->GetPolygonCount();
+    int cpCount = fbxMesh->GetControlPointsCount();
+    mCpToVertexMap.resize(cpCount);
+
+    int polyCount = fbxMesh->GetPolygonCount();
+    int vertexCounter = 0;
+
+    positions.reserve(polyCount * 3);
     indices.reserve(polyCount * 3);
-    if (!nOK) normals.resize(cpCount);
-    if (!tOK) tangents.resize(cpCount);
-    uvs.resize(cpCount);
-    uv1s.resize(cpCount);
 
     for (int p = 0; p < polyCount; ++p)
     {
-        const int vN = fbxMesh->GetPolygonSize(p);
-        for (int v = 0; v < vN; ++v)
+        int pSize = fbxMesh->GetPolygonSize(p);
+        for (int v = 0; v < pSize; ++v)
         {
-            int ctrl = fbxMesh->GetPolygonVertex(p, v);
-            indices.push_back((UINT)ctrl);
+            int ctrlIdx = fbxMesh->GetPolygonVertex(p, v);
+            UINT currentVtxIdx = static_cast<UINT>(vertexCounter);
 
-            if (!nOK && nElem)
-            {
-                FbxVector4 nv;
-                fbxMesh->GetPolygonVertexNormal(p, v, nv);
-                normals[ctrl] = XMFLOAT3((float)nv[0], (float)nv[1], (float)nv[2]);
-            }
-            if (!tOK && tElem)
-            {
-                FbxVector4 tv = tElem->GetDirectArray().GetAt(fbxMesh->GetTextureUVIndex(p, v));
-                tangents[ctrl] = XMFLOAT3((float)tv[0], (float)tv[1], (float)tv[2]);
-            }
+            mCpToVertexMap[ctrlIdx].push_back(currentVtxIdx);
 
-            XMFLOAT2 uv0 = ReadFbxUV(fbxMesh, p, v, ctrl, 0);
-            uvs[ctrl] = uv0;
-            XMFLOAT2 uv1 = ReadFbxUV(fbxMesh, p, v, ctrl, 1);
-            uv1s[ctrl] = uv1;
+            indices.push_back(currentVtxIdx);
+
+            FbxVector4 pos = fbxMesh->GetControlPointAt(ctrlIdx);
+            positions.push_back(XMFLOAT3(
+                static_cast<float>(pos[0]),
+                static_cast<float>(pos[1]),
+                static_cast<float>(pos[2])
+            ));
+
+            FbxVector4 normal(0, 1, 0, 0);
+            fbxMesh->GetPolygonVertexNormal(p, v, normal);
+            normals.push_back(XMFLOAT3(
+                static_cast<float>(normal[0]),
+                static_cast<float>(normal[1]),
+                static_cast<float>(normal[2])
+            ));
+
+            tangents.push_back(XMFLOAT3(1, 0, 0));
+
+            uvs.push_back(ReadFbxUV(fbxMesh, p, v, ctrlIdx, 0));
+            uv1s.push_back(ReadFbxUV(fbxMesh, p, v, ctrlIdx, 1));
+
+            colors.push_back(XMFLOAT4(1, 1, 1, 1));
+
+            vertexCounter++;
         }
     }
 
+    Submesh sub{};
+    sub.indexCount = (UINT)indices.size();
+    sub.startIndexLocation = 0;
+    sub.baseVertexLocation = 0;
+    sub.materialId = Engine::INVALID_ID;
+    submeshes.push_back(sub);
+
     BuildInterleavedBuffers();
+    SetAABB();
 }
 
 void Mesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
@@ -422,36 +434,51 @@ void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
 
     bone_mapping_data.clear();
     int skinCount = fbxMesh->GetDeformerCount(FbxDeformer::eSkin);
-    if (skinCount == 0) return;
 
-    for (int s = 0; s < skinCount; ++s)
+    if (skinCount > 0)
     {
-        FbxSkin* skin = static_cast<FbxSkin*>(fbxMesh->GetDeformer(s, FbxDeformer::eSkin));
-        if (!skin) continue;
-
-        const int clusterCount = skin->GetClusterCount();
-        for (int c = 0; c < clusterCount; ++c)
+        for (int s = 0; s < skinCount; ++s)
         {
-            FbxCluster* cl = skin->GetCluster(c);
-            if (!cl || !cl->GetLink()) continue;
+            FbxSkin* skin = static_cast<FbxSkin*>(fbxMesh->GetDeformer(s, FbxDeformer::eSkin));
+            if (!skin) continue;
 
-            std::string boneName = cl->GetLink()->GetName();
-            int* idx = cl->GetControlPointIndices();
-            double* w = cl->GetControlPointWeights();
-            int cnt = cl->GetControlPointIndicesCount();
-
-            for (int i = 0; i < cnt; ++i)
+            const int clusterCount = skin->GetClusterCount();
+            for (int c = 0; c < clusterCount; ++c)
             {
-                BoneMappingData m;
-                m.boneName = boneName;
-                m.vertexId = idx[i];
-                m.weight = static_cast<float>(w[i]);
-                bone_mapping_data.push_back(std::move(m));
+                FbxCluster* cl = skin->GetCluster(c);
+                if (!cl || !cl->GetLink()) continue;
+
+                std::string boneName = cl->GetLink()->GetName();
+                int* cpIndices = cl->GetControlPointIndices();
+                double* cpWeights = cl->GetControlPointWeights();
+                int cnt = cl->GetControlPointIndicesCount();
+
+                for (int i = 0; i < cnt; ++i)
+                {
+                    int cpIndex = cpIndices[i];
+                    float weight = static_cast<float>(cpWeights[i]);
+
+                    if (cpIndex < (int)mCpToVertexMap.size())
+                    {
+                        const auto& mappedVertices = mCpToVertexMap[cpIndex];
+                        for (UINT vIdx : mappedVertices)
+                        {
+                            BoneMappingData m;
+                            m.boneName = boneName;
+                            m.vertexId = vIdx;
+                            m.weight = weight;
+                            bone_mapping_data.push_back(std::move(m));
+                        }
+                    }
+                }
             }
         }
     }
 
     mVertexFlags |= VertexFlags::Skinned;
+
+    mCpToVertexMap.clear();
+    mCpToVertexMap.shrink_to_fit();
 
     if (mHotVB)
     {
@@ -468,7 +495,6 @@ void SkinnedMesh::FromFbxSDK(FbxMesh* fbxMesh)
         rc.device->CreateShaderResourceView(mHotVB.Get(), &srvDesc, heap->GetCpuHandle(HotInputSRV));
     }
 }
-
 
 void SkinnedMesh::Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes)
 {
