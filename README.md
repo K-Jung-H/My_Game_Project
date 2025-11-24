@@ -28,7 +28,6 @@
 
 ────────────────────────────────────
 
-Animation Clip 저장 방식 개선 필요 // 폴더 관리 및 파일명 중복으로 인한 덮어쓰기 문제 발생
 
 모두 완료 되면  fbx파일을 binary로 수정해야 함 // 용량 및 읽기 속도 개선점
 
@@ -36,49 +35,19 @@ Animation Clip 저장 방식 개선 필요 // 폴더 관리 및 파일명 중복
 - `Object::FromJSON`에 `SkinnedMeshRendererComponent` 및 `AnimationControllerComponent` 타입 추가.
 - 각 컴포넌트에 `ToJSON` / `FromJSON` 함수를 구현하여, `meshId`, `Model_Avatar` GUID, `AnimationClip` GUID 등을 저장/로드.
 
+
+
 ────────────────────────────────────
 
 진행 상황
 
 ────────────────────────────────────
 
-- Avatar, Skeleton 의 리소스 생성 및 리타게팅 제대로 동작함
-	- 각 리소스 파일을 확인해서 Bone 매핑 결과를 확인 하였음 // Humanoid 에 필요한 기본적인 구조는 모두 매핑되는걸 확인
+개선 사항 발견:
+- Clip만 있는 fbx 파일인 경우, Avatar 매핑을 위해 Skeleton를 생성해야 하는 것은 맞지만, 리소스로 저장하여 관리할 필요는 없음
+- Clip 생성용 Skeleton은 모델의 Skeleton으로 사용 불가능 함. 오히려 GUI에서 혼동을 주는 요소가 됨.
 
-- FBX_SDK 방식으로 애니메이션 동작 테스트 완료.
-	- 왜곡 오류 없음, 동작 모두 일치
-	- 기존 모델 뼈의 간격이 애니메이션 적용시, 벌어지는 문제 발생 << 문제점
-
-
-문제점:
-- 애니메이션 적용 시, Bone 일부가 벌어지는 현상 발생 
-	-애니메이션 FBX(Mixamo)의 BindPose(A)와 모델 FBX의 BindPose(B)가 서로 달라서 발생하는 것처럼 보임
-	- 바인드포즈/트랜스폼 mismatch 문제로 의심 중 == BindPose 정렬 동작 미완성
-
--> 모델의 뼈 길이를 유지하고, 클립의 동작만 그대로 적용해야 함 -> 문제에 영향 없었음
-
--> Assimp로 호출하니까, 모델의 외형 및 스키닝 동작에 SDK 방식과 차이가 발생함 
-	- Assimp로 호출시, 유니티와 비슷한 결과 생성됨 -> SDK 방식에서 Skinning 처리에 문제가 있는듯
-	--> Assimp와 SDK 방식의 import 설정 및 메시 결과물 차이 비교 분석 해보기
-
-
-문제 해결:
-────────────────────────────────────
-
-해결 접근 과정: 
--> Assimp 기능 추가 및 테스트 과정에서 FBX_SDK 에서 발생한 문제가 안일어난 것을 발견 
--> 두 Loader의 데이터 처리 방식을 비교 하던 중, FBX_SDK에서는 Control Point로 Mesh Vertex를 구성하던 것을 파악
--> Control Point를 그대로 저장하지 않고 활용하여, 제대로된 Vertex를 구하는 과정을 추가
--> 남아있던 일부 스키닝 문제가 해결 되었으나, 리타겟팅 문제가 지속되자, Mesh 데이터에는 잘못된 값이 더이상 없다고 판단
--> 이전에 Clip 데이터, Avatar 데이터의 차이를 비교하였으나 동일 한 것을 확인하여, 남은 문제는 Skeleton에 있다고 판단
--> 생성된 Skeleton에서 읽어온 데이터에는 두 방식에 차이가 없었음을 인지하여 Bone 들의 BindPos 사용법에 문제가 있음을 확인
--> 애니메이션의 Bone translate 값을 그대로 적용하는 것을 발견
--> 각 모델의 BindPos 고정하도록 수정
-
-
-정리:
-- 기존 FBX_SDK 방식 : 	애니메이션의 Bone translate 값을 그대로 적용 -> 팔다리 늘어남
-- 수정한 방식 :		루트 제외 Bone translate 값은 내 모델의 BindPos 고정 -> 체형 유지
+-> Clip만 있는 fbx 파일이라면, Skeleton는 저장하는 루프에서 제거하자 <- 진행 하기
 
 
 
