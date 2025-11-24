@@ -74,8 +74,8 @@ Animation Clip 저장 방식 개선 필요 // 폴더 관리 및 파일명 중복
 코드 정리
 - 구조 정리 -> string 탐색 방식을 인덱스 기반 탐색으로 수정 -> 완료
 - Assimp 동작 방식 추가 // 지금까지 FBX_SDK 방식으로 테스트 진행함 -> 완료
-- Animation 관련 리소스 저장 위치 수정
-- Clip 파일 이름 결정 방식 수정하기
+- Animation 관련 리소스 저장 위치 수정 -> 완료
+- Clip 파일 이름 결정 방식 수정하기 -> 완료
 - AnimationController 컴포넌트 imgui에 추가하기 -> 완료
 
 

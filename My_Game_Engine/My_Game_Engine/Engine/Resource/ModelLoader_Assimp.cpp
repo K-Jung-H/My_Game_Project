@@ -168,7 +168,8 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     std::vector<std::shared_ptr<AnimationClip>> loadedClips;
     if (hasAnims && modelAvatar && skeletonRes)
     {
-        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
+        std::string fbxFileName = std::filesystem::path(path).stem().string();
+        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip" / fbxFileName;
         std::filesystem::create_directories(clipDir);
 
         for (unsigned int i = 0; i < scene->mNumAnimations; ++i)

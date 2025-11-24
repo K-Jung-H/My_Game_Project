@@ -141,7 +141,8 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     std::vector<std::shared_ptr<AnimationClip>> loadedClips;
     if (hasAnims && modelAvatar)
     {
-        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip";
+        std::string fbxFileName = std::filesystem::path(path).stem().string();
+        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip" / fbxFileName;
         std::filesystem::create_directories(clipDir);
 
         for (int i = 0; i < animStackCount; i++)
@@ -150,98 +151,13 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
             if (!animStack) continue;
 
             std::string clipName = animStack->GetName();
-            if (clipName.empty())
-            {
-                clipName = "Take_" + std::to_string(i + 1);
-            }
+            if (clipName.empty()) clipName = "Take_" + std::to_string(i + 1);
+
             std::string clipPath = (clipDir / (clipName + ".anim")).string();
 
             auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, clipName, ctx,
-                [&]() -> std::shared_ptr<AnimationClip>
-                {
-                    auto newClip = std::make_shared<AnimationClip>();
-
-                    FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
-                    FbxTime::EMode timeMode = scene->GetGlobalSettings().GetTimeMode();
-                    float ticksPerSecond = (float)FbxTime::GetFrameRate(timeMode);
-                    float duration = (float)timeSpan.GetDuration().GetSecondDouble();
-
-                    newClip->mTicksPerSecond = ticksPerSecond;
-                    newClip->mDuration = duration;
-                    newClip->mAvatarDefinitionType = DefinitionType::Humanoid;
-
-                    std::map<std::string, std::string> boneNameToKeyMap;
-                    for (auto const& [key, realBoneName] : modelAvatar->GetBoneMap())
-                    {
-                        boneNameToKeyMap[realBoneName] = key;
-                    }
-
-                    FbxAnimLayer* animLayer = animStack->GetMember<FbxAnimLayer>(0);
-                    if (!animLayer) return newClip;
-
-
-                    size_t boneCount = skeletonRes->GetBoneCount();
-                    for (size_t bIdx = 0; bIdx < boneCount; ++bIdx)
-                    {
-                        std::string boneName = skeletonRes->GetBoneName(bIdx);
-
-                        auto it = boneNameToKeyMap.find(boneName);
-                        if (it == boneNameToKeyMap.end()) continue;
-
-                        std::string abstractKey = it->second;
-                        AnimationTrack track;
-
-                        FbxNode* boneNode = scene->FindNodeByName(boneName.c_str());
-                        if (!boneNode) continue;
-
-                        FbxAnimCurve* curveT_X = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
-                        FbxAnimCurve* curveT_Y = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
-                        FbxAnimCurve* curveT_Z = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
-
-                        FbxAnimCurve* curveR_X = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
-                        FbxAnimCurve* curveR_Y = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
-                        FbxAnimCurve* curveR_Z = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
-
-                        FbxAnimCurve* curveS_X = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
-                        FbxAnimCurve* curveS_Y = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
-                        FbxAnimCurve* curveS_Z = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
-
-                        std::set<float> keyTimes;
-                        auto CollectKeyTimes = [&](FbxAnimCurve* curve) {
-                            if (curve) {
-                                for (int k = 0; k < curve->KeyGetCount(); k++)
-                                    keyTimes.insert((float)curve->KeyGet(k).GetTime().GetSecondDouble());
-                            }
-                            };
-
-                        CollectKeyTimes(curveT_X); CollectKeyTimes(curveT_Y); CollectKeyTimes(curveT_Z);
-                        CollectKeyTimes(curveR_X); CollectKeyTimes(curveR_Y); CollectKeyTimes(curveR_Z);
-                        CollectKeyTimes(curveS_X); CollectKeyTimes(curveS_Y); CollectKeyTimes(curveS_Z);
-
-                        if (keyTimes.empty() && duration > 0.0f)
-                        {
-                            keyTimes.insert(0.0f);
-                        }
-
-                        FbxTime fbxTime;
-                        for (float time : keyTimes)
-                        {
-                            fbxTime.SetSecondDouble(time);
-
-                            FbxAMatrix local = boneNode->EvaluateLocalTransform(fbxTime);
-
-                            FbxQuaternion q = local.GetQ();
-                            FbxVector4 t = local.GetT();
-                            FbxVector4 s = local.GetS();
-
-                            track.RotationKeys.push_back({ time, XMFLOAT4((float)q[0], (float)q[1], (float)q[2], (float)q[3]) });
-                            track.PositionKeys.push_back({ time, XMFLOAT3((float)t[0], (float)t[1], (float)t[2]) });
-                            track.ScaleKeys.push_back({ time, XMFLOAT3((float)s[0], (float)s[1], (float)s[2]) });
-                        }
-
-                        newClip->mTracks[abstractKey] = std::move(track);
-                    }
-                    return newClip;
+                [&]() -> std::shared_ptr<AnimationClip> {
+                    return BuildAnimation(scene, animStack, modelAvatar, skeletonRes);
                 }
             );
 
@@ -249,7 +165,6 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
             {
                 animationClip->SetAvatar(modelAvatar);
                 animationClip->SetSkeleton(skeletonRes);
-
                 loadedClips.push_back(animationClip);
                 result.clipIds.push_back(animationClip->GetId());
             }
@@ -660,4 +575,94 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
     }
 
     return skeletonRes;
+}
+
+std::shared_ptr<AnimationClip> ModelLoader_FBX::BuildAnimation(
+    FbxScene* scene,
+    FbxAnimStack* animStack,
+    std::shared_ptr<Model_Avatar> modelAvatar,
+    std::shared_ptr<Skeleton> skeletonRes)
+{
+    auto newClip = std::make_shared<AnimationClip>();
+
+    FbxTimeSpan timeSpan = animStack->GetLocalTimeSpan();
+    FbxTime::EMode timeMode = scene->GetGlobalSettings().GetTimeMode();
+    float ticksPerSecond = (float)FbxTime::GetFrameRate(timeMode);
+    float duration = (float)timeSpan.GetDuration().GetSecondDouble();
+
+    newClip->mTicksPerSecond = ticksPerSecond;
+    newClip->mDuration = duration;
+    newClip->mAvatarDefinitionType = DefinitionType::Humanoid;
+
+    std::map<std::string, std::string> boneNameToKeyMap;
+    for (auto const& [key, realBoneName] : modelAvatar->GetBoneMap())
+    {
+        boneNameToKeyMap[realBoneName] = key;
+    }
+
+    FbxAnimLayer* animLayer = animStack->GetMember<FbxAnimLayer>(0);
+    if (!animLayer) return newClip;
+
+    size_t boneCount = skeletonRes->GetBoneCount();
+    for (size_t bIdx = 0; bIdx < boneCount; ++bIdx)
+    {
+        std::string boneName = skeletonRes->GetBoneName(bIdx);
+
+        auto it = boneNameToKeyMap.find(boneName);
+        if (it == boneNameToKeyMap.end()) continue;
+
+        std::string abstractKey = it->second;
+        AnimationTrack track;
+
+        FbxNode* boneNode = scene->FindNodeByName(boneName.c_str());
+        if (!boneNode) continue;
+
+        FbxAnimCurve* curveT_X = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveT_Y = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveT_Z = boneNode->LclTranslation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        FbxAnimCurve* curveR_X = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveR_Y = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveR_Z = boneNode->LclRotation.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        FbxAnimCurve* curveS_X = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_X);
+        FbxAnimCurve* curveS_Y = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Y);
+        FbxAnimCurve* curveS_Z = boneNode->LclScaling.GetCurve(animLayer, FBXSDK_CURVENODE_COMPONENT_Z);
+
+        std::set<float> keyTimes;
+        auto CollectKeyTimes = [&](FbxAnimCurve* curve) {
+            if (curve) {
+                for (int k = 0; k < curve->KeyGetCount(); k++)
+                    keyTimes.insert((float)curve->KeyGet(k).GetTime().GetSecondDouble());
+            }
+            };
+
+        CollectKeyTimes(curveT_X); CollectKeyTimes(curveT_Y); CollectKeyTimes(curveT_Z);
+        CollectKeyTimes(curveR_X); CollectKeyTimes(curveR_Y); CollectKeyTimes(curveR_Z);
+        CollectKeyTimes(curveS_X); CollectKeyTimes(curveS_Y); CollectKeyTimes(curveS_Z);
+
+        if (keyTimes.empty() && duration > 0.0f)
+        {
+            keyTimes.insert(0.0f);
+        }
+
+        FbxTime fbxTime;
+        for (float time : keyTimes)
+        {
+            fbxTime.SetSecondDouble(time);
+
+            FbxAMatrix local = boneNode->EvaluateLocalTransform(fbxTime);
+
+            FbxQuaternion q = local.GetQ();
+            FbxVector4 t = local.GetT();
+            FbxVector4 s = local.GetS();
+
+            track.RotationKeys.push_back({ time, XMFLOAT4((float)q[0], (float)q[1], (float)q[2], (float)q[3]) });
+            track.PositionKeys.push_back({ time, XMFLOAT3((float)t[0], (float)t[1], (float)t[2]) });
+            track.ScaleKeys.push_back({ time, XMFLOAT3((float)s[0], (float)s[1], (float)s[2]) });
+        }
+
+        newClip->mTracks[abstractKey] = std::move(track);
+    }
+    return newClip;
 }

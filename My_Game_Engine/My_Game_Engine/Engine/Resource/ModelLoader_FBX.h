@@ -15,6 +15,6 @@ private:
         std::unordered_map<FbxSurfaceMaterial*, UINT>& matMap, const std::string& path);
 
     std::shared_ptr<Skeleton> BuildSkeleton(FbxScene* fbxScene);
-
+    std::shared_ptr<AnimationClip> BuildAnimation(FbxScene* scene, FbxAnimStack* animStack, std::shared_ptr<Model_Avatar> avatar, std::shared_ptr<Skeleton> skeleton);
     std::unordered_map<FbxMesh*, std::shared_ptr<Mesh>> m_meshMap;
 };
