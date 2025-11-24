@@ -475,6 +475,7 @@ std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 
     FbxAMatrix flip;
     flip.SetIdentity();
+    flip[2][2] = -1.0;
 
     size_t finalBoneCount = skeletonRes->mNames.size();
     for (size_t i = 0; i < finalBoneCount; ++i)
@@ -550,6 +551,7 @@ std::shared_ptr<AnimationClip> ModelLoader_FBX::BuildAnimation(
 
     FbxAMatrix flip;
     flip.SetIdentity();
+    flip[2][2] = -1.0;
 
     size_t boneCount = skeletonRes->GetBoneCount();
     for (size_t bIdx = 0; bIdx < boneCount; ++bIdx)

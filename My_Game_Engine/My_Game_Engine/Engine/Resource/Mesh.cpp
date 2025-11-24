@@ -259,9 +259,14 @@ static inline bool ReadElemVec3_ByControlPoint(FbxMesh* m, FbxLayerElementTempla
 
 void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
 {
-    positions.clear(); normals.clear(); tangents.clear();
-    uvs.clear(); uv1s.clear(); colors.clear(); indices.clear(); submeshes.clear();
-
+    positions.clear(); 
+    normals.clear(); 
+    tangents.clear();
+    uvs.clear();     uv1s.clear();
+    colors.clear(); 
+    indices.clear(); 
+    submeshes.clear();
+    
     mCpToVertexMap.clear();
 
     if (!fbxMesh) return;
@@ -274,38 +279,41 @@ void Mesh::FromFbxSDK(FbxMesh* fbxMesh)
 
     positions.reserve(polyCount * 3);
     indices.reserve(polyCount * 3);
+    normals.reserve(polyCount * 3);
+    uvs.reserve(polyCount * 3);
 
     for (int p = 0; p < polyCount; ++p)
     {
         int pSize = fbxMesh->GetPolygonSize(p);
         for (int v = 0; v < pSize; ++v)
         {
-            int ctrlIdx = fbxMesh->GetPolygonVertex(p, v);
+            int cornerIndex = pSize - 1 - v;
+
+            int ctrlIdx = fbxMesh->GetPolygonVertex(p, cornerIndex);
             UINT currentVtxIdx = static_cast<UINT>(vertexCounter);
 
             mCpToVertexMap[ctrlIdx].push_back(currentVtxIdx);
-
             indices.push_back(currentVtxIdx);
 
             FbxVector4 pos = fbxMesh->GetControlPointAt(ctrlIdx);
             positions.push_back(XMFLOAT3(
                 static_cast<float>(pos[0]),
                 static_cast<float>(pos[1]),
-                static_cast<float>(pos[2])
+                static_cast<float>(-pos[2])
             ));
 
             FbxVector4 normal(0, 1, 0, 0);
-            fbxMesh->GetPolygonVertexNormal(p, v, normal);
+            fbxMesh->GetPolygonVertexNormal(p, cornerIndex, normal);
             normals.push_back(XMFLOAT3(
                 static_cast<float>(normal[0]),
                 static_cast<float>(normal[1]),
-                static_cast<float>(normal[2])
+                static_cast<float>(-normal[2])
             ));
 
             tangents.push_back(XMFLOAT3(1, 0, 0));
 
-            uvs.push_back(ReadFbxUV(fbxMesh, p, v, ctrlIdx, 0));
-            uv1s.push_back(ReadFbxUV(fbxMesh, p, v, ctrlIdx, 1));
+            uvs.push_back(ReadFbxUV(fbxMesh, p, cornerIndex, ctrlIdx, 0));
+            uv1s.push_back(ReadFbxUV(fbxMesh, p, cornerIndex, ctrlIdx, 1));
 
             colors.push_back(XMFLOAT4(1, 1, 1, 1));
 

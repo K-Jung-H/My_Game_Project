@@ -51,6 +51,23 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return;
 
+    std::string baseAlias = res->GetAlias();
+    if (!baseAlias.empty())
+    {
+        std::string uniqueAlias = baseAlias;
+        int count = 1;
+
+        while (mAliasToId.find(uniqueAlias) != mAliasToId.end())
+        {
+            uniqueAlias = baseAlias + "_" + std::to_string(count++);
+        }
+
+        if (uniqueAlias != baseAlias)
+        {
+            res->SetAlias(uniqueAlias);
+        }
+    }
+
     ResourceEntry entry;
     entry.id = mNextResourceID++;
     entry.path = res->GetPath();
@@ -70,17 +87,15 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     mPathToId[entry.path] = entry.id;
     if (!entry.alias.empty()) mAliasToId[entry.alias] = entry.id;
 
-    // type cache
     switch (res->Get_Type())
     {
-    case ResourceType::Mesh:     mMeshes.push_back(std::dynamic_pointer_cast<Mesh>(res)); break;
-    case ResourceType::Material: mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
-    case ResourceType::Texture:  mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
-    case ResourceType::Model:    mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
-    case ResourceType::Skeleton: mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
+    case ResourceType::Mesh:      mMeshes.push_back(std::dynamic_pointer_cast<Mesh>(res)); break;
+    case ResourceType::Material:  mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
+    case ResourceType::Texture:   mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
+    case ResourceType::Model:     mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
+    case ResourceType::Skeleton:  mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
     case ResourceType::ModelAvatar: mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
     case ResourceType::AnimationClip: mAnimationClips.push_back(std::dynamic_pointer_cast<AnimationClip>(res)); break;
-
     default: break;
     }
 
@@ -88,8 +103,6 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     {
         MetaIO::SaveSimpleMeta(res);
     }
-
-
 }
 
 void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadResult& result)
