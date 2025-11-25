@@ -28,9 +28,6 @@
 
 ────────────────────────────────────
 
-
-모두 완료 되면  fbx파일을 binary로 수정해야 함 // 용량 및 읽기 속도 개선점
-
 씬(Scene) 저장/불러오기 직렬화
 - `Object::FromJSON`에 `SkinnedMeshRendererComponent` 및 `AnimationControllerComponent` 타입 추가.
 - 각 컴포넌트에 `ToJSON` / `FromJSON` 함수를 구현하여, `meshId`, `Model_Avatar` GUID, `AnimationClip` GUID 등을 저장/로드.
@@ -47,7 +44,8 @@
 - Clip만 있는 fbx 파일인 경우, Avatar 매핑을 위해 Skeleton를 생성해야 하는 것은 맞지만, 리소스로 저장하여 관리할 필요는 없음
 - Clip 생성용 Skeleton은 모델의 Skeleton으로 사용 불가능 함. 오히려 GUI에서 혼동을 주는 요소가 됨.
 
--> Clip만 있는 fbx 파일이라면, Skeleton는 저장하는 루프에서 제거하자 <- 진행 하기
+-> Clip만 있는 fbx 파일이라면, Skeleton는 저장하는 루프에서 제거하자 
+-> 완료
 
 
 
@@ -57,6 +55,6 @@
 장기적 목표
 
 ────────────────────────────────────
-
+- 사용하는 fbx파일을 binary로 수정해야 함 // 용량 및 읽기 속도 개선점
 - Object 생성 기능 추가하기 (Window 메뉴 박스 활용)
 - Shader 핫리로드 기능 추가하기
