@@ -2790,120 +2790,165 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             if (ImGui::CollapsingHeader("Animation Controller", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Status: %s",
-                    animCtrl->IsReady() ? "Ready" : "Not Ready (Missing Resources)");
+                    animCtrl->IsReady() ? "Ready" : "Not Ready");
 
                 ImGui::Separator();
                 ImGui::Indent();
 
                 ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
-                auto currentSkeleton = animCtrl->GetSkeleton();
-                std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
-
-                if (ImGui::BeginCombo("Skeleton", skelName.c_str()))
+                if (ImGui::TreeNode("Global Settings"))
                 {
-                    auto skeletons = rs->GetAllResources<Skeleton>();
-                    for (const auto& skel : skeletons)
+                    auto currentSkeleton = animCtrl->GetSkeleton();
+                    std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
+
+                    if (ImGui::BeginCombo("Skeleton", skelName.c_str()))
                     {
-                        bool isSelected = (currentSkeleton == skel);
-
-                        ImGui::PushID(skel.get());
-
-                        if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
+                        auto skeletons = rs->GetAllResources<Skeleton>();
+                        for (const auto& skel : skeletons)
                         {
-                            animCtrl->SetSkeleton(skel);
+                            bool isSelected = (currentSkeleton == skel);
+                            ImGui::PushID(skel.get());
+                            if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
+                                animCtrl->SetSkeleton(skel);
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                            ImGui::PopID();
                         }
-
-                        if (isSelected) ImGui::SetItemDefaultFocus();
-                        ImGui::PopID();
+                        ImGui::EndCombo();
                     }
-                    ImGui::EndCombo();
-                }
 
-                auto currentAvatar = animCtrl->GetModelAvatar();
-                std::string avatarName = currentAvatar ? currentAvatar->GetAlias() : "None";
+                    auto currentAvatar = animCtrl->GetModelAvatar();
+                    std::string avatarName = currentAvatar ? currentAvatar->GetAlias() : "None";
 
-                if (ImGui::BeginCombo("Avatar", avatarName.c_str()))
-                {
-                    auto avatars = rs->GetAllResources<Model_Avatar>();
-                    for (const auto& avatar : avatars)
+                    if (ImGui::BeginCombo("Avatar", avatarName.c_str()))
                     {
-                        bool isSelected = (currentAvatar == avatar);
-
-                        ImGui::PushID(avatar.get());
-
-                        if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
+                        auto avatars = rs->GetAllResources<Model_Avatar>();
+                        for (const auto& avatar : avatars)
                         {
-                            animCtrl->SetModelAvatar(avatar);
+                            bool isSelected = (currentAvatar == avatar);
+                            ImGui::PushID(avatar.get());
+                            if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
+                                animCtrl->SetModelAvatar(avatar);
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                            ImGui::PopID();
                         }
-
-                        if (isSelected) ImGui::SetItemDefaultFocus();
-                        ImGui::PopID();
+                        ImGui::EndCombo();
                     }
-                    ImGui::EndCombo();
+
+                    int layerCount = animCtrl->GetLayerCount();
+                    if (ImGui::InputInt("Layer Count", &layerCount))
+                    {
+                        if (layerCount < 1) layerCount = 1;
+                        animCtrl->SetLayerCount(layerCount);
+                    }
+
+                    ImGui::TreePop();
                 }
 
                 ImGui::Separator();
-                ImGui::Text("Playback Control");
+                ImGui::Text("Animation Layers");
 
+                int layerCount = animCtrl->GetLayerCount();
                 auto clips = rs->GetAllResources<AnimationClip>();
-                auto currentClip = animCtrl->GetCurrentClip();
 
-                std::string previewValue = currentClip ? currentClip->GetAlias() : "Select Clip...";
-
-                const char* modeNames[] = { "Loop", "Once", "PingPong" };
-                int currentModeIdx = (int)animCtrl->GetPlaybackMode();
-
-                if (ImGui::Combo("Mode", &currentModeIdx, modeNames, IM_ARRAYSIZE(modeNames)))
+                for (int i = 0; i < layerCount; ++i)
                 {
-                    animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx);
-                }
+                    ImGui::PushID(i);
 
-                std::unordered_map<std::string, int> nameCounts;
-
-                if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
-                {
-                    for (size_t i = 0; i < clips.size(); ++i)
+                    float childHeight = 185.0f;
+                    if (ImGui::BeginChild("LayerFrame", ImVec2(0, childHeight), true, ImGuiWindowFlags_None))
                     {
-                        auto clip = clips[i];
-                        std::string alias = clip->GetAlias();
+                        std::string headerName = "Layer " + std::to_string(i);
+                        if (i == 0) headerName += " (Base)";
+                        else headerName += " (Overlay)";
 
-                        nameCounts[alias]++;
-                        std::string displayName = alias;
-                        if (nameCounts[alias] > 1)
+                        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", headerName.c_str());
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("(Index: %d)", i);
+                        ImGui::Separator();
+
+                        float weight = animCtrl->GetLayerWeight(i);
+                        if (ImGui::SliderFloat("Layer Weight", &weight, 0.0f, 1.0f))
                         {
-                            displayName += " (" + std::to_string(nameCounts[alias]) + ")";
+                            animCtrl->SetLayerWeight(i, weight);
                         }
 
-                        bool isSelected = (currentClip == clip);
+                        auto mask = animCtrl->GetLayerMask(i);
+                        ImGui::Text("Mask: %s", mask ? mask->GetAlias().c_str() : "None (Full Body)");
 
-                        ImGui::PushID(clip.get());
+                        ImGui::Spacing();
 
-                        if (ImGui::Selectable(displayName.c_str(), isSelected))
+                        const char* modeNames[] = { "Loop", "Once", "PingPong" };
+                        int currentModeIdx = (int)animCtrl->GetPlaybackMode(i);
+
+                        if (ImGui::Combo("Mode", &currentModeIdx, modeNames, IM_ARRAYSIZE(modeNames)))
                         {
-                            animCtrl->Play(clip, 2.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed());
+                            animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx, i);
                         }
 
-                        if (isSelected) ImGui::SetItemDefaultFocus();
-                        ImGui::PopID();
+                        static float blendTimeInput = 0.2f;
+                        ImGui::DragFloat("Blend Time (s)", &blendTimeInput, 0.01f, 0.0f, 5.0f);
+
+                        auto currentClip = animCtrl->GetCurrentClip(i);
+                        std::string previewValue = currentClip ? currentClip->GetAlias() : "Select Clip...";
+                        std::unordered_map<std::string, int> nameCounts;
+
+                        if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
+                        {
+                            for (auto& clip : clips)
+                            {
+                                std::string alias = clip->GetAlias();
+                                nameCounts[alias]++;
+                                std::string displayName = alias;
+                                if (nameCounts[alias] > 1)
+                                    displayName += " (" + std::to_string(nameCounts[alias]) + ")";
+
+                                bool isSelected = (currentClip == clip);
+                                ImGui::PushID(clip.get());
+
+                                if (ImGui::Selectable(displayName.c_str(), isSelected))
+                                {
+                                    animCtrl->Play(i, clip, blendTimeInput, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
+                                }
+
+                                if (isSelected) ImGui::SetItemDefaultFocus();
+                                ImGui::PopID();
+                            }
+                            ImGui::EndCombo();
+                        }
+
+                        ImGui::SameLine();
+                        if (ImGui::Button("Replay"))
+                        {
+                            if (currentClip)
+                                animCtrl->Play(i, currentClip, 0.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
+                        }
+
+                        float speed = animCtrl->GetSpeed(i);
+                        if (ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 5.0f))
+                        {
+                            animCtrl->SetSpeed(speed, i);
+                        }
+
+                        if (animCtrl->IsLayerTransitioning(i))
+                        {
+                            float progress = animCtrl->GetLayerTransitionProgress(i);
+                            char overlay[32];
+                            sprintf_s(overlay, "Blending... %.1f%%", progress * 100.0f);
+
+                            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                            ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
+                            ImGui::PopStyleColor();
+                        }
+                        else
+                        {
+                            ImGui::TextDisabled("State: Stable");
+                        }
                     }
-                    ImGui::EndCombo();
-                }
+                    ImGui::EndChild();
 
-                ImGui::SameLine();
-
-                if (ImGui::Button("Replay"))
-                {
-                    if (currentClip)
-                    {
-                        animCtrl->Play(currentClip, 0.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed());
-                    }
-                }
-
-                float speed = animCtrl->GetSpeed();
-                if (ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 5.0f))
-                {
-                    animCtrl->SetSpeed(speed);
+                    ImGui::Spacing();
+                    ImGui::PopID();
                 }
 
                 ImGui::Unindent();

@@ -4,66 +4,12 @@
 #include "GameEngine.h"
 #include "DX_Graphics/ResourceUtils.h"
 
-
-void AnimationState::Reset(std::shared_ptr<AnimationClip> newClip, float newSpeed, PlaybackMode newMode)
-{
-    clip = newClip;
-    speed = newSpeed;
-    mode = newMode;
-
-    currentTime = 0.0f;
-    weight = 1.0f;
-    isValid = (clip != nullptr);
-    isReverse = false;
-}
-
-void AnimationState::Update(float deltaTime)
-{
-    if (!isValid || !clip) return;
-
-    float duration = clip->GetDuration();
-    if (duration <= 0.0f) return;
-
-    float actualSpeed = speed;
-    if (mode == PlaybackMode::PingPong && isReverse)
-    {
-        actualSpeed = -speed;
-    }
-
-    currentTime += deltaTime * actualSpeed;
-
-    if (mode == PlaybackMode::Loop)
-    {
-        if (currentTime >= duration)
-            currentTime = fmod(currentTime, duration);
-        else if (currentTime < 0.0f)
-            currentTime = duration + fmod(currentTime, duration);
-    }
-    else if (mode == PlaybackMode::Once)
-    {
-        if (currentTime >= duration) currentTime = duration;
-        else if (currentTime <= 0.0f) currentTime = 0.0f;
-    }
-    else if (mode == PlaybackMode::PingPong)
-    {
-        if (currentTime >= duration)
-        {
-            currentTime = duration;
-            isReverse = true;
-        }
-        else if (currentTime <= 0.0f)
-        {
-            currentTime = 0.0f;
-            isReverse = false;
-        }
-    }
-}
-
-
+using namespace DirectX;
 
 AnimationControllerComponent::AnimationControllerComponent()
     : Component()
 {
+    mLayers.resize(1);
 }
 
 void AnimationControllerComponent::CreateBoneMatrixBuffer()
@@ -90,7 +36,7 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
     HRESULT hr = mBoneMatrixBuffer->Map(0, nullptr, reinterpret_cast<void**>(&mMappedBoneBuffer));
     if (FAILED(hr))
     {
-        OutputDebugStringA("[AnimationControllerComponent] Error: Bone Matrix 버퍼 맵핑 실패.\n");
+        OutputDebugStringA("[AnimationControllerComponent] Error: Bone Matrix Map Failed.\n");
         return;
     }
 
@@ -102,16 +48,6 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
     srvDesc.Buffer.NumElements = (UINT)boneCount;
     srvDesc.Buffer.StructureByteStride = sizeof(BoneMatrixData);
     rc.device->CreateShaderResourceView(mBoneMatrixBuffer.Get(), &srvDesc, heap->GetCpuHandle(mBoneMatrixSRVSlot));
-}
-
-void AnimationControllerComponent::SetPlaybackMode(PlaybackMode mode)
-{
-    mCurrentState.mode = mode;
-}
-
-PlaybackMode AnimationControllerComponent::GetPlaybackMode() const
-{
-    return mCurrentState.mode;
 }
 
 void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
@@ -135,22 +71,23 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
         if (mBoneMatrixSRVSlot != UINT_MAX)
         {
             const RendererContext ctx = GameEngine::Get().Get_UploadContext();
-
             mBoneMatrixBuffer.Reset();
             ctx.resourceHeap->FreeDeferred(HeapRegion::SRV_Static, mBoneMatrixSRVSlot);
-
             mBoneMatrixSRVSlot = UINT_MAX;
         }
     }
-
     UpdateBoneMappingCache();
 }
 
 void AnimationControllerComponent::SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar)
 {
     mModelAvatar = model_avatar;
-
     UpdateBoneMappingCache();
+}
+
+bool AnimationControllerComponent::IsReady() const
+{
+    return mModelSkeleton != nullptr && mModelAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
 }
 
 void AnimationControllerComponent::UpdateBoneMappingCache()
@@ -168,78 +105,134 @@ void AnimationControllerComponent::UpdateBoneMappingCache()
     }
 }
 
-bool AnimationControllerComponent::IsReady() const
+void AnimationControllerComponent::SetLayerCount(int count)
 {
-    return mModelSkeleton != nullptr && mModelAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
+    if (count < 1) count = 1;
+    mLayers.resize(count);
 }
 
-void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, float blendTime, PlaybackMode mode, float speed)
+void AnimationControllerComponent::SetLayerWeight(int layerIndex, float weight)
 {
-    if (!clip || !IsReady()) return;
-
-    if (blendTime > 0.0f && mCurrentState.isValid)
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
     {
-        mPrevState = mCurrentState;
-        mIsTransitioning = true;
-        mTransitionDuration = blendTime;
-        mTransitionTime = 0.0f;
+        mLayers[layerIndex].SetWeight(weight);
     }
-    else
-    {
-        mIsTransitioning = false;
-        mPrevState.isValid = false;
-    }
+}
 
-    mCurrentState.Reset(clip, speed, mode);
+float AnimationControllerComponent::GetLayerWeight(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        return mLayers[layerIndex].GetWeight();
+    }
+    return 0.0f;
+}
+
+void AnimationControllerComponent::SetLayerMask(int layerIndex, std::shared_ptr<AvatarMask> mask)
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        mLayers[layerIndex].SetMask(mask);
+    }
+}
+
+std::shared_ptr<AvatarMask> AnimationControllerComponent::GetLayerMask(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        return mLayers[layerIndex].GetMask();
+    }
+    return nullptr;
+}
+
+void AnimationControllerComponent::SetPlaybackMode(PlaybackMode mode, int layerIndex)
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        mLayers[layerIndex].SetPlaybackMode(mode);
+    }
+}
+
+PlaybackMode AnimationControllerComponent::GetPlaybackMode(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        return mLayers[layerIndex].GetPlaybackMode();
+    }
+    return PlaybackMode::Loop;
+}
+
+void AnimationControllerComponent::SetSpeed(float speed, int layerIndex)
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        mLayers[layerIndex].SetSpeed(speed);
+    }
+}
+
+float AnimationControllerComponent::GetSpeed(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        return mLayers[layerIndex].GetSpeed();
+    }
+    return 1.0f;
+}
+
+void AnimationControllerComponent::Play(int layerIndex, std::shared_ptr<AnimationClip> clip, float blendTime, PlaybackMode mode, float speed)
+{
+    if (!IsReady()) return;
+
+    if (layerIndex < 0) return;
+
+    if (layerIndex >= (int)mLayers.size())
+        mLayers.resize(layerIndex + 1);
+
+    mLayers[layerIndex].Play(clip, blendTime, mode, speed);
+}
+
+bool AnimationControllerComponent::IsLayerTransitioning(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+        return mLayers[layerIndex].IsTransitioning();
+    return false;
+}
+
+float AnimationControllerComponent::GetLayerTransitionProgress(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+        return mLayers[layerIndex].GetTransitionProgress();
+    return 0.0f;
+}
+
+std::shared_ptr<AnimationClip> AnimationControllerComponent::GetCurrentClip(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+    {
+        return mLayers[layerIndex].GetCurrentClip();
+    }
+    return nullptr;
 }
 
 void AnimationControllerComponent::Update(float deltaTime)
 {
     if (!IsReady()) return;
 
-    mCurrentState.Update(deltaTime);
-
-    if (mIsTransitioning)
+    for (auto& layer : mLayers)
     {
-        mPrevState.Update(deltaTime);
-
-        mTransitionTime += deltaTime;
-
-        float t = 0.0f;
-        if (mTransitionDuration > 0.0f)
-        {
-            t = std::clamp(mTransitionTime / mTransitionDuration, 0.0f, 1.0f);
-        }
-        else
-        {
-            t = 1.0f;
-        }
-
-        mPrevState.weight = 1.0f - t;
-        mCurrentState.weight = t;
-
-        if (t >= 1.0f)
-        {
-            mIsTransitioning = false;
-            mPrevState.isValid = false;
-        }
-    }
-    else
-    {
-        mCurrentState.weight = 1.0f;
+        layer.Update(deltaTime);
     }
 
-    EvaluateAnimation();
+    EvaluateLayers();
 
     if (mMappedBoneBuffer)
     {
         memcpy(mMappedBoneBuffer, mCpuBoneMatrices.data(), sizeof(BoneMatrixData) * mCpuBoneMatrices.size());
     }
 }
-void AnimationControllerComponent::EvaluateAnimation()
-{
-    using namespace DirectX;
 
+void AnimationControllerComponent::EvaluateLayers()
+{
     if (!mModelSkeleton || !mModelAvatar) return;
 
     const auto& bones = mModelSkeleton->GetBones();
@@ -255,58 +248,33 @@ void AnimationControllerComponent::EvaluateAnimation()
     for (size_t i = 0; i < boneCount; ++i)
     {
         const std::string& abstractKey = mCachedBoneToKey[i];
-
         const BoneInfo& boneInfo = bones[i];
+
         XMMATRIX bindLocal = XMLoadFloat4x4(&boneInfo.bindLocal);
 
-        XMVECTOR S_final, R_final, T_final;
-        XMMatrixDecompose(&S_final, &R_final, &T_final, bindLocal);
+        XMVECTOR S_acc, R_acc, T_acc;
+        XMMatrixDecompose(&S_acc, &R_acc, &T_acc, bindLocal);
 
-        if (!abstractKey.empty())
+        for (auto& layer : mLayers)
         {
-            if (mCurrentState.isValid)
-            {
-                const AnimationTrack* track = mCurrentState.clip->GetTrack(abstractKey);
-                if (track)
-                {
-                    XMFLOAT3 s = track->SampleScale(mCurrentState.currentTime);
-                    XMFLOAT4 r = track->SampleRotation(mCurrentState.currentTime);
-                    XMFLOAT3 t = track->SamplePosition(mCurrentState.currentTime);
+            float layerWeight = layer.GetWeight();
+            if (layerWeight <= 0.001f) continue;
 
-                    S_final = XMLoadFloat3(&s);
-                    R_final = XMLoadFloat4(&r);
-                    T_final = XMLoadFloat3(&t);
-                }
+            float maskWeight = 1.0f;
+            auto mask = layer.GetMask();
+            if (mask && !abstractKey.empty())
+            {
+                maskWeight = mask->GetWeight(abstractKey);
             }
 
-            if (mIsTransitioning && mPrevState.isValid)
-            {
-                const AnimationTrack* prevTrack = mPrevState.clip->GetTrack(abstractKey);
-                if (prevTrack)
-                {
-                    XMFLOAT3 s_prev = prevTrack->SampleScale(mPrevState.currentTime);
-                    XMFLOAT4 r_prev = prevTrack->SampleRotation(mPrevState.currentTime);
-                    XMFLOAT3 t_prev = prevTrack->SamplePosition(mPrevState.currentTime);
+            float finalWeight = layerWeight * maskWeight;
+            if (finalWeight <= 0.001f) continue;
 
-                    XMVECTOR S_p = XMLoadFloat3(&s_prev);
-                    XMVECTOR R_p = XMLoadFloat4(&r_prev);
-                    XMVECTOR T_p = XMLoadFloat3(&t_prev);
-
-                    float blendAlpha = mCurrentState.weight;
-                    if (mCurrentState.mask)
-                    {
-                        blendAlpha *= mCurrentState.mask->GetWeight((int)i);
-                    }
-
-                    S_final = XMVectorLerp(S_p, S_final, blendAlpha);
-                    T_final = XMVectorLerp(T_p, T_final, blendAlpha);
-                    R_final = XMQuaternionSlerp(R_p, R_final, blendAlpha);
-                }
-            }
+            layer.EvaluateAndBlend(abstractKey, finalWeight, S_acc, R_acc, T_acc);
         }
 
         localTransforms[i] =
-            XMMatrixScalingFromVector(S_final) * XMMatrixRotationQuaternion(R_final) * XMMatrixTranslationFromVector(T_final);
+            XMMatrixScalingFromVector(S_acc) * XMMatrixRotationQuaternion(R_acc) * XMMatrixTranslationFromVector(T_acc);
     }
 
     std::vector<XMMATRIX> globalTransforms(boneCount);

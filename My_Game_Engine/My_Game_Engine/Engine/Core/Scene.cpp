@@ -64,8 +64,8 @@ void Scene::Build()
  	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	{
-		LoadResult animation_result;
-		rsm->Load(animation_clip_path_0, "Test_10", animation_result);
+		LoadResult animation_result_0;
+		rsm->Load(animation_clip_path_0, "Test_10", animation_result_0);
 
 		LoadResult animation_result_1;
 		rsm->Load(animation_clip_path_1, "Test_101", animation_result_1);
@@ -102,14 +102,14 @@ void Scene::Build()
 		animController->SetModelAvatar(rsm->GetById<Model_Avatar>(model_result.avatarId));
 		animController->SetSkeleton(rsm->GetById<Skeleton>(model_result.skeletonId));
 
-		if (animation_result.clipIds.size() > 0)
-		{
-			auto clip = rsm->GetById<AnimationClip>(animation_result.clipIds[0]);
-			if (clip)
-			{
-				animController->Play(clip, 1.0f, PlaybackMode::Loop, 1.0f);
-			}
-		}
+
+		auto clip_0 = rsm->GetById<AnimationClip>(animation_result_0.clipIds[0]);
+		auto clip_1 = rsm->GetById<AnimationClip>(animation_result_1.clipIds[0]);
+		auto clip_2 = rsm->GetById<AnimationClip>(animation_result_2.clipIds[0]);
+
+		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
+		animController->Play(1, clip_1, 1.0f, PlaybackMode::Loop, 1.0f);
+		animController->Play(2, clip_2, 1.0f, PlaybackMode::Loop, 1.0f);
 
 	}
 
