@@ -2806,11 +2806,16 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     for (const auto& skel : skeletons)
                     {
                         bool isSelected = (currentSkeleton == skel);
+
+                        ImGui::PushID(skel.get());
+
                         if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
                         {
                             animCtrl->SetSkeleton(skel);
                         }
+
                         if (isSelected) ImGui::SetItemDefaultFocus();
+                        ImGui::PopID();
                     }
                     ImGui::EndCombo();
                 }
@@ -2824,18 +2829,22 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     for (const auto& avatar : avatars)
                     {
                         bool isSelected = (currentAvatar == avatar);
+
+                        ImGui::PushID(avatar.get());
+
                         if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
                         {
                             animCtrl->SetModelAvatar(avatar);
                         }
+
                         if (isSelected) ImGui::SetItemDefaultFocus();
+                        ImGui::PopID();
                     }
                     ImGui::EndCombo();
                 }
 
                 ImGui::Separator();
-
-                ImGui::Text("Playback");
+                ImGui::Text("Playback Control");
 
                 auto clips = rs->GetAllResources<AnimationClip>();
                 auto currentClip = animCtrl->GetCurrentClip();
@@ -2850,16 +2859,33 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx);
                 }
 
+                std::unordered_map<std::string, int> nameCounts;
+
                 if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
                 {
                     for (size_t i = 0; i < clips.size(); ++i)
                     {
-                        bool isSelected = (currentClip == clips[i]);
-                        if (ImGui::Selectable(clips[i]->GetAlias().c_str(), isSelected))
+                        auto clip = clips[i];
+                        std::string alias = clip->GetAlias();
+
+                        nameCounts[alias]++;
+                        std::string displayName = alias;
+                        if (nameCounts[alias] > 1)
                         {
-                            animCtrl->Play(clips[i], (PlaybackMode)currentModeIdx);
+                            displayName += " (" + std::to_string(nameCounts[alias]) + ")";
                         }
+
+                        bool isSelected = (currentClip == clip);
+
+                        ImGui::PushID(clip.get());
+
+                        if (ImGui::Selectable(displayName.c_str(), isSelected))
+                        {
+                            animCtrl->Play(clip, 2.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed());
+                        }
+
                         if (isSelected) ImGui::SetItemDefaultFocus();
+                        ImGui::PopID();
                     }
                     ImGui::EndCombo();
                 }
@@ -2869,7 +2895,9 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 if (ImGui::Button("Replay"))
                 {
                     if (currentClip)
-                        animCtrl->Play(currentClip, (PlaybackMode)currentModeIdx);
+                    {
+                        animCtrl->Play(currentClip, 0.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed());
+                    }
                 }
 
                 float speed = animCtrl->GetSpeed();
@@ -2882,7 +2910,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             }
         }
     }
-        break;
+    break;
 
     case Camera:
     {

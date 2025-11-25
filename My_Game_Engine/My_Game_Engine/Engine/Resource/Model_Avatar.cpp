@@ -159,6 +159,8 @@ void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
         }
     }
 
+    mIsReverseMapDirty = true;
+
     OutputDebugStringA(("[AutoMap] Final mapped bones: " + std::to_string(mBoneMap.size()) + "\n").c_str());
 }
 
@@ -239,5 +241,34 @@ bool Model_Avatar::LoadFromFile(std::string path, const RendererContext& ctx)
             }
         }
     }
+    
+    mIsReverseMapDirty = true;
+
     return true;
+}
+
+const std::string& Model_Avatar::GetMappedKeyByBoneName(const std::string& boneName) const
+{
+    if (mIsReverseMapDirty)
+    {
+        BuildReverseMap();
+    }
+
+    static const std::string emptyString = "";
+    auto it = mReverseBoneMap.find(boneName);
+    if (it != mReverseBoneMap.end())
+    {
+        return it->second;
+    }
+    return emptyString;
+}
+
+void Model_Avatar::BuildReverseMap() const
+{
+    mReverseBoneMap.clear();
+    for (const auto& [key, val] : mBoneMap)
+    {
+        mReverseBoneMap[val] = key;
+    }
+    mIsReverseMapDirty = false;
 }

@@ -21,9 +21,15 @@ public:
     const std::string& GetMappedBoneName(const std::string& abstractKey) const;
 	const std::map<std::string, std::string>& GetBoneMap() const { return mBoneMap; }
 
+    const std::string& GetMappedKeyByBoneName(const std::string& boneName) const;
 private:
     DefinitionType mDefinitionType = DefinitionType::None;
     std::map<std::string, std::string> mBoneMap;
+
+    mutable std::unordered_map<std::string, std::string> mReverseBoneMap;
+    mutable bool mIsReverseMapDirty = true;
+
+    void BuildReverseMap() const;
 };
 
 namespace

@@ -5,6 +5,62 @@
 #include "DX_Graphics/ResourceUtils.h"
 
 
+void AnimationState::Reset(std::shared_ptr<AnimationClip> newClip, float newSpeed, PlaybackMode newMode)
+{
+    clip = newClip;
+    speed = newSpeed;
+    mode = newMode;
+
+    currentTime = 0.0f;
+    weight = 1.0f;
+    isValid = (clip != nullptr);
+    isReverse = false;
+}
+
+void AnimationState::Update(float deltaTime)
+{
+    if (!isValid || !clip) return;
+
+    float duration = clip->GetDuration();
+    if (duration <= 0.0f) return;
+
+    float actualSpeed = speed;
+    if (mode == PlaybackMode::PingPong && isReverse)
+    {
+        actualSpeed = -speed;
+    }
+
+    currentTime += deltaTime * actualSpeed;
+
+    if (mode == PlaybackMode::Loop)
+    {
+        if (currentTime >= duration)
+            currentTime = fmod(currentTime, duration);
+        else if (currentTime < 0.0f)
+            currentTime = duration + fmod(currentTime, duration);
+    }
+    else if (mode == PlaybackMode::Once)
+    {
+        if (currentTime >= duration) currentTime = duration;
+        else if (currentTime <= 0.0f) currentTime = 0.0f;
+    }
+    else if (mode == PlaybackMode::PingPong)
+    {
+        if (currentTime >= duration)
+        {
+            currentTime = duration;
+            isReverse = true;
+        }
+        else if (currentTime <= 0.0f)
+        {
+            currentTime = 0.0f;
+            isReverse = false;
+        }
+    }
+}
+
+
+
 AnimationControllerComponent::AnimationControllerComponent()
     : Component()
 {
@@ -48,6 +104,16 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
     rc.device->CreateShaderResourceView(mBoneMatrixBuffer.Get(), &srvDesc, heap->GetCpuHandle(mBoneMatrixSRVSlot));
 }
 
+void AnimationControllerComponent::SetPlaybackMode(PlaybackMode mode)
+{
+    mCurrentState.mode = mode;
+}
+
+PlaybackMode AnimationControllerComponent::GetPlaybackMode() const
+{
+    return mCurrentState.mode;
+}
+
 void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
 {
     if (mModelSkeleton == skeleton) return;
@@ -76,11 +142,30 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
             mBoneMatrixSRVSlot = UINT_MAX;
         }
     }
+
+    UpdateBoneMappingCache();
 }
 
 void AnimationControllerComponent::SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar)
 {
     mModelAvatar = model_avatar;
+
+    UpdateBoneMappingCache();
+}
+
+void AnimationControllerComponent::UpdateBoneMappingCache()
+{
+    if (!mModelSkeleton || !mModelAvatar) return;
+
+    size_t boneCount = mModelSkeleton->GetBoneCount();
+    mCachedBoneToKey.clear();
+    mCachedBoneToKey.resize(boneCount);
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        std::string boneName = mModelSkeleton->GetBoneName((int)i);
+        mCachedBoneToKey[i] = mModelAvatar->GetMappedKeyByBoneName(boneName);
+    }
 }
 
 bool AnimationControllerComponent::IsReady() const
@@ -88,121 +173,70 @@ bool AnimationControllerComponent::IsReady() const
     return mModelSkeleton != nullptr && mModelAvatar != nullptr && mBoneMatrixSRVSlot != UINT_MAX;
 }
 
-void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, PlaybackMode mode)
+void AnimationControllerComponent::Play(std::shared_ptr<AnimationClip> clip, float blendTime, PlaybackMode mode, float speed)
 {
-    if (!clip)
-        return;
+    if (!clip || !IsReady()) return;
 
-    mCurrentClip = clip;
-    mPlaybackMode = mode; 
-    mCurrentTime = 0.0f;
-    mIsReverse = false;
-
-    mClipAvatar = clip->GetAvatar();
-    mClipSkeleton = clip->GetSkeleton();
-
-    if (!mClipAvatar || !mClipSkeleton || !mModelAvatar || !mModelSkeleton)
+    if (blendTime > 0.0f && mCurrentState.isValid)
     {
-        OutputDebugStringA("[AnimationControllerComponent] Error: 필요한 Avatar 또는 Skeleton 부재.\n");
-        mCurrentClip = nullptr;
-        return;
+        mPrevState = mCurrentState;
+        mIsTransitioning = true;
+        mTransitionDuration = blendTime;
+        mTransitionTime = 0.0f;
+    }
+    else
+    {
+        mIsTransitioning = false;
+        mPrevState.isValid = false;
     }
 
-    if (mClipAvatar->GetDefinitionType() != mModelAvatar->GetDefinitionType())
-    {
-        OutputDebugStringA("[AnimationControllerComponent] Warning: DefinitionType 불일치.\n");
-        mCurrentClip = nullptr;
-        return;
-    }
-
-    mMappedClipBoneIndex.clear();
-    mMappedModelBoneIndex.clear();
-
-    const auto& modelMap = mModelAvatar->GetBoneMap();
-    const auto& clipMap = mClipAvatar->GetBoneMap();
-
-    for (const auto& [abstractKey, modelBoneName] : modelMap)
-    {
-        auto itClip = clipMap.find(abstractKey);
-        if (itClip == clipMap.end())
-            continue;
-
-        const std::string& clipBoneName = itClip->second;
-
-        int clipIndex = mClipSkeleton->GetBoneIndex(clipBoneName);
-        int modelIndex = mModelSkeleton->GetBoneIndex(modelBoneName);
-
-        if (clipIndex < 0 || modelIndex < 0)
-            continue;
-
-        mMappedClipBoneIndex[abstractKey] = clipIndex;
-        mMappedModelBoneIndex[abstractKey] = modelIndex;
-    }
-
-    OutputDebugStringA("[AnimationControllerComponent] Play(): Bone 매핑 완료.\n");
+    mCurrentState.Reset(clip, speed, mode);
 }
 
 void AnimationControllerComponent::Update(float deltaTime)
 {
     if (!IsReady()) return;
 
-    if (mCurrentClip)
+    mCurrentState.Update(deltaTime);
+
+    if (mIsTransitioning)
     {
-        float duration = mCurrentClip->GetDuration();
-        float scaledDelta = deltaTime * mSpeed;
+        mPrevState.Update(deltaTime);
 
-        if (duration > 0.0f)
+        mTransitionTime += deltaTime;
+
+        float t = 0.0f;
+        if (mTransitionDuration > 0.0f)
         {
-            if (mPlaybackMode == PlaybackMode::PingPong)
-            {
-                if (mIsReverse)
-                    mCurrentTime -= scaledDelta;
-                else
-                    mCurrentTime += scaledDelta;
-
-                if (mCurrentTime >= duration)
-                {
-                    mCurrentTime = duration;
-                    mIsReverse = true;
-                }
-                else if (mCurrentTime <= 0.0f)
-                {
-                    mCurrentTime = 0.0f;
-                    mIsReverse = false;
-                }
-            }
-            else
-            {
-                mCurrentTime += scaledDelta;
-
-                if (mCurrentTime > duration)
-                {
-                    if (mPlaybackMode == PlaybackMode::Loop)
-                    {
-                        mCurrentTime = fmod(mCurrentTime, duration);
-                    }
-                    else
-                    {
-                        mCurrentTime = duration;
-                    }
-                }
-            }
+            t = std::clamp(mTransitionTime / mTransitionDuration, 0.0f, 1.0f);
+        }
+        else
+        {
+            t = 1.0f;
         }
 
-        EvaluateAnimation(mCurrentTime);
+        mPrevState.weight = 1.0f - t;
+        mCurrentState.weight = t;
+
+        if (t >= 1.0f)
+        {
+            mIsTransitioning = false;
+            mPrevState.isValid = false;
+        }
     }
     else
     {
-        EvaluateAnimation(0.0f);
+        mCurrentState.weight = 1.0f;
     }
+
+    EvaluateAnimation();
 
     if (mMappedBoneBuffer)
     {
         memcpy(mMappedBoneBuffer, mCpuBoneMatrices.data(), sizeof(BoneMatrixData) * mCpuBoneMatrices.size());
     }
 }
-
-void AnimationControllerComponent::EvaluateAnimation(float time)
+void AnimationControllerComponent::EvaluateAnimation()
 {
     using namespace DirectX;
 
@@ -210,8 +244,6 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 
     const auto& bones = mModelSkeleton->GetBones();
     const size_t boneCount = bones.size();
-
-    if (boneCount == 0) return;
 
     if (mCpuBoneMatrices.size() != boneCount)
     {
@@ -222,43 +254,59 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
 
     for (size_t i = 0; i < boneCount; ++i)
     {
+        const std::string& abstractKey = mCachedBoneToKey[i];
+
         const BoneInfo& boneInfo = bones[i];
         XMMATRIX bindLocal = XMLoadFloat4x4(&boneInfo.bindLocal);
 
-        std::string boneName = mModelSkeleton->GetBoneName((int)i);
+        XMVECTOR S_final, R_final, T_final;
+        XMMatrixDecompose(&S_final, &R_final, &T_final, bindLocal);
 
-        std::string abstractKey;
-        for (auto& [k, v] : mModelAvatar->GetBoneMap())
+        if (!abstractKey.empty())
         {
-            if (v == boneName)
+            if (mCurrentState.isValid)
             {
-                abstractKey = k;
-                break;
+                const AnimationTrack* track = mCurrentState.clip->GetTrack(abstractKey);
+                if (track)
+                {
+                    XMFLOAT3 s = track->SampleScale(mCurrentState.currentTime);
+                    XMFLOAT4 r = track->SampleRotation(mCurrentState.currentTime);
+                    XMFLOAT3 t = track->SamplePosition(mCurrentState.currentTime);
+
+                    S_final = XMLoadFloat3(&s);
+                    R_final = XMLoadFloat4(&r);
+                    T_final = XMLoadFloat3(&t);
+                }
+            }
+
+            if (mIsTransitioning && mPrevState.isValid)
+            {
+                const AnimationTrack* prevTrack = mPrevState.clip->GetTrack(abstractKey);
+                if (prevTrack)
+                {
+                    XMFLOAT3 s_prev = prevTrack->SampleScale(mPrevState.currentTime);
+                    XMFLOAT4 r_prev = prevTrack->SampleRotation(mPrevState.currentTime);
+                    XMFLOAT3 t_prev = prevTrack->SamplePosition(mPrevState.currentTime);
+
+                    XMVECTOR S_p = XMLoadFloat3(&s_prev);
+                    XMVECTOR R_p = XMLoadFloat4(&r_prev);
+                    XMVECTOR T_p = XMLoadFloat3(&t_prev);
+
+                    float blendAlpha = mCurrentState.weight;
+                    if (mCurrentState.mask)
+                    {
+                        blendAlpha *= mCurrentState.mask->GetWeight((int)i);
+                    }
+
+                    S_final = XMVectorLerp(S_p, S_final, blendAlpha);
+                    T_final = XMVectorLerp(T_p, T_final, blendAlpha);
+                    R_final = XMQuaternionSlerp(R_p, R_final, blendAlpha);
+                }
             }
         }
 
-        const AnimationTrack* track = nullptr;
-        if (mCurrentClip && !abstractKey.empty())
-            track = mCurrentClip->GetTrack(abstractKey);
-
-        if (!track)
-        {
-            localTransforms[i] = bindLocal;
-            continue;
-        }
-
-        XMVECTOR S_bind, R_bind, T_bind;
-        XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);
-
-        XMFLOAT4 r_anim_f = track->SampleRotation(time);
-        XMVECTOR R_anim = XMLoadFloat4(&r_anim_f);
-
-        XMMATRIX local =
-            XMMatrixScalingFromVector(S_bind) *
-            XMMatrixRotationQuaternion(R_anim) *
-            XMMatrixTranslationFromVector(T_bind);
-
-        localTransforms[i] = local;
+        localTransforms[i] =
+            XMMatrixScalingFromVector(S_final) * XMMatrixRotationQuaternion(R_final) * XMMatrixTranslationFromVector(T_final);
     }
 
     std::vector<XMMATRIX> globalTransforms(boneCount);
@@ -275,8 +323,7 @@ void AnimationControllerComponent::EvaluateAnimation(float time)
     for (size_t i = 0; i < boneCount; ++i)
     {
         XMMATRIX invBind = XMLoadFloat4x4(&bones[i].inverseBind);
-        XMMATRIX final = XMMatrixTranspose(invBind * globalTransforms[i]);
-
-        XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, final);
+        XMMATRIX finalMat = XMMatrixTranspose(invBind * globalTransforms[i]);
+        XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, finalMat);
     }
 }
