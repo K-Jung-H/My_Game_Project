@@ -36,7 +36,21 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     importer->Import(scene);
     importer->Destroy();
 
-    bool hasMeshes = (scene->GetSrcObjectCount<FbxMesh>() > 0);
+    bool hasMeshes = false;
+    int srcMeshCount = scene->GetSrcObjectCount<FbxMesh>();
+
+    for (int i = 0; i < srcMeshCount; ++i)
+    {
+        FbxMesh* mesh = scene->GetSrcObject<FbxMesh>(i);
+        if (!mesh) continue;
+
+        if (mesh->GetControlPointsCount() > 0 && mesh->GetPolygonCount() > 0)
+        {
+            hasMeshes = true;
+            break; 
+        }
+    }
+
     int animStackCount = scene->GetSrcObjectCount<FbxAnimStack>();
     bool hasAnims = (animStackCount > 0);
 
@@ -105,32 +119,50 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     std::shared_ptr<Model_Avatar> modelAvatar = nullptr;
     std::shared_ptr<Skeleton> skeletonRes = nullptr;
 
-    if (hasAnims || hasMeshes)
+    if (hasMeshes || hasAnims)
     {
+        bool isTemporary = !hasMeshes;
+
         std::string skelAlias = hasMeshes ? model->GetAlias() : std::filesystem::path(path).stem().string();
         std::string skelPath = path + ".skel";
+
         skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, skelAlias + "_Skeleton", ctx,
             [&]() -> std::shared_ptr<Skeleton> {
-                return BuildSkeleton(scene);
+                auto skel = BuildSkeleton(scene);
+                if (skel) skel->SetTemporary(isTemporary);
+                return skel;
             }
         );
-        result.skeletonId = skeletonRes->GetId();
 
-        std::string avatarPath = path + ".avatar";
-        modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
-            [&]() -> std::shared_ptr<Model_Avatar> {
-                auto avatar = std::make_shared<Model_Avatar>();
-                avatar->SetDefinitionType(DefinitionType::Humanoid);
-                avatar->AutoMap(skeletonRes);
-                return avatar;
-            }
-        );
-        result.avatarId = modelAvatar->GetId();
-
-        if (model)
+        if (skeletonRes && skeletonRes->GetBoneCount() > 0)
         {
-            model->SetSkeleton(skeletonRes);
-            model->SetAvatarID(modelAvatar->GetId());
+            if (!isTemporary) result.skeletonId = skeletonRes->GetId();
+
+            std::string avatarPath = path + ".avatar";
+            modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
+                [&]() -> std::shared_ptr<Model_Avatar> {
+                    auto avatar = std::make_shared<Model_Avatar>();
+                    avatar->SetDefinitionType(DefinitionType::Humanoid);
+                    avatar->AutoMap(skeletonRes);
+                    if (avatar) avatar->SetTemporary(isTemporary);
+
+                    return avatar;
+                }
+            );
+
+            if (modelAvatar && !isTemporary) 
+                result.avatarId = modelAvatar->GetId();
+
+            if (model)
+            {
+                model->SetSkeleton(skeletonRes);
+                if (modelAvatar) 
+                    model->SetAvatarID(modelAvatar->GetId());
+            }
+        }
+        else
+        {
+            skeletonRes = nullptr;
         }
     }
 
@@ -150,12 +182,13 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
             FbxAnimStack* animStack = scene->GetSrcObject<FbxAnimStack>(i);
             if (!animStack) continue;
 
-            std::string clipName = animStack->GetName();
-            if (clipName.empty()) clipName = "Take_" + std::to_string(i + 1);
+            std::string rawClipName = animStack->GetName();
+            if (rawClipName.empty()) rawClipName = "Take_" + std::to_string(i + 1);
 
-            std::string clipPath = (clipDir / (clipName + ".anim")).string();
+            std::string uniqueClipName = fbxFileName + "_" + rawClipName;
+            std::string clipPath = (clipDir / (uniqueClipName + ".anim")).string();
 
-            auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, clipName, ctx,
+            auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, uniqueClipName, ctx,
                 [&]() -> std::shared_ptr<AnimationClip> {
                     return BuildAnimation(scene, animStack, modelAvatar, skeletonRes);
                 }

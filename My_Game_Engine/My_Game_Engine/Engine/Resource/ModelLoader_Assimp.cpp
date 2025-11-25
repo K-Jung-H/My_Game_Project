@@ -115,18 +115,23 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
 
     if (hasMeshes || hasAnims)
     {
+        bool isTemporary = !hasMeshes;
+
         std::string skelAlias = hasMeshes ? model->GetAlias() : std::filesystem::path(path).stem().string();
         std::string skelPath = path + ".skel";
 
         skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, skelAlias + "_Skeleton", ctx,
             [&]() -> std::shared_ptr<Skeleton> {
-                return BuildSkeleton(scene);
+                auto skel = BuildSkeleton(scene);
+                if (skel) skel->SetTemporary(isTemporary);
+                return skel;
             }
         );
 
         if (skeletonRes && skeletonRes->GetBoneCount() > 0)
         {
-            result.skeletonId = skeletonRes->GetId();
+            if (!isTemporary) 
+                result.skeletonId = skeletonRes->GetId();
 
             std::string avatarPath = path + ".avatar";
             modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
@@ -134,15 +139,20 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
                     auto avatar = std::make_shared<Model_Avatar>();
                     avatar->SetDefinitionType(DefinitionType::Humanoid);
                     avatar->AutoMap(skeletonRes);
+                    if (avatar) avatar->SetTemporary(isTemporary);
                     return avatar;
                 }
             );
-            result.avatarId = modelAvatar->GetId();
+
+            if (modelAvatar && !isTemporary) 
+                result.avatarId = modelAvatar->GetId();
 
             if (model)
             {
                 model->SetSkeleton(skeletonRes);
-                model->SetAvatarID(modelAvatar->GetId());
+
+                if (modelAvatar) 
+                    model->SetAvatarID(modelAvatar->GetId());
             }
         }
         else
@@ -175,12 +185,14 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
         {
             const aiAnimation* anim = scene->mAnimations[i];
-            std::string clipName = anim->mName.C_Str();
-            if (clipName.empty()) clipName = "Take_" + std::to_string(i + 1);
 
-            std::string clipPath = (clipDir / (clipName + ".anim")).string();
+            std::string rawClipName = anim->mName.C_Str();
+            if (rawClipName.empty()) rawClipName = "Take_" + std::to_string(i + 1);
 
-            auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, clipName, ctx,
+            std::string uniqueClipName = fbxFileName + "_" + rawClipName;
+            std::string clipPath = (clipDir / (uniqueClipName + ".anim")).string();
+
+            auto animationClip = rs->LoadOrReuse<AnimationClip>(clipPath, uniqueClipName, ctx,
                 [&]() -> std::shared_ptr<AnimationClip> {
                     return ProcessAnimation(anim, modelAvatar, skeletonRes);
                 }

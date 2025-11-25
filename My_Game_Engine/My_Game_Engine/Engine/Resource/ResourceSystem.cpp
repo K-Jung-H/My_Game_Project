@@ -51,6 +51,12 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return;
 
+    if (res->IsTemporary())
+    {
+        res->SetId(Engine::INVALID_ID);
+        return;
+    }
+
     std::string baseAlias = res->GetAlias();
     if (!baseAlias.empty())
     {

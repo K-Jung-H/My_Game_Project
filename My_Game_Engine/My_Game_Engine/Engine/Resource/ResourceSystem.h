@@ -170,9 +170,16 @@ std::shared_ptr<T> ResourceSystem::LoadOrReuse(
         resource->SetPath(path);
         resource->SetAlias(alias);
 
-        if (!resource->SaveToFile(path))
+        if (!resource->IsTemporary())
         {
-            OutputDebugStringA(("[ResourceSystem] Save failed: " + path + "\n").c_str());
+            if (!resource->SaveToFile(path))
+            {
+                OutputDebugStringA(("[ResourceSystem] Save failed: " + path + "\n").c_str());
+            }
+        }
+        else
+        {
+            OutputDebugStringA(("[ResourceSystem] Temporary resource created (Skip Save): " + path + "\n").c_str());
         }
     }
 
