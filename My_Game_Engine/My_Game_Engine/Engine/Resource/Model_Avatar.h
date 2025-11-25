@@ -11,25 +11,33 @@ public:
 
     virtual bool LoadFromFile(std::string path, const RendererContext& ctx) override;
     virtual bool SaveToFile(const std::string& outputPath = "") const;
-    void SetDefinitionType(DefinitionType type);
+
     void AutoMap(std::shared_ptr<Skeleton> skeleton);
 
 	// void SetMapping(const std::string& key, const std::string& value); // 수동매핑 가능하게 할 때 필요
 
+    void SetDefinitionType(DefinitionType type);
     DefinitionType GetDefinitionType() const { return mDefinitionType; }
+
+    void SetCorrection(const std::string& abstractKey, const XMFLOAT4& rotation);
+    XMFLOAT4 GetCorrection(const std::string& abstractKey) const;
     
     const std::string& GetMappedBoneName(const std::string& abstractKey) const;
 	const std::map<std::string, std::string>& GetBoneMap() const { return mBoneMap; }
 
     const std::string& GetMappedKeyByBoneName(const std::string& boneName) const;
+
 private:
+    void BuildReverseMap() const;
+
     DefinitionType mDefinitionType = DefinitionType::None;
     std::map<std::string, std::string> mBoneMap;
 
     mutable std::unordered_map<std::string, std::string> mReverseBoneMap;
     mutable bool mIsReverseMapDirty = true;
 
-    void BuildReverseMap() const;
+    std::unordered_map<std::string, DirectX::XMFLOAT4> mTPoseCorrections;
+
 };
 
 namespace

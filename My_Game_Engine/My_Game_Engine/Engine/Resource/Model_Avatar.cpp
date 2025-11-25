@@ -5,9 +5,97 @@ Model_Avatar::Model_Avatar() : Game_Resource(ResourceType::ModelAvatar)
 {
 }
 
-void Model_Avatar::SetDefinitionType(DefinitionType type)
+bool Model_Avatar::SaveToFile(const std::string& outputPath) const
 {
-    mDefinitionType = type;
+    using namespace rapidjson;
+    Document doc(kObjectType);
+    Document::AllocatorType& alloc = doc.GetAllocator();
+
+    doc.AddMember("DefinitionType", (int)mDefinitionType, alloc);
+
+    Value mapping(kArrayType);
+    for (const auto& [key, value] : mBoneMap)
+    {
+        Value entry(kObjectType);
+        entry.AddMember("key", Value(key.c_str(), alloc), alloc);
+        entry.AddMember("value", Value(value.c_str(), alloc), alloc);
+        mapping.PushBack(entry, alloc);
+    }
+    doc.AddMember("Mapping", mapping, alloc);
+
+    Value corrections(kArrayType);
+    for (const auto& [key, rot] : mTPoseCorrections)
+    {
+        Value entry(kObjectType);
+        entry.AddMember("key", Value(key.c_str(), alloc), alloc);
+
+        Value rArr(kArrayType);
+        rArr.PushBack(rot.x, alloc).PushBack(rot.y, alloc).PushBack(rot.z, alloc).PushBack(rot.w, alloc);
+        entry.AddMember("rot", rArr, alloc);
+
+        corrections.PushBack(entry, alloc);
+    }
+    doc.AddMember("Corrections", corrections, alloc);
+
+    StringBuffer buffer;
+    PrettyWriter<StringBuffer> writer(buffer);
+    doc.Accept(writer);
+
+    std::ofstream ofs(GetPath());
+    if (!ofs.is_open()) return false;
+
+    ofs << buffer.GetString();
+    ofs.close();
+    return true;
+}
+
+bool Model_Avatar::LoadFromFile(std::string path, const RendererContext& ctx)
+{
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) return false;
+
+    std::stringstream buffer;
+    buffer << ifs.rdbuf();
+    std::string json = buffer.str();
+    ifs.close();
+
+    rapidjson::Document doc;
+    if (doc.Parse(json.c_str()).HasParseError()) return false;
+
+    if (doc.HasMember("DefinitionType"))
+    {
+        mDefinitionType = (DefinitionType)doc["DefinitionType"].GetInt();
+    }
+
+    mBoneMap.clear();
+    if (doc.HasMember("Mapping") && doc["Mapping"].IsArray())
+    {
+        for (auto& entry : doc["Mapping"].GetArray())
+        {
+            if (entry.IsObject() && entry.HasMember("key") && entry.HasMember("value"))
+            {
+                mBoneMap[entry["key"].GetString()] = entry["value"].GetString();
+            }
+        }
+    }
+
+    mTPoseCorrections.clear();
+    if (doc.HasMember("Corrections") && doc["Corrections"].IsArray())
+    {
+        for (auto& entry : doc["Corrections"].GetArray())
+        {
+            if (entry.IsObject() && entry.HasMember("key") && entry.HasMember("rot"))
+            {
+                std::string key = entry["key"].GetString();
+                const auto& rArr = entry["rot"].GetArray();
+                XMFLOAT4 rot(rArr[0].GetFloat(), rArr[1].GetFloat(), rArr[2].GetFloat(), rArr[3].GetFloat());
+                mTPoseCorrections[key] = rot;
+            }
+        }
+    }
+
+    mIsReverseMapDirty = true;
+    return true;
 }
 
 void Model_Avatar::AutoMap(std::shared_ptr<Skeleton> skeleton)
@@ -175,76 +263,24 @@ const std::string& Model_Avatar::GetMappedBoneName(const std::string& abstractKe
     return emptyString;
 }
 
-bool Model_Avatar::SaveToFile(const std::string& outputPath) const
+
+void Model_Avatar::SetDefinitionType(DefinitionType type)
 {
-    using namespace rapidjson;
-    Document doc(kObjectType);
-    Document::AllocatorType& alloc = doc.GetAllocator();
-
-    doc.AddMember("DefinitionType", (int)mDefinitionType, alloc);
-
-    Value mapping(kArrayType);
-    for (const auto& [key, value] : mBoneMap)
-    {
-        Value entry(kObjectType);
-        entry.AddMember("key", Value(key.c_str(), alloc), alloc);
-        entry.AddMember("value", Value(value.c_str(), alloc), alloc);
-        mapping.PushBack(entry, alloc);
-    }
-    doc.AddMember("Mapping", mapping, alloc);
-
-    StringBuffer buffer;
-    PrettyWriter<StringBuffer> writer(buffer);
-    doc.Accept(writer);
-
-    std::ofstream ofs(GetPath());
-    if (!ofs.is_open())
-    {
-        OutputDebugStringA(("[Model_Avatar] Error: " + GetPath() + " 파일 쓰기 실패.\n").c_str());
-        return false;
-    }
-
-    ofs << buffer.GetString();
-    ofs.close();
-    return true;
+    mDefinitionType = type;
 }
 
-bool Model_Avatar::LoadFromFile(std::string path, const RendererContext& ctx)
+void Model_Avatar::SetCorrection(const std::string& abstractKey, const DirectX::XMFLOAT4& rotation)
 {
-    std::ifstream ifs(path);
-    if (!ifs.is_open()) return false;
+    mTPoseCorrections[abstractKey] = rotation;
+}
 
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    std::string json = buffer.str();
-    ifs.close();
-
-    rapidjson::Document doc;
-    if (doc.Parse(json.c_str()).HasParseError())
+DirectX::XMFLOAT4 Model_Avatar::GetCorrection(const std::string& abstractKey) const
+{
+    if (mTPoseCorrections.find(abstractKey) != mTPoseCorrections.end())
     {
-        return false;
+        return mTPoseCorrections.at(abstractKey);
     }
-
-    if (doc.HasMember("DefinitionType"))
-    {
-        mDefinitionType = (DefinitionType)doc["DefinitionType"].GetInt();
-    }
-
-    mBoneMap.clear();
-    if (doc.HasMember("Mapping") && doc["Mapping"].IsArray())
-    {
-        for (auto& entry : doc["Mapping"].GetArray())
-        {
-            if (entry.IsObject() && entry.HasMember("key") && entry.HasMember("value"))
-            {
-                mBoneMap[entry["key"].GetString()] = entry["value"].GetString();
-            }
-        }
-    }
-    
-    mIsReverseMapDirty = true;
-
-    return true;
+    return DirectX::XMFLOAT4(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
 const std::string& Model_Avatar::GetMappedKeyByBoneName(const std::string& boneName) const

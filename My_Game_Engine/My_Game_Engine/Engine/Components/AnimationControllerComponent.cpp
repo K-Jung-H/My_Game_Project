@@ -231,6 +231,71 @@ void AnimationControllerComponent::Update(float deltaTime)
     }
 }
 
+//void AnimationControllerComponent::EvaluateLayers()
+//{
+//    if (!mModelSkeleton || !mModelAvatar) return;
+//
+//    const auto& bones = mModelSkeleton->GetBones();
+//    const size_t boneCount = bones.size();
+//
+//    if (mCpuBoneMatrices.size() != boneCount)
+//    {
+//        mCpuBoneMatrices.resize(boneCount);
+//    }
+//
+//    std::vector<XMMATRIX> localTransforms(boneCount);
+//
+//    for (size_t i = 0; i < boneCount; ++i)
+//    {
+//        const std::string& abstractKey = mCachedBoneToKey[i];
+//        const BoneInfo& boneInfo = bones[i];
+//
+//        XMMATRIX bindLocal = XMLoadFloat4x4(&boneInfo.bindLocal);
+//
+//        XMVECTOR S_acc, R_acc, T_acc;
+//        XMMatrixDecompose(&S_acc, &R_acc, &T_acc, bindLocal);
+//
+//        for (auto& layer : mLayers)
+//        {
+//            float layerWeight = layer.GetWeight();
+//            if (layerWeight <= 0.001f) continue;
+//
+//            float maskWeight = 1.0f;
+//            auto mask = layer.GetMask();
+//            if (mask && !abstractKey.empty())
+//            {
+//                maskWeight = mask->GetWeight(abstractKey);
+//            }
+//
+//            float finalWeight = layerWeight * maskWeight;
+//            if (finalWeight <= 0.001f) continue;
+//
+//            layer.EvaluateAndBlend(abstractKey, finalWeight, S_acc, R_acc, T_acc);
+//        }
+//
+//        localTransforms[i] =
+//            XMMatrixScalingFromVector(S_acc) * XMMatrixRotationQuaternion(R_acc) * XMMatrixTranslationFromVector(T_acc);
+//    }
+//
+//    std::vector<XMMATRIX> globalTransforms(boneCount);
+//
+//    for (size_t i = 0; i < boneCount; ++i)
+//    {
+//        int parent = bones[i].parentIndex;
+//        if (parent < 0)
+//            globalTransforms[i] = localTransforms[i];
+//        else
+//            globalTransforms[i] = localTransforms[i] * globalTransforms[parent];
+//    }
+//
+//    for (size_t i = 0; i < boneCount; ++i)
+//    {
+//        XMMATRIX invBind = XMLoadFloat4x4(&bones[i].inverseBind);
+//        XMMATRIX finalMat = XMMatrixTranspose(invBind * globalTransforms[i]);
+//        XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, finalMat);
+//    }
+//}
+
 void AnimationControllerComponent::EvaluateLayers()
 {
     if (!mModelSkeleton || !mModelAvatar) return;
@@ -254,6 +319,15 @@ void AnimationControllerComponent::EvaluateLayers()
 
         XMVECTOR S_acc, R_acc, T_acc;
         XMMatrixDecompose(&S_acc, &R_acc, &T_acc, bindLocal);
+
+        XMVECTOR R_correction = XMQuaternionIdentity();
+        if (!abstractKey.empty())
+        {
+            XMFLOAT4 corr = mModelAvatar->GetCorrection(abstractKey);
+            R_correction = XMLoadFloat4(&corr);
+        }
+
+        R_acc = XMQuaternionMultiply(R_acc, R_correction);
 
         for (auto& layer : mLayers)
         {
