@@ -22,8 +22,11 @@ Entity-Component-System (ECS) 아키텍처 기반.
     * Cross-fading (Smooth Blending) 지원.
 * **Animation Layer:**
     * 다중 레이어(Base, Overlay) 지원.
-    * 부위별 애니메이션 적용을 위한 Avatar Masking (상/하체 분리 등).
     * 레이어별 가중치(Weight) 및 속도 제어.
+* **Advanced Retargeting (Auto-Correction):**
+    * 이기종 모델(T-Pose ↔ A-Pose) 간 애니메이션 공유 시 발생하는 **골격 늘어짐(Bone Stretching)** 현상 해결.
+    * **구현 방식:** 로딩 시점 Bind Pose와 타겟 포즈 간의 차이를 분석, 보정 회전값(Correction Quaternion)을 계산하여 런타임에 자동 적용.
+    * *Note:* 일부 모델에서 발생하는 Candy Wrapper Effect(비틀림 시 부피 감소)문제는 모델 토폴로지 및 웨이트 구조의 문제로 판단하여 현재 엔진의 해결 범위에서 제외함.
 
 ### Architecture & Tools
 * **Resource System:**
@@ -31,29 +34,22 @@ Entity-Component-System (ECS) 아키텍처 기반.
     * Transient Resource Pipeline: 애니메이션 전용 파일 로드 시 불필요한 Skeleton/Avatar 에셋을 디스크에 저장하지 않고 메모리상에서만 처리하는 최적화 구현.
 * **Editor (ImGui):**
     * 씬 그래프 및 인스펙터.
+    * **Node-based Graph Editor:**
+        * 노드/링크 편집, Zoom & Pan, 미니맵(Minimap) 지원.
+        * 다중 선택(Quad Selection) 및 곡선(Bezier)/직선 링크 시각화.
     * 애니메이션 레이어 실시간 제어 및 블렌딩 상태 시각화.
 
 ---
 
 ## Currently In Progress & Issues
 
-현재 개발 단계에서 해결 중인 기술적 이슈와 진행 상황.
+현재 개발 단계 진행 상황.
 
-### 1. Advanced Retargeting (T-Pose Auto-Correction)
-서로 다른 구조를 가진 이기종 모델 간의 애니메이션 공유를 위한 자동 보정 시스템을 구현 중.
-
-* **문제점 (Current Issue):**
-    * 표준 T-Pose 모델(Anya)의 애니메이션을 A-Pose 모델(CP_Series)에 적용 시, 팔다리가 기괴하게 꺾이거나 회전축이 어긋나는 현상 발생.
-    * 특히 3ds Max Biped의 **Twist Bone**이 포함된 모델에서 증상이 심각함.
-
-* **원인 분석:**
-    * **Bind Pose 불일치:** 소스(0도, T-Pose)와 타겟(45도, A-Pose)의 기본 각도가 달라, 절대값 회전을 적용하면 각도가 중첩됨.
-    * **로컬 축(Axis) 상이:** Twist Bone으로 인해 자식 뼈의 로컬 좌표계가 회전되어 있어, 동일한 회전값을 적용해도 다른 방향으로 굽혀짐.
-
-* **해결 방안 (Solution Strategy):**
-    * **로딩 시점:** 모델의 뼈가 가리키는 방향 벡터를 분석하여, 강제로 T-Pose를 만들기 위한 **보정 회전값(Correction Quaternion)**을 계산하여 `Avatar`에 저장.
-    * **런타임:** 애니메이션 적용 전, 보정값을 먼저 곱해 가상의 T-Pose 상태로 만든 후 애니메이션 델타를 적용.
-    * **수식:** `R_Final = R_Bind * R_Correction * R_AnimDelta`
+### 1. Animation Mask Implementation
+* **목표:** 캐릭터의 특정 부위(예: 상체, 하체, 특정 팔 등)에만 애니메이션을 적용하거나 제외하는 마스킹 시스템 구현.
+* **진행 상황:**
+    * 특정 Bone을 기준으로 하위 계층을 포함/제외하는 필터링 로직 설계 중.
+    * Animation Layer와 연동하여 복합 애니메이션 처리 기능 강화 예정.
 
 ### 2. Root Motion
 * 애니메이션의 루트 본(Hips) 이동 데이터를 추출하여 실제 GameObject의 월드 좌표 이동으로 변환하는 로직 구현 예정.
