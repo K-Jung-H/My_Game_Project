@@ -36,7 +36,9 @@ public:
     void SetLayerMask(int layerIndex, std::shared_ptr<AvatarMask> mask);
     std::shared_ptr<AvatarMask> GetLayerMask(int layerIndex) const;
 
-    void Play(int layerIndex, std::shared_ptr<AnimationClip> clip, float blendTime = 0.2f, PlaybackMode mode = PlaybackMode::Loop, float speed = 1.0f);
+    void SetLayerNormalizedTime(int layerIndex, float ratio);
+    float GetLayerNormalizedTime(int layerIndex) const;
+    float GetLayerDuration(int layerIndex) const;
 
     void SetPlaybackMode(PlaybackMode mode, int layerIndex = 0);
     PlaybackMode GetPlaybackMode(int layerIndex = 0) const;
@@ -47,6 +49,12 @@ public:
     bool IsLayerTransitioning(int layerIndex) const;
     float GetLayerTransitionProgress(int layerIndex) const;
     std::shared_ptr<AnimationClip> GetCurrentClip(int layerIndex) const;
+
+
+    void SetPause(bool pause) { mIsPaused = pause; }
+    bool IsPaused() const { return mIsPaused; }
+
+    void Play(int layerIndex, std::shared_ptr<AnimationClip> clip, float blendTime = 0.2f, PlaybackMode mode = PlaybackMode::Loop, float speed = 1.0f);
 
     bool IsReady() const;
     void Update(float deltaTime);
@@ -63,6 +71,7 @@ private:
     std::vector<std::string> mCachedBoneToKey;
 
     std::vector<AnimationLayer> mLayers;
+    bool mIsPaused = false;
 
     std::vector<BoneMatrixData> mCpuBoneMatrices;
     ComPtr<ID3D12Resource> mBoneMatrixBuffer;

@@ -26,6 +26,9 @@ public:
     void SetMask(std::shared_ptr<AvatarMask> mask) { mMask = mask; }
     std::shared_ptr<AvatarMask> GetMask() const { return mMask; }
 
+    void SetNormalizedTime(float ratio);
+    float GetNormalizedTime() const;
+
     void SetBlendMode(LayerBlendMode mode) { mBlendMode = mode; }
     LayerBlendMode GetBlendMode() const { return mBlendMode; }
 
@@ -43,7 +46,9 @@ public:
     }
     float GetTransitionTime() const { return mTransitionTime; }
     float GetTransitionDuration() const { return mTransitionDuration; }
+    float GetCurrentDuration() const;
     std::shared_ptr<AnimationClip> GetCurrentClip() const { return mCurrentState.clip; }
+
 
 private:
     bool GetSample(const AnimationState& state, const std::string& key,

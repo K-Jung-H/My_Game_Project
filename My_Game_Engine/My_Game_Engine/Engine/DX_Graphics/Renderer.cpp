@@ -2797,6 +2797,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 ImGui::Indent();
 
                 ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
                 if (ImGui::TreeNodeEx("Global Settings", ImGuiTreeNodeFlags_DefaultOpen))
                 {
                     auto currentSkeleton = animCtrl->GetSkeleton();
@@ -2846,6 +2847,32 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 }
 
                 ImGui::Separator();
+                ImGui::Text("Global Timeline Control");
+
+                bool isPaused = animCtrl->IsPaused();
+                if (ImGui::Checkbox("Pause All", &isPaused))
+                {
+                    animCtrl->SetPause(isPaused);
+                }
+
+                static float globalProgress = 0.0f;
+
+                if (ImGui::SliderFloat("Global Progress", &globalProgress, 0.0f, 1.0f, "%.2f%%"))
+                {
+                    if (!isPaused)
+                    {
+                        animCtrl->SetPause(true);
+                        isPaused = true;
+                    }
+
+                    int count = animCtrl->GetLayerCount();
+                    for (int i = 0; i < count; ++i)
+                    {
+                        animCtrl->SetLayerNormalizedTime(i, globalProgress);
+                    }
+                }
+
+                ImGui::Separator();
                 ImGui::Text("Animation Layers");
 
                 int layerCount = animCtrl->GetLayerCount();
@@ -2855,7 +2882,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 {
                     ImGui::PushID(i);
 
-                    float childHeight = 185.0f;
+                    float childHeight = 210.0f;
                     if (ImGui::BeginChild("LayerFrame", ImVec2(0, childHeight), true, ImGuiWindowFlags_None))
                     {
                         std::string headerName = "Layer " + std::to_string(i);
@@ -2930,6 +2957,24 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                             animCtrl->SetSpeed(speed, i);
                         }
 
+                        ImGui::Spacing();
+
+                        float currentProgress = animCtrl->GetLayerNormalizedTime(i);
+                        float duration = animCtrl->GetLayerDuration(i);
+                        float currentTime = currentProgress * duration;
+
+                        char timeLabel[64];
+                        if (duration > 0.0f)
+                            sprintf_s(timeLabel, "%.2fs / %.2fs", currentTime, duration);
+                        else
+                            sprintf_s(timeLabel, "No Clip");
+
+                        if (ImGui::SliderFloat("Seek", &currentProgress, 0.0f, 1.0f, timeLabel))
+                        {
+                            animCtrl->SetPause(true);
+                            animCtrl->SetLayerNormalizedTime(i, currentProgress);
+                        }
+
                         if (animCtrl->IsLayerTransitioning(i))
                         {
                             float progress = animCtrl->GetLayerTransitionProgress(i);
@@ -2939,10 +2984,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                             ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
                             ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
                             ImGui::PopStyleColor();
-                        }
-                        else
-                        {
-                            ImGui::TextDisabled("State: Stable");
                         }
                     }
                     ImGui::EndChild();
@@ -2956,7 +2997,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
 
             ImGui::PopID();
         }
-
     }
     break;
 

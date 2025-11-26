@@ -214,13 +214,36 @@ std::shared_ptr<AnimationClip> AnimationControllerComponent::GetCurrentClip(int 
     return nullptr;
 }
 
+void AnimationControllerComponent::SetLayerNormalizedTime(int layerIndex, float ratio)
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+        mLayers[layerIndex].SetNormalizedTime(ratio);
+}
+
+float AnimationControllerComponent::GetLayerNormalizedTime(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+        return mLayers[layerIndex].GetNormalizedTime();
+    return 0.0f;
+}
+
+float AnimationControllerComponent::GetLayerDuration(int layerIndex) const
+{
+    if (layerIndex >= 0 && layerIndex < mLayers.size())
+        return mLayers[layerIndex].GetCurrentDuration();
+    return 0.0f;
+}
+
 void AnimationControllerComponent::Update(float deltaTime)
 {
     if (!IsReady()) return;
 
-    for (auto& layer : mLayers)
+    if (!mIsPaused)
     {
-        layer.Update(deltaTime);
+        for (auto& layer : mLayers)
+        {
+            layer.Update(deltaTime);
+        }
     }
 
     EvaluateLayers();

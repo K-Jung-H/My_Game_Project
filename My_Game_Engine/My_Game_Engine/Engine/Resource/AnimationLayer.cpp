@@ -1,9 +1,35 @@
 #include "AnimationLayer.h"
 
-using namespace DirectX;
 
 AnimationLayer::AnimationLayer()
 {
+}
+
+void AnimationLayer::SetNormalizedTime(float ratio)
+{
+    if (mCurrentState.isValid && mCurrentState.clip)
+    {
+        float duration = mCurrentState.clip->GetDuration();
+        mCurrentState.currentTime = duration * std::clamp(ratio, 0.0f, 1.0f);
+    }
+}
+
+float AnimationLayer::GetNormalizedTime() const
+{
+    if (mCurrentState.isValid && mCurrentState.clip)
+    {
+        float duration = mCurrentState.clip->GetDuration();
+        if (duration > 0.0f)
+            return mCurrentState.currentTime / duration;
+    }
+    return 0.0f;
+}
+
+float AnimationLayer::GetCurrentDuration() const
+{
+    if (mCurrentState.isValid && mCurrentState.clip)
+        return mCurrentState.clip->GetDuration();
+    return 0.0f;
 }
 
 void AnimationLayer::Play(std::shared_ptr<AnimationClip> clip, float blendTime, PlaybackMode mode, float speed)
