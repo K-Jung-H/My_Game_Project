@@ -10,7 +10,7 @@ public:
     Material();
     virtual ~Material() = default;
     virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
-    bool SaveToFile(const std::string& outputPath) const;
+    virtual bool SaveToFile(const std::string& outputPath) const;
 
     void FromAssimp(const aiMaterial* material);
     void FromFbxSDK(const FbxSurfaceMaterial* material);

@@ -6,6 +6,8 @@ enum Component_Type
 {
     Transform,
     Mesh_Renderer,
+	Skinned_Mesh_Renderer,
+    AnimationController,
     Camera,
     Collider,
     Rigidbody,

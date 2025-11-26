@@ -2,7 +2,6 @@
 #include "GameEngine.h"
 #include "ModelLoader_Assimp.h"
 #include "ModelLoader_FBX.h"
-#include "MaterialLoader.h"
 #include "TextureLoader.h"
 
 
@@ -52,6 +51,29 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 {
     if (!res) return;
 
+    if (res->IsTemporary())
+    {
+        res->SetId(Engine::INVALID_ID);
+        return;
+    }
+
+    std::string baseAlias = res->GetAlias();
+    if (!baseAlias.empty())
+    {
+        std::string uniqueAlias = baseAlias;
+        int count = 1;
+
+        while (mAliasToId.find(uniqueAlias) != mAliasToId.end())
+        {
+            uniqueAlias = baseAlias + "_" + std::to_string(count++);
+        }
+
+        if (uniqueAlias != baseAlias)
+        {
+            res->SetAlias(uniqueAlias);
+        }
+    }
+
     ResourceEntry entry;
     entry.id = mNextResourceID++;
     entry.path = res->GetPath();
@@ -71,17 +93,22 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     mPathToId[entry.path] = entry.id;
     if (!entry.alias.empty()) mAliasToId[entry.alias] = entry.id;
 
-    // type cache
     switch (res->Get_Type())
     {
-    case ResourceType::Mesh:     mMeshes.push_back(std::dynamic_pointer_cast<Mesh>(res)); break;
-    case ResourceType::Material: mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
-    case ResourceType::Texture:  mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
-    case ResourceType::Model:    mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
+    case ResourceType::Mesh:      mMeshes.push_back(std::dynamic_pointer_cast<Mesh>(res)); break;
+    case ResourceType::Material:  mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
+    case ResourceType::Texture:   mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
+    case ResourceType::Model:     mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
+    case ResourceType::Skeleton:  mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
+    case ResourceType::ModelAvatar: mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
+    case ResourceType::AnimationClip: mAnimationClips.push_back(std::dynamic_pointer_cast<AnimationClip>(res)); break;
     default: break;
     }
 
-    MetaIO::SaveSimpleMeta(res);
+    if (res->GetPath().find('#') == std::string::npos)
+    {
+        MetaIO::SaveSimpleMeta(res);
+    }
 }
 
 void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadResult& result)
@@ -89,7 +116,6 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
     FileCategory category = DetectFileCategory(path);
 
-    // 캐시 검사: 이미 로드된 리소스가 있으면 결과에 ID만 기록
     if (auto it = mPathToId.find(path); it != mPathToId.end())
     {
         if (auto res = GetById<Game_Resource>(it->second))
@@ -107,9 +133,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         }
     }
 
-    // -------------------------------
-    // 리소스 타입별 로드
-    // -------------------------------
+
     switch (category)
     {
     case FileCategory::FBX:
@@ -124,7 +148,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         ModelLoader_Assimp assimpLoader;
         if (assimpLoader.Load(path, alias, result))
         {
-            OutputDebugStringA(("[Assimp Fallback] Loaded FBX: " + path + "\n").c_str());
+            OutputDebugStringA(("[Assimp] Loaded FBX: " + path + "\n").c_str());
             return;
         }
 
@@ -150,10 +174,14 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     // ----------------------------------------------
     case FileCategory::Material:
     {
-        auto mat = MaterialLoader::LoadOrReuse(ctx, path, std::string(alias), path);
+        auto mat = LoadOrReuse<Material>(path, std::string(alias), ctx, 
+            [&]() -> std::shared_ptr<Material> {
+                return std::make_shared<Material>();
+            }
+        );
+
         if (mat)
         {
-            RegisterResource(mat);
             result.materialIds.push_back(mat->GetId());
         }
         break;

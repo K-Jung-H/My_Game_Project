@@ -1,28 +1,6 @@
 #pragma once
 #include "Mesh.h"
-
-struct Bone
-{
-    std::string name;
-    int parentIndex;
-    XMFLOAT4X4 inverseBind; 
-};
-
-struct Skeleton
-{
-    std::vector<Bone> BoneList;
-    std::unordered_set<std::string> BoneNames;
-
-    std::unordered_map<std::string, int> NameToIndex;
-
-    void BuildNameToIndex()
-    {
-        NameToIndex.clear();
-        for (size_t i = 0; i < BoneList.size(); i++)
-            NameToIndex[BoneList[i].name] = static_cast<int>(i);
-    }
-};
-
+#include "Skeleton.h"
 
 class Model : public Game_Resource
 {
@@ -47,21 +25,25 @@ public:
     Model();
     virtual ~Model() = default;
 
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) { return false; }
+    virtual bool SaveToFile(const std::string& outputPath) const { return false; }
+
     std::shared_ptr<Node> GetRoot() const { return root; }
     void SetRoot(const std::shared_ptr<Node>& node) { root = node; }
 
     const std::vector<std::shared_ptr<Mesh>>& GetAllMeshes() const { return meshes; }
     void AddMesh(const std::shared_ptr<Mesh>& mesh) { meshes.push_back(mesh); }
 
+    std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }
+	void SetSkeleton(std::shared_ptr<Skeleton> s) { mModelSkeleton = s; }
 
-
-    virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
-
-    void SetSkeleton(const Skeleton& s) { skeleton = s; }
-    const Skeleton& GetSkeleton() const { return skeleton; }
+    void SetAvatarID(UINT id) { mAvatarID = id; }
+    UINT GetAvatarID() const { return mAvatarID; }
 
 private:
     std::shared_ptr<Node> root;
     std::vector<std::shared_ptr<Mesh>> meshes;       // 전체 Mesh 목록
-    Skeleton skeleton;
+
+    std::shared_ptr<Skeleton> mModelSkeleton;
+    UINT mAvatarID = Engine::INVALID_ID;
 };

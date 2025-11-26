@@ -2,13 +2,14 @@
 
 D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset preset)
 {
-    static std::vector<D3D12_INPUT_ELEMENT_DESC> defaultLayout =
+    static std::vector<D3D12_INPUT_ELEMENT_DESC> hotColdLayout =
     {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 1, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 2, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 3, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 4, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "NORMAL",   0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TANGENT",  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, 24, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,       1, 0,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "TEXCOORD", 1, DXGI_FORMAT_R32G32_FLOAT,       1, 8,  D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+        { "COLOR",    0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, 16, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
     };
 
     static std::vector<D3D12_INPUT_ELEMENT_DESC> posNormTexLayout = {
@@ -28,6 +29,8 @@ D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset pr
 
     switch (preset)
     {
+    case InputLayoutPreset::Default:
+        return { hotColdLayout.data(), (UINT)hotColdLayout.size() };
     case InputLayoutPreset::PosNormTex:
         return { posNormTexLayout.data(), (UINT)posNormTexLayout.size() };
     case InputLayoutPreset::PosColor:
@@ -37,7 +40,7 @@ D3D12_INPUT_LAYOUT_DESC PipelineDescFactory::GetInputLayout(InputLayoutPreset pr
     case InputLayoutPreset::None:
         return { nullptr, 0 };
     default:
-        return { defaultLayout.data(), (UINT)defaultLayout.size() };
+        return { hotColdLayout.data(), (UINT)hotColdLayout.size() };
     }
 }
 

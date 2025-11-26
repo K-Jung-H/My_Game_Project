@@ -6,11 +6,6 @@ Model::Model() : Game_Resource()
 
 }
 
-bool Model::LoadFromFile(std::string path, const RendererContext& ctx)
-{
-	return false;
-}
-
 bool Model::loadAndExport(const std::string& fbxPath, const std::string& outTxt) 
 {
     Assimp::Importer importer;

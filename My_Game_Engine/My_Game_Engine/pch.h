@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 
+#include <set>
 #include <vector>
 #include <array>
 #include <map>
@@ -126,7 +127,7 @@ extern HINSTANCE hInst;
 
 namespace Engine {
     constexpr UINT INVALID_ID = 0xFFFFFFFFu;
-    constexpr UINT Frame_Render_Buffer_Count = 4;
+    constexpr UINT Frame_Render_Buffer_Count = 2;
 }
 
 #endif //PCH_H

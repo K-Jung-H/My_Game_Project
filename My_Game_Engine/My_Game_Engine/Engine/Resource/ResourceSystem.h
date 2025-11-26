@@ -4,15 +4,21 @@
 #include "Texture.h"
 #include "Material.h"
 #include "Model.h"
+#include "Model_Avatar.h"
+#include "Skeleton.h"
+#include "AnimationClip.h"
 #include "MetaIO.h"
-
 
 struct LoadResult
 {
     std::vector<UINT> meshIds;
     std::vector<UINT> materialIds;
     std::vector<UINT> textureIds;
+	std::vector<UINT> clipIds;
+
     UINT modelId = Engine::INVALID_ID;
+	UINT skeletonId = Engine::INVALID_ID;
+	UINT avatarId = Engine::INVALID_ID;
 };
 
 inline std::string MakeSubresourcePath(const std::string& containerPath, const char* kind, const std::string& nameOrIndex)
@@ -33,6 +39,8 @@ public:
     template<typename T> std::shared_ptr<T> GetByGUID(const std::string& guid) const;
     template<typename T> std::shared_ptr<T> GetByPath(const std::string& path) const;
     template<typename T> std::shared_ptr<T> GetByAlias(const std::string& alias) const;
+    template<typename T> std::vector<std::shared_ptr<T>> GetAllResources();
+    template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
 
     // Meta
     std::string GetOrCreateGUID(const std::string& path);
@@ -65,6 +73,9 @@ private:
     std::vector<std::shared_ptr<Material>> mMaterials;
     std::vector<std::shared_ptr<Texture>>  mTextures;
     std::vector<std::shared_ptr<Model>>    mModels;
+    std::vector<std::shared_ptr<Skeleton>> mSkeletons;
+    std::vector<std::shared_ptr<Model_Avatar>> mAvatars;
+    std::vector<std::shared_ptr<AnimationClip>> mAnimationClips;
 
     // GUID Ä³½Ì (meta scan)
     std::unordered_map<std::string, std::string> mPathToGUID;
@@ -103,4 +114,78 @@ std::shared_ptr<T> ResourceSystem::GetByAlias(const std::string& alias) const
     if (auto it = mAliasToId.find(alias); it != mAliasToId.end())
         return GetById<T>(it->second);
     return nullptr;
+}
+
+template<typename T>
+std::vector<std::shared_ptr<T>> ResourceSystem::GetAllResources()
+{
+    std::vector<std::shared_ptr<T>> result;
+    for (auto& [id, entry] : mResources)
+    {
+        if (auto casted = std::dynamic_pointer_cast<T>(entry.resource)) 
+        {
+            result.push_back(std::dynamic_pointer_cast<T>(entry.resource));
+        }
+    }
+    return result;
+}
+
+template<typename T>
+std::shared_ptr<T> ResourceSystem::LoadOrReuse(
+    const std::string& path,
+    const std::string& alias,
+    const RendererContext& ctx,
+    std::function<std::shared_ptr<T>()> createCallback
+)
+{
+    if (auto cached = GetByPath<T>(path))
+    {
+        return cached;
+    }
+
+    std::shared_ptr<T> resource;
+    bool existing = std::filesystem::exists(path);
+
+    if (existing)
+    {
+        resource = std::make_shared<T>();
+        if (!resource->LoadFromFile(path, ctx))
+        {
+            OutputDebugStringA(("[ResourceSystem] Load failed: " + path + "\n").c_str());
+            return nullptr;
+        }
+        OutputDebugStringA(("[ResourceSystem] Reused existing resource: " + path + "\n").c_str());
+    }
+    else
+    {
+        OutputDebugStringA(("[ResourceSystem] New resource will be created: " + path + "\n").c_str());
+
+        resource = createCallback();
+        if (!resource)
+        {
+            OutputDebugStringA(("[ResourceSystem] Create failed: " + path + "\n").c_str());
+                return nullptr;
+        }
+
+        resource->SetPath(path);
+        resource->SetAlias(alias);
+
+        if (!resource->IsTemporary())
+        {
+            if (!resource->SaveToFile(path))
+            {
+                OutputDebugStringA(("[ResourceSystem] Save failed: " + path + "\n").c_str());
+            }
+        }
+        else
+        {
+            OutputDebugStringA(("[ResourceSystem] Temporary resource created (Skip Save): " + path + "\n").c_str());
+        }
+    }
+
+    resource->SetAlias(alias);
+    resource->SetPath(path);
+    RegisterResource(resource);
+
+    return resource;
 }

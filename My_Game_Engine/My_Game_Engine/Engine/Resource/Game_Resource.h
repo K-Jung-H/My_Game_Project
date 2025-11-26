@@ -47,6 +47,10 @@ enum class ResourceType
     Material,
     Texture,
     Model,
+    ModelAvatar,
+    Skeleton,
+    AnimationClip,
+    AvatarMask,
     etc,
 };
 
@@ -59,19 +63,23 @@ private:
     std::string alias;
     std::string file_path;
     std::string GUID;
+    bool mIsTemporary = false;
+
 protected:
     UINT mSlot = UINT(-1); // Desrciptor Heap Index
 
 public:
     Game_Resource(ResourceType new_resource_type = ResourceType::etc) : resource_type(new_resource_type) { resource_id = Engine::INVALID_ID; };
     virtual ~Game_Resource() = default;
-    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) = 0;
 
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) = 0;
+    virtual bool SaveToFile(const std::string& path) const = 0; 
 
     void SetId(UINT id) { resource_id = id; }
     void SetGUID(const std::string& guid) { GUID = guid; }
     void SetAlias(std::string a) { alias = a; }
     void SetPath(std::string p) { file_path = p.data(); }
+    void SetTemporary(bool temp) { mIsTemporary = temp; }
 
     UINT GetId() const { return resource_id; }
     const std::string& GetGUID() const { return GUID; }
@@ -80,5 +88,6 @@ public:
     std::string GetPath() const { return file_path; }
     std::string GetPathCopy() const { return file_path; }
     virtual UINT GetSlot() const { return mSlot; }
+    bool IsTemporary() const { return mIsTemporary; }
 
 };

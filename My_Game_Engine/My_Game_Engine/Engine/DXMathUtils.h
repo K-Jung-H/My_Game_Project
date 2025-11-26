@@ -1,5 +1,67 @@
 #pragma once
 
+
+
+namespace Vector3
+{
+	inline XMFLOAT3 Lerp(const XMFLOAT3& v0, const XMFLOAT3& v1, float t)
+	{
+		XMFLOAT3 result;
+		XMVECTOR xmV0 = XMLoadFloat3(&v0);
+		XMVECTOR xmV1 = XMLoadFloat3(&v1);
+		XMStoreFloat3(&result, XMVectorLerp(xmV0, xmV1, t));
+		return result;
+	}
+
+	inline XMVECTOR GetRotationBetweenVectors(XMVECTOR start, XMVECTOR dest)
+	{
+		start = XMVector3Normalize(start);
+		dest = XMVector3Normalize(dest);
+
+		float dot = XMVectorGetX(XMVector3Dot(start, dest));
+
+		if (dot > 0.99999f)
+		{
+			return XMQuaternionIdentity();
+		}
+
+		if (dot < -0.99999f)
+		{
+			XMVECTOR axis = XMVector3Cross(XMVectorSet(1, 0, 0, 0), start);
+			if (XMVectorGetX(XMVector3LengthSq(axis)) < 0.00001f)
+				axis = XMVector3Cross(XMVectorSet(0, 1, 0, 0), start);
+
+			axis = XMVector3Normalize(axis);
+			return XMQuaternionRotationAxis(axis, XM_PI);
+		}
+
+		XMVECTOR axis = XMVector3Cross(start, dest);
+		XMVECTOR q = XMVectorSetW(axis, 1.0f + dot);
+		return XMQuaternionNormalize(q);
+	}
+
+	inline XMVECTOR GetRotationFromTwoVectors(XMVECTOR srcDir, XMVECTOR srcUp, XMVECTOR dstDir, XMVECTOR dstUp)
+	{
+		XMVECTOR qSwing = GetRotationBetweenVectors(srcDir, dstDir);
+
+		if (XMVectorGetX(XMVector3LengthSq(srcUp)) < 0.001f || XMVectorGetX(XMVector3LengthSq(dstUp)) < 0.001f)
+		{
+			return qSwing;
+		}
+
+		XMVECTOR swungUp = XMVector3Rotate(srcUp, qSwing);
+
+		XMVECTOR axis = XMVector3Normalize(dstDir);
+		XMVECTOR projSwungUp = XMVector3Normalize(swungUp - axis * XMVector3Dot(swungUp, axis));
+		XMVECTOR projDstUp = XMVector3Normalize(dstUp - axis * XMVector3Dot(dstUp, axis));
+
+		XMVECTOR qTwist = GetRotationBetweenVectors(projSwungUp, projDstUp);
+
+		return XMQuaternionMultiply(qSwing, qTwist);
+	}
+
+}
+
 namespace Matrix4x4
 {
 	inline XMFLOAT4X4 Identity()

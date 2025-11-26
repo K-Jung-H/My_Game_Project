@@ -1,4 +1,3 @@
-
 cbuffer SceneCB : register(b0)
 {
     float4 gTimeInfo;
@@ -32,7 +31,7 @@ cbuffer CameraCB : register(b1)
 cbuffer ObjectCB : register(b2)
 {
     float4x4 gWorld;
-    float4 Albedo; 
+    float4 Albedo;
     float Roughness;
     float Metallic;
     float Emissive;
@@ -44,7 +43,7 @@ cbuffer ObjectCB : register(b2)
 
 
 
-Texture2D gTextures[2000] : register(t0); 
+Texture2D gTextures[2000] : register(t0);
 SamplerState gLinearSampler : register(s0);
 
 struct VS_IN
@@ -52,7 +51,9 @@ struct VS_IN
     float3 pos : POSITION;
     float3 normal : NORMAL;
     float3 tangent : TANGENT;
-    float2 uv : TEXCOORD0;
+    float2 uv0 : TEXCOORD0;
+    float2 uv1 : TEXCOORD1;
+    float4 color0 : COLOR;
 };
 
 struct VS_OUT
@@ -70,7 +71,7 @@ VS_OUT Default_VS(VS_IN i)
     o.svPosition = mul(vpos, gProj);
 
     o.worldNormal = normalize(mul(float4(i.normal, 0.0f), gWorld).xyz);
-    o.uv = i.uv;
+    o.uv = i.uv0;
     return o;
 }
 
@@ -93,7 +94,7 @@ PS_OUT Default_PS(VS_OUT i)
     PS_OUT o;
 
     float4 texAlbedo = SampleIfValid(DiffuseTexIdx, i.uv);
-    o.Albedo = texAlbedo * Albedo; 
+    o.Albedo = texAlbedo * Albedo;
 
     float3 n = normalize(i.worldNormal);
     o.Normal = float4(0.5f * (n + 1.0f), 1.0f);

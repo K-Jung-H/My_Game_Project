@@ -1,6 +1,6 @@
 enum class InputLayoutPreset
 {
-    Default,
+	Default, // Hot/Cold
     PosNormTex,
     PosColor,
     PosOnly,

@@ -88,6 +88,9 @@ bool DX12_Renderer::Initialize(HWND m_hWnd, UINT width, UINT height)
     if (FAILED(mDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&mImguiSrvHeap))))
         return false;
 
+
+    is_initialized = true;
+
     return true;
 }
 
@@ -725,6 +728,26 @@ bool DX12_Renderer::Create_Shader()
         RootSignature_Type::Default,
         geometry_configs,
         D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE
+    );
+
+    //==================================
+
+    ShaderSetting skinning_ss;
+    skinning_ss.cs.file = L"Shaders/Skinning_Shader.hlsl";
+    skinning_ss.cs.entry = "Skinning_CS";
+    skinning_ss.cs.target = "cs_5_1";
+
+    PipelinePreset skinning_pp{};
+
+    std::vector<VariantConfig> skinning_configs =
+    {
+        { ShaderVariant::Skinning, skinning_ss, skinning_pp },
+    };
+
+    auto skinning_shader = pso_manager.RegisterComputeShader(
+        "Skinning",
+        RootSignature_Type::Skinning,
+        skinning_configs
     );
 
     //==================================
@@ -1416,7 +1439,6 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
     mDrawItems.clear();
 
     ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
-
     Material defaultMaterial = Material::Get_Default();
 
     for (auto& rd : renderables)
@@ -1424,6 +1446,8 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         auto transform = rd.transform.lock();
         auto renderer = rd.meshRenderer.lock();
         if (!transform || !renderer) continue;
+
+        auto skinnedComp = std::dynamic_pointer_cast<SkinnedMeshRendererComponent>(renderer);
 
         auto mesh = renderer->GetMesh();
         if (!mesh) continue;
@@ -1436,18 +1460,15 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             UINT matId = renderer->GetMaterial(i);
             if (matId == Engine::INVALID_ID)
                 matId = mesh->submeshes[i].materialId;
-
             auto material = rsm->GetById<Material>(matId);
-
             const Material* matToUse = material ? material.get() : &defaultMaterial;
 
             ObjectCBData cb{};
             cb.World = worldT;
-            cb.Emissive = 0.0f;
-
             cb.Albedo = XMFLOAT4(matToUse->albedoColor.x, matToUse->albedoColor.y, matToUse->albedoColor.z, 1.0f);
             cb.Roughness = matToUse->roughness;
             cb.Metallic = matToUse->metallic;
+            cb.Emissive = 0.0f;
 
             auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); };
             cb.DiffuseTexIdx = toIdx(matToUse->diffuseTexSlot);
@@ -1464,11 +1485,13 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             di.cbIndex = cbIndex;
             di.materialId = (material) ? matId : Engine::INVALID_ID;
 
+            if (skinnedComp)
+                di.skinnedComp = skinnedComp.get();
+
             mDrawItems.emplace_back(std::move(di));
         }
     }
 }
-
 
 void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
@@ -1498,12 +1521,9 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
 
     for (const auto& world_light : light_comp_list)
     {
-        // [수정] ToGPUData() 호출을 루프 후반부로 이동시켰습니다.
-
         XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
         XMVECTOR world_dir = XMLoadFloat3(&world_light->GetDirection());
 
-        // shadowMapStartIndex와 shadowMapLength를 임시 저장할 변수
         UINT shadowBaseIndex = Engine::INVALID_ID;
         UINT shadowMatrixCount = 0;
 
@@ -1538,7 +1558,6 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
                 if (world_light->NeedsShadowUpdate(currentFrameIndex))
                 {
                     lr.mFrameShadowCastingCSM.push_back(world_light);
-                    // 이 UpdateShadowViewProj 호출이 C++ 멤버(cascadeSplits)를 먼저 업데이트합니다.
                     if (world_light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
                         for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
                             lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj =
@@ -1567,20 +1586,17 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
             if (assigned)
             {
                 lr.mLightShadowIndexMap[world_light] = baseIndex;
-                shadowBaseIndex = baseIndex;   // 임시 변수에 저장
-                shadowMatrixCount = matrixCount; // 임시 변수에 저장
+                shadowBaseIndex = baseIndex;
+                shadowMatrixCount = matrixCount;
             }
         }
 
-        // [수정] UpdateShadowViewProj()가 호출된 이후에 ToGPUData()를 호출합니다.
-        // 이렇게 하면 cascadeSplits 멤버가 최신 값으로 채워진 GPULight 구조체가 생성됩니다.
+
         GPULight view_light = world_light->ToGPUData();
 
-        // View Space 변환 적용
         XMStoreFloat3(&view_light.position, XMVector3TransformCoord(world_pos, view_matrix));
         XMStoreFloat3(&view_light.direction, XMVector3Normalize(XMVector3TransformNormal(world_dir, view_matrix)));
 
-        // 임시 저장했던 섀도우 인덱스 정보를 최종 GPU 데이터에 할당
         view_light.shadowMapStartIndex = shadowBaseIndex;
         view_light.shadowMapLength = shadowMatrixCount;
 
@@ -1684,7 +1700,6 @@ void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
     }
 }
 
-
 void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera)
 {
     mVisibleItems.clear();
@@ -1708,7 +1723,6 @@ void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera
     }
 }
 
-
 void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
@@ -1721,7 +1735,20 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UI
 
         cmdList->SetGraphicsRootConstantBufferView(objectCBVRootParamIndex, gpuAddr);
 
-        di.mesh->Bind(cmdList);
+        if (di.skinnedComp)
+        {
+            const D3D12_VERTEX_BUFFER_VIEW& skinnedVBV = di.skinnedComp->GetSkinnedVBV(mFrameIndex);
+            const D3D12_VERTEX_BUFFER_VIEW& coldVBV = di.mesh->GetColdVBV();
+            D3D12_VERTEX_BUFFER_VIEW views[2] = { skinnedVBV, coldVBV };
+
+            cmdList->IASetVertexBuffers(0, 2, views);
+            cmdList->IASetIndexBuffer(&di.mesh->GetIBV());
+            cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        }
+        else
+        {
+            di.mesh->Bind(cmdList);
+        }
         cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
     }
 }
@@ -1845,9 +1872,10 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
         return;
 
     mainCam->Update();
+    mainCam->UpdateCBV();
+
 
     //--------------------------------------------------------------------------------------
-
     PrepareCommandList();
     
     ID3D12DescriptorHeap* heaps[] = { mResource_Heap_Manager->GetHeap() };
@@ -1855,12 +1883,10 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     mainCam->SetViewportsAndScissorRects(mCommandList);
 
-
-    mainCam->UpdateCBV();
-
     //------------------------------------------
     UpdateObjectCBs(renderData_list);
     CullObjectsForRender(mainCam);
+    SkinningPass();
     GeometryPass(mainCam);
     //------------------------------------------
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -1882,6 +1908,76 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     PresentFrame();
 }
 
+void DX12_Renderer::SkinningPass()
+{
+    struct SkinningConstants
+    {
+        UINT vertexCount;
+        UINT hotStride;
+        UINT skinStride;
+        UINT boneCount;
+    };
+
+    FrameResource& fr = mFrameResources[mFrameIndex];
+    ID3D12RootSignature* skinning_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Skinning);
+    mCommandList->SetComputeRootSignature(skinning_rootsignature);
+    PSO_Manager::Instance().BindShader(mCommandList, "Skinning", ShaderVariant::Skinning);
+
+    for (const auto& di : mVisibleItems)
+    {
+        if (!di.skinnedComp) continue;
+
+        FrameSkinBuffer& fsb = di.skinnedComp->GetFrameSkinBuffer(mFrameIndex);
+
+        if (!di.skinnedComp->HasValidBuffers())
+        {
+            fsb.mIsSkinningResultReady = false;
+            continue;
+        }
+
+        auto animController = di.skinnedComp->GetAnimController();
+        if (!animController)
+        {
+            fsb.mIsSkinningResultReady = false;
+            continue;
+        }
+
+        UINT boneSRVSlot = animController->GetBoneMatrixSRV();
+        auto skeleton = animController->GetSkeleton();
+
+        if (boneSRVSlot == UINT_MAX || !skeleton)
+        {
+            fsb.mIsSkinningResultReady = false;
+            continue;
+        }
+
+        SkinnedMesh* skinMesh = static_cast<SkinnedMesh*>(di.mesh);
+
+        SkinningConstants constants = {
+            skinMesh->GetVertexCount(),
+            skinMesh->GetHotStride(),
+            sizeof(GPU_SkinData),
+            (UINT)skeleton->GetBoneCount()
+        };
+
+        mCommandList->SetComputeRoot32BitConstants(0, 4, &constants, 0);
+
+        mCommandList->SetComputeRootDescriptorTable(1, mResource_Heap_Manager->GetGpuHandle(skinMesh->GetSkinDataSRV()));
+        mCommandList->SetComputeRootDescriptorTable(2, mResource_Heap_Manager->GetGpuHandle(skinMesh->GetHotInputSRV()));
+        mCommandList->SetComputeRootDescriptorTable(3, mResource_Heap_Manager->GetGpuHandle(boneSRVSlot));
+        mCommandList->SetComputeRootDescriptorTable(4, mResource_Heap_Manager->GetGpuHandle(fsb.uavSlot));
+
+        fr.StateTracker.Transition(mCommandList.Get(), fsb.skinnedBuffer.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+        UINT threadGroupCount = (constants.vertexCount + 63) / 64;
+        mCommandList->Dispatch(threadGroupCount, 1, 1);
+
+        fr.StateTracker.UAVBarrier(mCommandList.Get(), fsb.skinnedBuffer.Get());
+        fr.StateTracker.Transition(mCommandList.Get(), fsb.skinnedBuffer.Get(), D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
+        fsb.mIsSkinningResultReady = true;
+    }
+}
+
 void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 {
     FrameResource& fr = mFrameResources[mFrameIndex];
@@ -1897,7 +1993,7 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
     //============================================
 
-    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Default::TextureTable, mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Texture));
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Default::TextureTable, mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Static));
 
     Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Default::SceneCBV);
 
@@ -2338,6 +2434,7 @@ void DX12_Renderer::WaitForFrame(UINT64 fenceValue)
 
 bool DX12_Renderer::OnResize(UINT newWidth, UINT newHeight)
 {
+    if (!is_initialized) return false;
     if (!mDevice || !mSwapChain) return false;
 
     for (auto& fr : mFrameResources)
@@ -2479,11 +2576,13 @@ void DrawInspector(Object* obj)
         switch (type)
         {
         case    Mesh_Renderer: component_name = "Mesh_Renderer"; break;
+        case    Skinned_Mesh_Renderer: component_name = "Skinned_Mesh_Renderer"; break;
+        case    AnimationController: component_name = "AnimationController"; break;
         case    Camera: component_name = "Camera"; break;
+
         case    Collider:   component_name = "Collider"; break;
         case    Rigidbody:  component_name = "Rigidbody"; break;
         case    Light:  component_name = "Light"; break;
-
         case    Transform:
         case    etc:
         default:
@@ -2518,7 +2617,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
             ImGui::Separator();
             ImGui::Indent();
 
-            // Get mesh info
             auto meshPtr = mr->GetMesh();
             if (meshPtr)
             {
@@ -2543,7 +2641,6 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                     ImGui::EndTable();
                 }
 
-                // Submesh material list
                 ImGui::Spacing();
                 ImGui::Text("Submesh Materials");
                 ImGui::Separator();
@@ -2592,6 +2689,316 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
     }
     break;
 
+    case Skinned_Mesh_Renderer:
+    {
+        std::shared_ptr<SkinnedMeshRendererComponent> smr = std::dynamic_pointer_cast<SkinnedMeshRendererComponent>(comp);
+        if (smr)
+        {
+            ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+
+            ImGui::Text("SkinnedMeshRenderer");
+            ImGui::Separator();
+            ImGui::Indent();
+
+            auto meshPtr = smr->GetMesh();
+            if (meshPtr)
+            {
+                ImGui::Text("Mesh Info");
+                ImGui::Separator();
+                if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Property");
+                    ImGui::TableSetupColumn("Value");
+                    ImGui::TableHeadersRow();
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
+                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", smr->GetMesh()->GetId());
+                    ImGui::EndTable();
+                }
+
+                ImGui::Spacing();
+                ImGui::Text("Submesh Materials");
+                ImGui::Separator();
+
+                if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+                {
+                    ImGui::TableSetupColumn("Submesh Index");
+                    ImGui::TableSetupColumn("Material Alias");
+                    ImGui::TableSetupColumn("Material ID");
+                    ImGui::TableHeadersRow();
+
+                    const auto& submeshes = meshPtr->submeshes;
+                    for (size_t i = 0; i < submeshes.size(); ++i)
+                    {
+                        ImGui::TableNextRow();
+                        ImGui::TableSetColumnIndex(0);
+                        ImGui::Text("%zu", i);
+
+                        UINT matId = smr->GetMaterial(i);
+                        std::string matAlias = "<null>";
+
+                        if (matId != Engine::INVALID_ID)
+                        {
+                            auto matPtr = rsm->GetById<Material>(matId);
+                            if (matPtr)
+                                matAlias = matPtr->GetAlias();
+                        }
+
+                        ImGui::TableSetColumnIndex(1);
+                        ImGui::Text("%u", matId);
+
+                        ImGui::TableSetColumnIndex(2);
+                        ImGui::Text("%s", matAlias.c_str());
+                    }
+
+                    ImGui::EndTable();
+                }
+            }
+            else
+            {
+                ImGui::Text("Mesh: <invalid>");
+            }
+
+            ImGui::Spacing();
+            ImGui::Text("Skinned Renderer Info");
+            ImGui::Separator();
+
+            auto animController = smr->GetAnimController();
+            if (animController)
+            {
+                ImGui::Text("Controller: %s (ID: %u)", animController->GetOwner()->GetName().c_str(), animController->GetOwner()->GetId());
+            }
+            else
+            {
+                ImGui::Text("Controller: <Not Connected>");
+            }
+            ImGui::Text("Buffers Ready: %s", smr->HasValidBuffers() ? "Yes" : "No");
+
+            ImGui::Unindent();
+        }
+    }
+    break;
+
+    case Component_Type::AnimationController:
+    {
+        auto animCtrl = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
+        if (animCtrl)
+        {
+            ImGui::PushID(animCtrl.get());
+            if (ImGui::CollapsingHeader("Animation Controller", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Status: %s",
+                    animCtrl->IsReady() ? "Ready" : "Not Ready");
+
+                ImGui::Separator();
+                ImGui::Indent();
+
+                ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
+                if (ImGui::TreeNodeEx("Global Settings", ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    auto currentSkeleton = animCtrl->GetSkeleton();
+                    std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
+
+                    if (ImGui::BeginCombo("Skeleton", skelName.c_str()))
+                    {
+                        auto skeletons = rs->GetAllResources<Skeleton>();
+                        for (const auto& skel : skeletons)
+                        {
+                            bool isSelected = (currentSkeleton == skel);
+                            ImGui::PushID(skel.get());
+                            if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
+                                animCtrl->SetSkeleton(skel);
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                            ImGui::PopID();
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    auto currentAvatar = animCtrl->GetModelAvatar();
+                    std::string avatarName = currentAvatar ? currentAvatar->GetAlias() : "None";
+
+                    if (ImGui::BeginCombo("Avatar", avatarName.c_str()))
+                    {
+                        auto avatars = rs->GetAllResources<Model_Avatar>();
+                        for (const auto& avatar : avatars)
+                        {
+                            bool isSelected = (currentAvatar == avatar);
+                            ImGui::PushID(avatar.get());
+                            if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
+                                animCtrl->SetModelAvatar(avatar);
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                            ImGui::PopID();
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    int layerCount = animCtrl->GetLayerCount();
+                    if (ImGui::InputInt("Layer Count", &layerCount))
+                    {
+                        if (layerCount < 1) layerCount = 1;
+                        animCtrl->SetLayerCount(layerCount);
+                    }
+
+                    ImGui::TreePop();
+                }
+
+                ImGui::Separator();
+                ImGui::Text("Global Timeline Control");
+
+                bool isPaused = animCtrl->IsPaused();
+                if (ImGui::Checkbox("Pause All", &isPaused))
+                {
+                    animCtrl->SetPause(isPaused);
+                }
+
+                static float globalProgress = 0.0f;
+
+                if (ImGui::SliderFloat("Global Progress", &globalProgress, 0.0f, 1.0f, "%.2f%%"))
+                {
+                    if (!isPaused)
+                    {
+                        animCtrl->SetPause(true);
+                        isPaused = true;
+                    }
+
+                    int count = animCtrl->GetLayerCount();
+                    for (int i = 0; i < count; ++i)
+                    {
+                        animCtrl->SetLayerNormalizedTime(i, globalProgress);
+                    }
+                }
+
+                ImGui::Separator();
+                ImGui::Text("Animation Layers");
+
+                int layerCount = animCtrl->GetLayerCount();
+                auto clips = rs->GetAllResources<AnimationClip>();
+
+                for (int i = 0; i < layerCount; ++i)
+                {
+                    ImGui::PushID(i);
+
+                    float childHeight = 210.0f;
+                    if (ImGui::BeginChild("LayerFrame", ImVec2(0, childHeight), true, ImGuiWindowFlags_None))
+                    {
+                        std::string headerName = "Layer " + std::to_string(i);
+                        if (i == 0) headerName += " (Base)";
+                        else headerName += " (Overlay)";
+
+                        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", headerName.c_str());
+                        ImGui::SameLine();
+                        ImGui::TextDisabled("(Index: %d)", i);
+                        ImGui::Separator();
+
+                        float weight = animCtrl->GetLayerWeight(i);
+                        if (ImGui::SliderFloat("Layer Weight", &weight, 0.0f, 1.0f))
+                        {
+                            animCtrl->SetLayerWeight(i, weight);
+                        }
+
+                        auto mask = animCtrl->GetLayerMask(i);
+                        ImGui::Text("Mask: %s", mask ? mask->GetAlias().c_str() : "None (Full Body)");
+
+                        ImGui::Spacing();
+
+                        const char* modeNames[] = { "Loop", "Once", "PingPong" };
+                        int currentModeIdx = (int)animCtrl->GetPlaybackMode(i);
+
+                        if (ImGui::Combo("Mode", &currentModeIdx, modeNames, IM_ARRAYSIZE(modeNames)))
+                        {
+                            animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx, i);
+                        }
+
+                        static float blendTimeInput = 0.2f;
+                        ImGui::DragFloat("Blend Time (s)", &blendTimeInput, 0.01f, 0.0f, 5.0f);
+
+                        auto currentClip = animCtrl->GetCurrentClip(i);
+                        std::string previewValue = currentClip ? currentClip->GetAlias() : "Select Clip...";
+                        std::unordered_map<std::string, int> nameCounts;
+
+                        if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
+                        {
+                            for (auto& clip : clips)
+                            {
+                                std::string alias = clip->GetAlias();
+                                nameCounts[alias]++;
+                                std::string displayName = alias;
+                                if (nameCounts[alias] > 1)
+                                    displayName += " (" + std::to_string(nameCounts[alias]) + ")";
+
+                                bool isSelected = (currentClip == clip);
+                                ImGui::PushID(clip.get());
+
+                                if (ImGui::Selectable(displayName.c_str(), isSelected))
+                                {
+                                    animCtrl->Play(i, clip, blendTimeInput, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
+                                }
+
+                                if (isSelected) ImGui::SetItemDefaultFocus();
+                                ImGui::PopID();
+                            }
+                            ImGui::EndCombo();
+                        }
+
+                        ImGui::SameLine();
+                        if (ImGui::Button("Replay"))
+                        {
+                            if (currentClip)
+                                animCtrl->Play(i, currentClip, 0.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
+                        }
+
+                        float speed = animCtrl->GetSpeed(i);
+                        if (ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 5.0f))
+                        {
+                            animCtrl->SetSpeed(speed, i);
+                        }
+
+                        ImGui::Spacing();
+
+                        float currentProgress = animCtrl->GetLayerNormalizedTime(i);
+                        float duration = animCtrl->GetLayerDuration(i);
+                        float currentTime = currentProgress * duration;
+
+                        char timeLabel[64];
+                        if (duration > 0.0f)
+                            sprintf_s(timeLabel, "%.2fs / %.2fs", currentTime, duration);
+                        else
+                            sprintf_s(timeLabel, "No Clip");
+
+                        if (ImGui::SliderFloat("Seek", &currentProgress, 0.0f, 1.0f, timeLabel))
+                        {
+                            animCtrl->SetPause(true);
+                            animCtrl->SetLayerNormalizedTime(i, currentProgress);
+                        }
+
+                        if (animCtrl->IsLayerTransitioning(i))
+                        {
+                            float progress = animCtrl->GetLayerTransitionProgress(i);
+                            char overlay[32];
+                            sprintf_s(overlay, "Blending... %.1f%%", progress * 100.0f);
+
+                            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                            ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
+                            ImGui::PopStyleColor();
+                        }
+                    }
+                    ImGui::EndChild();
+
+                    ImGui::Spacing();
+                    ImGui::PopID();
+                }
+
+                ImGui::Unindent();
+            }
+
+            ImGui::PopID();
+        }
+    }
+    break;
 
     case Camera:
     {

@@ -205,6 +205,8 @@ public:
     bool test_value = false;
 
 private:
+	bool is_initialized = false;
+
     UINT mWidth = 0;
     UINT mHeight = 0;
 
@@ -312,6 +314,7 @@ private:
     void WaitForFrame(UINT64 fenceValue);
     FrameResource& GetCurrentFrameResource();
 
+    void SkinningPass();
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
     void ShadowPass();

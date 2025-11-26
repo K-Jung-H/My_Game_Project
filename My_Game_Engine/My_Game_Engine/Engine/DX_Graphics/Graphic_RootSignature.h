@@ -59,6 +59,19 @@ namespace RootParameter_LightPass
     };
 }
 
+namespace RootParameter_Skinning
+{
+    enum Slot : UINT
+    {
+        SkinningConstants = 0,
+        SkinDataSRV = 1,
+        HotInputSRV = 2,
+        BoneMatricesSRV = 3,
+        SkinnedOutputUAV = 4,
+        Count
+    };
+}
+
 
 namespace RootParameter_PostFX
 {
@@ -84,7 +97,7 @@ namespace RootParameter_PostFX
 enum class RootSignature_Type : int
 {
     Default,
-    Skinned,
+    Skinning,
     Terrain,
     PostFX,
     UI,
@@ -108,7 +121,7 @@ private:
     static ComPtr<ID3D12RootSignature> CreateDefault(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreatePostFX(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateTerrain(ID3D12Device* device);
-    static ComPtr<ID3D12RootSignature> CreateSkinned(ID3D12Device* device);
+    static ComPtr<ID3D12RootSignature> CreateSkinning(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateUI(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateShadowPass(ID3D12Device* device);
     static ComPtr<ID3D12RootSignature> CreateLightPass(ID3D12Device* device);

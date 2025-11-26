@@ -2,7 +2,6 @@
 #include "DX_Graphics/RenderData.h"
 #include "Managers/ObjectManager.h"
 
-//class ObjectManager;
 class SceneManager;
 class Object;
 
@@ -59,6 +58,7 @@ private:
 
     std::vector<RenderData> renderData_list;
     std::vector<std::weak_ptr<LightComponent>> light_list;
+	std::vector<std::shared_ptr<AnimationControllerComponent>> animation_controller_list;
 
     std::vector<std::weak_ptr<CameraComponent>> camera_list;
     std::weak_ptr<CameraComponent> activeCamera;

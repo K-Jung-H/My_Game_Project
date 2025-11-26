@@ -33,13 +33,14 @@ void Scene::Build()
 
 		auto light_component = light_obj->AddComponent<LightComponent>();
 		light_component->SetTransform(light_obj->GetTransform());
-		light_component->SetLightType(Light_Type::Point);
+		light_component->SetLightType(Light_Type::Directional);
+		light_component->SetCastShadow(false);
 	}
-	{
-		Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
-		auto light_component = sub_light_obj->AddComponent<LightComponent>();
-		light_component->SetTransform(sub_light_obj->GetTransform());
-	}
+	//{
+	//	Object* sub_light_obj = m_pObjectManager->CreateObject("Sub_Light");
+	//	auto light_component = sub_light_obj->AddComponent<LightComponent>();
+	//	light_component->SetTransform(sub_light_obj->GetTransform());
+	//}
 	{
 		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
 		plane_mesh->SetAlias("Plane_Mesh");
@@ -54,22 +55,33 @@ void Scene::Build()
 	
 	//--------------------------------------------------------------------------------
 	
-	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
+	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
-	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
-
+	const std::string path_2 = "Assets/Model/Anya.fbx";
+	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx"; // Catwalk Walk
+	const std::string animation_clip_path_1 = "Assets/Animation/Catwalk Walk.fbx";
+	const std::string animation_clip_path_2 = "Assets/Animation/Ymca Dance.fbx";
+ 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	{
-		LoadResult result;
-		rsm->Load(path_0, "Test_0", result);
+		LoadResult animation_result_0;
+		rsm->Load(animation_clip_path_0, "Test_10", animation_result_0);
 
-		auto model_ptr = rsm->GetById<Model>(result.modelId);
+		LoadResult animation_result_1;
+		rsm->Load(animation_clip_path_1, "Test_101", animation_result_1);
+
+		LoadResult animation_result_2;
+		rsm->Load(animation_clip_path_2, "Test_1010", animation_result_2);
+
+		LoadResult model_result;
+		rsm->Load(path_0, "Test_0", model_result);
+
+		auto model_ptr = rsm->GetById<Model>(model_result.modelId);
 		if (!model_ptr)
 		{
 			OutputDebugStringA("[Scene::Build] Model load failed.\n");
 			return;
 		}
-
 
 		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
 		m_pObjectManager->SetObjectName(test_obj, "Test_Object_0");
@@ -78,27 +90,46 @@ void Scene::Build()
 
 		auto rb = test_obj->AddComponent<RigidbodyComponent>();
 		rb->SetUseGravity(false);
-	}
 
-	{
-		LoadResult result;
-		rsm->Load(path_1, "Test_1", result);
-
-		auto model_ptr = rsm->GetById<Model>(result.modelId);
-		for (int i = 0; i < 3; ++i)
+		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
+		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
+		for (auto& renderer : skinnedRenderers)
 		{
-			Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
-			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
-			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-			test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
-			auto rb = test_obj->AddComponent<RigidbodyComponent>();
-			rb->SetUseGravity(false);
-
+			renderer->Initialize();
 		}
+
+		animController->SetModelAvatar(rsm->GetById<Model_Avatar>(model_result.avatarId));
+		animController->SetSkeleton(rsm->GetById<Skeleton>(model_result.skeletonId));
+
+
+		auto clip_0 = rsm->GetById<AnimationClip>(animation_result_0.clipIds[0]);
+		auto clip_1 = rsm->GetById<AnimationClip>(animation_result_1.clipIds[0]);
+		auto clip_2 = rsm->GetById<AnimationClip>(animation_result_2.clipIds[0]);
+
+		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
+		animController->Play(1, clip_1, 1.0f, PlaybackMode::Loop, 1.0f);
+		animController->Play(2, clip_2, 1.0f, PlaybackMode::Loop, 1.0f);
+
 	}
 
+	//{
+	//	LoadResult result;
+	//	rsm->Load(path_2, "Test_1", result);
 
-//	// For Debug
+	//	auto model_ptr = rsm->GetById<Model>(result.modelId);
+	//	for (int i = 0; i < 3; ++i)
+	//	{
+	//		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
+	//		m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
+	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+	//		test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
+	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
+	//		rb->SetUseGravity(false);
+
+	//	}
+	//}
+
+
 	bool is_debugging = false;
 	if (is_debugging)
 	{
@@ -179,10 +210,18 @@ void Scene::Update_Fixed(float dt)
 void Scene::Update_Scene(float dt)
 {
 	m_pObjectManager->Update_Animate_All(dt);
+
+	for (auto animController : animation_controller_list)
+	{
+		if (animController)
+			animController->Update(dt);
+	}
 }
 
 void Scene::Update_Late()
 {
+
+
 	for (auto camera_ptr : camera_list)
 	{
 		if (auto cp = camera_ptr.lock())
@@ -208,6 +247,7 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 	switch (comp->GetType())
 	{
 	case Component_Type::Mesh_Renderer:
+	case Component_Type::Skinned_Mesh_Renderer:
 	{
 		if (auto mr = std::dynamic_pointer_cast<MeshRendererComponent>(comp))
 		{
@@ -230,6 +270,15 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 		if (auto light = std::dynamic_pointer_cast<LightComponent>(comp))
 		{
 			light_list.push_back(light);
+		}
+		break;
+	}
+
+	case Component_Type::AnimationController:
+	{
+		if(auto animation_controller = std::dynamic_pointer_cast<AnimationControllerComponent>(comp))
+		{
+			animation_controller_list.push_back(animation_controller);
 		}
 		break;
 	}

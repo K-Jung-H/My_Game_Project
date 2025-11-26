@@ -7,6 +7,7 @@ public:
 	Texture();
 	virtual ~Texture() = default;
 	virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
+	virtual bool SaveToFile(const std::string& outputPath) const { return false; }
 
 	ID3D12Resource* GetResource() const { return mTexture.Get(); }
 

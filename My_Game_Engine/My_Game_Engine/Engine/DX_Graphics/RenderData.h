@@ -1,7 +1,7 @@
 #pragma once
 #include "Components/LightComponent.h"
 #include "Components/CameraComponent.h"
-#include "Components/MeshRendererComponent.h"
+#include "Components/SkinnedMeshRendererComponent.h"
 #include "Components/TransformComponent.h"
 #include "Resource/Mesh.h"
 
@@ -31,9 +31,11 @@ struct alignas(256) ObjectCBData
 
 struct DrawItem
 {
-    const Mesh* mesh = nullptr;
+    Mesh* mesh = nullptr;
     Mesh::Submesh sub;
 
     UINT cbIndex = 0;
     UINT materialId = 0;
+
+    SkinnedMeshRendererComponent* skinnedComp = nullptr;
 };

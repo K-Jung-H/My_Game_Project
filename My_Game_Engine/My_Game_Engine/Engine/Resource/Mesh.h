@@ -1,13 +1,41 @@
 #pragma once
 #include "Game_Resource.h"
 
+enum class VertexFlags : UINT
+{
+    None = 0,
+    HasNormal = 1 << 0,
+    HasTangent = 1 << 1,
+    HasUV0 = 1 << 2,
+    HasUV1 = 1 << 5,
+    HasColor0 = 1 << 3,
+    Skinned = 1 << 4,
+};
+
+inline VertexFlags operator|(VertexFlags a, VertexFlags b) { return (VertexFlags)((UINT)a | (UINT)b); }
+inline VertexFlags& operator|=(VertexFlags& a, VertexFlags b) { a = a | b; return a; }
+inline bool HasFlag(VertexFlags f, VertexFlags bit) { return (((UINT)f & (UINT)bit) != 0); }
+
+struct VertexStreamLayout
+{
+    struct Attr { UINT offset = 0; DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN; bool present = false; };
+    UINT stride = 0;
+    Attr position;
+    Attr normal;
+    Attr tangent;
+    Attr uv0;
+    Attr uv1;
+    Attr color0;
+};
+
 class Skeleton;
 static const int MAX_BONES_PER_VERTEX = 4;
 
-
-
 class Mesh : public Game_Resource
 {
+    friend class ModelLoader_Assimp;
+    friend class ModelLoader_FBX;
+
 public:
     struct Submesh
     {
@@ -18,66 +46,72 @@ public:
         BoundingBox localAABB;
     };
 
-public:
     Mesh();
     virtual ~Mesh() = default;
-    virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
+    virtual bool LoadFromFile(std::string path, const RendererContext& ctx) { return false; }
+    virtual bool SaveToFile(const std::string& outputPath) const { return false; }
 
     virtual void FromAssimp(const aiMesh* mesh);
     virtual void FromFbxSDK(FbxMesh* fbxMesh);
+    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 
-    UINT GetSlot() const { return -1; }
+    VertexFlags GetVertexFlags() const { return mVertexFlags; }
+    const VertexStreamLayout& GetHotLayout() const { return mHotLayout; }
+    const VertexStreamLayout& GetColdLayout() const { return mColdLayout; }
+
+    ID3D12Resource* GetHotVB() const { return mHotVB.Get(); }
+    const D3D12_VERTEX_BUFFER_VIEW& GetHotVBV() const { return mHotVBV; }
+    const D3D12_VERTEX_BUFFER_VIEW& GetColdVBV() const { return mColdVBV; }
+    const D3D12_INDEX_BUFFER_VIEW& GetIBV() const { return mIBV; }
+
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
-    UINT GetMaterialID() const { return submeshes[0].materialId;; }
-
-    void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
-
+    UINT GetMaterialID() const { return submeshes.empty() ? Engine::INVALID_ID : submeshes[0].materialId; }
+    const BoundingBox& GetLocalAABB() const { return mLocalAABB; }
 protected:
-    void UploadToGPU();
+    void BuildInterleavedBuffers();
+    void UploadIndexBuffer();
     void SetAABB();
 
-public:
-    std::vector<Submesh> submeshes;
-
+protected:
     std::vector<XMFLOAT3> positions;
     std::vector<XMFLOAT3> normals;
     std::vector<XMFLOAT3> tangents;
     std::vector<XMFLOAT2> uvs;
+    std::vector<XMFLOAT2> uv1s;
     std::vector<XMFLOAT4> colors;
+    std::vector<UINT>     indices;
 
-    std::vector<UINT> indices;
+    std::vector<uint8_t>  mHotCPU;
+    std::vector<uint8_t>  mColdCPU;
 
+    VertexFlags           mVertexFlags = VertexFlags::None;
+    VertexStreamLayout    mHotLayout{};
+    VertexStreamLayout    mColdLayout{};
 
-private:
+    ComPtr<ID3D12Resource> mHotVB;
+    ComPtr<ID3D12Resource> mColdVB;
+    ComPtr<ID3D12Resource> mIndexBuffer;
+
+    ComPtr<ID3D12Resource> mHotUpload;
+    ComPtr<ID3D12Resource> mColdUpload;
+    ComPtr<ID3D12Resource> mIndexUpload;
+
+    D3D12_VERTEX_BUFFER_VIEW mHotVBV{};
+    D3D12_VERTEX_BUFFER_VIEW mColdVBV{};
+    D3D12_INDEX_BUFFER_VIEW  mIBV{};
+
     BoundingBox mLocalAABB;
 
-    ComPtr<ID3D12Resource> posBuffer;
-    ComPtr<ID3D12Resource> normalBuffer;
-    ComPtr<ID3D12Resource> tangentBuffer;
-    ComPtr<ID3D12Resource> uvBuffer;
-    ComPtr<ID3D12Resource> colorBuffer;
-    ComPtr<ID3D12Resource> indexBuffer;
+	std::vector<std::vector<UINT>> mCpToVertexMap; // Tempory Container for Control point to vertex mapping for FBX
 
-    D3D12_VERTEX_BUFFER_VIEW posVBV{};
-    D3D12_VERTEX_BUFFER_VIEW normalVBV{};
-    D3D12_VERTEX_BUFFER_VIEW tangentVBV{};
-    D3D12_VERTEX_BUFFER_VIEW uvVBV{};
-    D3D12_VERTEX_BUFFER_VIEW colorVBV{};
-    D3D12_INDEX_BUFFER_VIEW  indexView{};
-
-    ComPtr<ID3D12Resource> posUpload;
-    ComPtr<ID3D12Resource> normalUpload;
-    ComPtr<ID3D12Resource> tangentUpload;
-    ComPtr<ID3D12Resource> uvUpload;
-    ComPtr<ID3D12Resource> colorUpload;
-    ComPtr<ID3D12Resource> indexUpload;
+public:
+    std::vector<Submesh> submeshes;
 };
 
 class Plane_Mesh : public Mesh
 {
 public:
     Plane_Mesh(float width = 1.0f, float height = 1.0f);
-
     virtual ~Plane_Mesh() = default;
 
 private:
@@ -85,9 +119,21 @@ private:
 };
 
 
+struct GPU_SkinData
+{
+    uint16_t idx[MAX_BONES_PER_VERTEX];
+    uint16_t w16[MAX_BONES_PER_VERTEX];
+};
+
 class SkinnedMesh : public Mesh
 {
 public:
+    struct VertexBoneDataCPU
+    {
+        uint16_t boneIndices[MAX_BONES_PER_VERTEX] = { 0,0,0,0 };
+        float    weights[MAX_BONES_PER_VERTEX] = { 0,0,0,0 };
+    };
+
     struct BoneMappingData
     {
         std::string boneName;
@@ -95,21 +141,28 @@ public:
         float weight;
     };
 
-    struct VertexBoneData
-    {
-        UINT boneIndices[MAX_BONES_PER_VERTEX] = { 0,0,0,0 };
-        float weights[MAX_BONES_PER_VERTEX] = { 0.f,0.f,0.f,0.f };
-    };
+    void Skinning_Skeleton_Bones(std::shared_ptr<Skeleton> skeletonRes);
 
-    virtual void FromAssimp(const aiMesh* mesh);
-    virtual void FromFbxSDK(FbxMesh* fbxMesh);
-    void Skinning_Skeleton_Bones(const Skeleton& skeleton);
+    virtual void FromAssimp(const aiMesh* mesh) override;
+    virtual void FromFbxSDK(FbxMesh* fbxMesh) override;
+    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const;
 
-public:
-    std::vector< VertexBoneData> bone_vertex_data;
-    std::vector< BoneMappingData> bone_mapping_data;
+    UINT GetHotInputSRV() const { return HotInputSRV; }
+    UINT GetSkinDataSRV() const { return SkinDataSRV; }
+
+    UINT GetVertexCount() const { return static_cast<UINT>(positions.size()); }
+    UINT GetHotStride() const { return mHotLayout.stride; }
+
+    std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }
+    
+    std::vector<VertexBoneDataCPU> bone_vertex_data;
+    std::vector<BoneMappingData>   bone_mapping_data;
 
 protected:
-    bool is_skinned_bones = false;
+    UINT SkinDataSRV = UINT_MAX;
+    UINT HotInputSRV = UINT_MAX;
 
+    std::shared_ptr<Skeleton> mModelSkeleton;
+    ComPtr<ID3D12Resource> mSkinData;
+    ComPtr<ID3D12Resource> mSkinDataUpload;
 };
