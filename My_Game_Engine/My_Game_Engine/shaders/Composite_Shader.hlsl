@@ -292,35 +292,38 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
     
     float3 finalColor = float3(0.0, 0.0, 0.0);
 
-    if (gRenderFlags & RENDER_DEBUG_ALBEDO)
+    if (RenderFlags & RENDER_DEBUG_ALBEDO)
     {
-        return float4(Albedo, 1.0f);
+        float ao = 1.0f;
+        float3 ambient = Calculate_Ambient(Albedo, gAmbientColor.rgb, gAmbientColor.a, ao);
+
+        return float4(ambient, 1.0f);
     }
-    else if (gRenderFlags & RENDER_DEBUG_NORMAL)
+    else if (RenderFlags & RENDER_DEBUG_NORMAL)
         finalColor = view_normal * 0.5f + 0.5f;
-    else if (gRenderFlags & RENDER_DEBUG_ROUGHNESS)
+    else if (RenderFlags & RENDER_DEBUG_ROUGHNESS)
         finalColor = Roughness.xxx;
-    else if (gRenderFlags & RENDER_DEBUG_METALLIC)
+    else if (RenderFlags & RENDER_DEBUG_METALLIC)
         finalColor = Metallic.xxx;
 
-    else if (gRenderFlags & RENDER_DEBUG_DEPTH_SCREEN)
+    else if (RenderFlags & RENDER_DEBUG_DEPTH_SCREEN)
     {
         finalColor = (1.0f - Depth).xxx;
     }
-    else if (gRenderFlags & RENDER_DEBUG_DEPTH_VIEW)
+    else if (RenderFlags & RENDER_DEBUG_DEPTH_VIEW)
     {
         finalColor = saturate((1.0f - viewDepth) / gFarZ).xxx;
     }
-    else if (gRenderFlags & RENDER_DEBUG_DEPTH_WORLD)
+    else if (RenderFlags & RENDER_DEBUG_DEPTH_WORLD)
     {
         float3 world_pos = ReconstructWorldPos(input.uv, Depth);
         finalColor = normalize(world_pos.xyz) * 0.5f + 0.5f;
     }
-    else if (gRenderFlags & RENDER_DEBUG_CLUSTER_AABB)
+    else if (RenderFlags & RENDER_DEBUG_CLUSTER_AABB)
     {
         finalColor = float3(0.0f, 0.0f, 0.0f);
     }
-    else if (gRenderFlags & RENDER_DEBUG_CLUSTER_ID)
+    else if (RenderFlags & RENDER_DEBUG_CLUSTER_ID)
     {
         finalColor = float3(
             (float) clusterX / gClusterCountX,
@@ -328,7 +331,7 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
             (float) clusterZ / gClusterCountZ);
     }
 
-    else if (gRenderFlags & RENDER_DEBUG_LIGHT_COUNT)
+    else if (RenderFlags & RENDER_DEBUG_LIGHT_COUNT)
     {
         //float3 worldDir = ComputeWorldDirection(input.uv);
         //float depth = gShadowMapPoint.Sample(gLinearSampler, float4(worldDir, 0)).r;
@@ -350,6 +353,11 @@ float4 Default_PS(VS_SCREEN_OUT input) : SV_TARGET
         float3 world_pos = ReconstructWorldPos(input.uv, Depth);
         float3 view_pos = mul(float4(world_pos, 1.0f), gView).xyz;
         float3 V = normalize(-view_pos);
+        
+        float ao = 1.0f;
+        float3 ambient = Calculate_Ambient(Albedo, gAmbientColor.rgb, gAmbientColor.a, ao);
+        
+        finalColor += ambient;
         
         ClusterLightMeta meta = ClusterLightMetaSRV[clusterIndex];
         

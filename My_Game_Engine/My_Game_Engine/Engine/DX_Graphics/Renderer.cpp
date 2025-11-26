@@ -1419,8 +1419,9 @@ FrameResource& DX12_Renderer::GetCurrentFrameResource()
     return fr;
 }
 
-void DX12_Renderer::Update_SceneCBV(const SceneData& data)
+void DX12_Renderer::Update_SceneCBV(SceneData& data)
 {
+    data.AmbientColor = mAmbientColor;
     memcpy(mappedSceneDataCB, &data, sizeof(SceneData));
 }
 
@@ -2373,6 +2374,13 @@ void DX12_Renderer::ImguiPass()
 
         ImGui::Begin("Performance");
         ImGui::Text("FPS: %lu", fps);
+        
+        ImGui::Separator();
+        ImGui::Text("Global Lighting");
+
+        ImGui::ColorEdit3("Ambient Color", (float*)&mAmbientColor);
+        ImGui::DragFloat("Ambient Intensity", &mAmbientColor.w, 0.01f, 0.0f, 5.0f);
+
         ImGui::End();
 
         // ------------------ Scene Hierarchy ------------------

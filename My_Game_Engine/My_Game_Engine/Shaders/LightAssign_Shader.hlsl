@@ -45,12 +45,16 @@ struct ClusterLightMeta
 
 cbuffer SceneCB : register(b0)
 {
-    float4 gTimeInfo;
+    float deltaTime;
+    float totalTime;
+    uint frameCount;
+    uint padding0;
+
+    uint LightCount;
+    uint ClusterIndexCapacity;
+    uint RenderFlags;
     
-    uint gLightCount;
-    uint gClusterIndexCapacity;
-    uint gRenderFlags;
-    float padding;
+    float4 gAmbientColor;
 };
 
 cbuffer CameraCB : register(b1)
@@ -210,7 +214,7 @@ void ClusterBoundsBuildCS(uint3 DTid : SV_DispatchThreadID)
 [numthreads(64, 1, 1)]
 void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
 {
-    uint MAX_LIGHTS_PER_CLUSTER = gClusterIndexCapacity;
+    uint MAX_LIGHTS_PER_CLUSTER = ClusterIndexCapacity;
     
     uint clusterIndex = Gid.x * 64u + GTid.x;
     uint total = TotalClusters();
@@ -226,7 +230,7 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
 
 
     [loop]
-    for (uint li = 0; li < gLightCount; ++li)
+    for (uint li = 0; li < LightCount; ++li)
     {
         LightInfo light = LightInput[li];
         bool intersects = false;
@@ -284,7 +288,7 @@ void LightAssignCS(uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
     uint offset = 0;
     InterlockedAdd(GlobalOffsetCounter[0], localCount, offset);
 
-    uint totalCapacity = TotalClusters() * gClusterIndexCapacity;
+    uint totalCapacity = TotalClusters() * ClusterIndexCapacity;
     uint writeCount = 0;
     if (offset < totalCapacity)
         writeCount = min(localCount, totalCapacity - offset);
