@@ -136,9 +136,10 @@ struct SceneData
     UINT LightCount;
     UINT ClusterIndexCapacity;
     UINT RenderFlags;
-    float padding1;
-};
+    UINT padding1;
 
+  XMFLOAT4 AmbientColor;
+};
 
 //=================================================================
 
@@ -187,12 +188,12 @@ class DrawItem;
 class DX12_Renderer
 {
     static float clear_color[4];
-    
+    XMFLOAT4 mAmbientColor = { 1.1f, 0.1f, 0.1f, 1.0f };
 public:
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
 
-    void Update_SceneCBV(const SceneData& data);
+    void Update_SceneCBV(SceneData& data);
 
     void Render(std::shared_ptr<Scene> render_scene);
     void Cleanup();

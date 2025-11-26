@@ -63,71 +63,77 @@ void Scene::Build()
 	const std::string animation_clip_path_2 = "Assets/Animation/Ymca Dance.fbx";
  	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
+	LoadResult animation_result_0;
+	rsm->Load(animation_clip_path_0, "Test_10", animation_result_0);
+
+	LoadResult animation_result_1;
+	rsm->Load(animation_clip_path_1, "Test_101", animation_result_1);
+
+	LoadResult animation_result_2;
+	rsm->Load(animation_clip_path_2, "Test_1010", animation_result_2);
+
+	auto clip_0 = rsm->GetById<AnimationClip>(animation_result_0.clipIds[0]);
+	auto clip_1 = rsm->GetById<AnimationClip>(animation_result_1.clipIds[0]);
+	auto clip_2 = rsm->GetById<AnimationClip>(animation_result_2.clipIds[0]);
+
+
+	LoadResult model_0_result;
+	rsm->Load(path_2, "Test_0", model_0_result);
+	std::shared_ptr<Model_Avatar> model_0_avatar = rsm->GetById<Model_Avatar>(model_0_result.avatarId);
+	std::shared_ptr<Skeleton> model_0_skeleton = rsm->GetById<Skeleton>(model_0_result.skeletonId);
+	std::shared_ptr<Model> model_0_ptr = rsm->GetById<Model>(model_0_result.modelId);
+
+	LoadResult model_1_result;
+	rsm->Load(path_0, "Test_1", model_1_result);
+	std::shared_ptr<Model_Avatar> model_1_avatar = rsm->GetById<Model_Avatar>(model_1_result.avatarId);
+	std::shared_ptr<Skeleton> model_1_skeleton = rsm->GetById<Skeleton>(model_1_result.skeletonId);
+	std::shared_ptr<Model> model_1_ptr = rsm->GetById<Model>(model_1_result.modelId);
+
+
 	{
-		LoadResult animation_result_0;
-		rsm->Load(animation_clip_path_0, "Test_10", animation_result_0);
-
-		LoadResult animation_result_1;
-		rsm->Load(animation_clip_path_1, "Test_101", animation_result_1);
-
-		LoadResult animation_result_2;
-		rsm->Load(animation_clip_path_2, "Test_1010", animation_result_2);
-
-		LoadResult model_result;
-		rsm->Load(path_0, "Test_0", model_result);
-
-		auto model_ptr = rsm->GetById<Model>(model_result.modelId);
-		if (!model_ptr)
-		{
-			OutputDebugStringA("[Scene::Build] Model load failed.\n");
-			return;
-		}
-
-		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
+		Object* test_obj = m_pObjectManager->CreateFromModel(model_0_ptr);
 		m_pObjectManager->SetObjectName(test_obj, "Test_Object_0");
 		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
 		test_obj->GetTransform()->SetPosition({ 0, 0, 0 });
 
 		auto rb = test_obj->AddComponent<RigidbodyComponent>();
-		rb->SetUseGravity(false);
-
 		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
 		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
+
+		rb->SetUseGravity(false);
+
 		for (auto& renderer : skinnedRenderers)
-		{
 			renderer->Initialize();
-		}
 
-		animController->SetModelAvatar(rsm->GetById<Model_Avatar>(model_result.avatarId));
-		animController->SetSkeleton(rsm->GetById<Skeleton>(model_result.skeletonId));
-
-
-		auto clip_0 = rsm->GetById<AnimationClip>(animation_result_0.clipIds[0]);
-		auto clip_1 = rsm->GetById<AnimationClip>(animation_result_1.clipIds[0]);
-		auto clip_2 = rsm->GetById<AnimationClip>(animation_result_2.clipIds[0]);
+		animController->SetModelAvatar(model_0_avatar);
+		animController->SetSkeleton(model_0_skeleton);
 
 		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
-		animController->Play(1, clip_1, 1.0f, PlaybackMode::Loop, 1.0f);
-		animController->Play(2, clip_2, 1.0f, PlaybackMode::Loop, 1.0f);
-
 	}
 
-	//{
-	//	LoadResult result;
-	//	rsm->Load(path_2, "Test_1", result);
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			Object* test_obj = m_pObjectManager->CreateFromModel(model_1_ptr);
+			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
+			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+			test_obj->GetTransform()->SetPosition({ 10.0f * (i + 1), 0, 0 });
 
-	//	auto model_ptr = rsm->GetById<Model>(result.modelId);
-	//	for (int i = 0; i < 3; ++i)
-	//	{
-	//		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
-	//		m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
-	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-	//		test_obj->GetTransform()->SetPosition({ 10.0f* (i+1), 0, 0 });
-	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
-	//		rb->SetUseGravity(false);
+			auto rb = test_obj->AddComponent<RigidbodyComponent>();
+			auto animController = test_obj->AddComponent<AnimationControllerComponent>();
+			auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-	//	}
-	//}
+			rb->SetUseGravity(false);
+
+			for (auto& renderer : skinnedRenderers)
+				renderer->Initialize();
+
+			animController->SetModelAvatar(model_1_avatar);
+			animController->SetSkeleton(model_1_skeleton);
+
+			animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
+		}
+	}
 
 
 	bool is_debugging = false;

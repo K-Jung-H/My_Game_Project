@@ -52,3 +52,8 @@ float3 PBR_Lighting(
 
     return (diffuse + specular) * radiance * NdotL;
 }
+
+float3 Calculate_Ambient(float3 albedo, float3 ambientColor, float ambientIntensity, float ao)
+{
+    return albedo * ambientColor * ambientIntensity * ao;
+}
