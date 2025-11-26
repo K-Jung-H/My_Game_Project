@@ -55,7 +55,7 @@ void Scene::Build()
 	
 	//--------------------------------------------------------------------------------
 	
-	const std::string path_0 = "Assets/CP_100_0012_05/CP_100_0012_05.fbx";
+	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
 	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx"; // Catwalk Walk
@@ -74,7 +74,7 @@ void Scene::Build()
 		rsm->Load(animation_clip_path_2, "Test_1010", animation_result_2);
 
 		LoadResult model_result;
-		rsm->Load(path_2, "Test_0", model_result);
+		rsm->Load(path_0, "Test_0", model_result);
 
 		auto model_ptr = rsm->GetById<Model>(model_result.modelId);
 		if (!model_ptr)
@@ -82,7 +82,6 @@ void Scene::Build()
 			OutputDebugStringA("[Scene::Build] Model load failed.\n");
 			return;
 		}
-
 
 		Object* test_obj = m_pObjectManager->CreateFromModel(model_ptr);
 		m_pObjectManager->SetObjectName(test_obj, "Test_Object_0");

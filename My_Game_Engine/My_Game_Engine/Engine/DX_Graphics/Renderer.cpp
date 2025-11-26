@@ -2787,6 +2787,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
         auto animCtrl = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
         if (animCtrl)
         {
+            ImGui::PushID(animCtrl.get());
             if (ImGui::CollapsingHeader("Animation Controller", ImGuiTreeNodeFlags_DefaultOpen))
             {
                 ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Status: %s",
@@ -2796,8 +2797,7 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
                 ImGui::Indent();
 
                 ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
-
-                if (ImGui::TreeNode("Global Settings"))
+                if (ImGui::TreeNodeEx("Global Settings", ImGuiTreeNodeFlags_DefaultOpen))
                 {
                     auto currentSkeleton = animCtrl->GetSkeleton();
                     std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
@@ -2953,7 +2953,10 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
 
                 ImGui::Unindent();
             }
+
+            ImGui::PopID();
         }
+
     }
     break;
 
