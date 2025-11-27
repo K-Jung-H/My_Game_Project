@@ -22,7 +22,7 @@ public:
     XMFLOAT3 SampleScale(float time) const;
 
     XMMATRIX Sample(float time) const;
-
+    void Sample(float time, XMVECTOR& outS, XMVECTOR& outR, XMVECTOR& outT) const;
 public:
     std::vector<VectorKey> PositionKeys;
     std::vector<QuatKey>   RotationKeys;

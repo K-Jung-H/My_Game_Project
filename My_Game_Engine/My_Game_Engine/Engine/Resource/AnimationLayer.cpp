@@ -79,8 +79,66 @@ void AnimationLayer::Update(float deltaTime)
     }
 }
 
-bool AnimationLayer::GetSample(const AnimationState& state, const std::string& key,
-    XMVECTOR& s, XMVECTOR& r, XMVECTOR& t)
+void AnimationLayer::UpdateMaskCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap)
+{
+    mCachedMaskWeights.resize(boneCount);
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        if (mMask && !boneToKeyMap[i].empty())
+        {
+            mCachedMaskWeights[i] = mMask->GetWeight(boneToKeyMap[i]);
+        }
+        else
+        {
+            mCachedMaskWeights[i] = 1.0f;
+        }
+    }
+}
+
+void AnimationLayer::UpdateTrackCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap)
+{
+    mCachedCurrentTracks.clear();
+    mCachedCurrentTracks.resize(boneCount, nullptr);
+
+    mCachedPrevTracks.clear();
+    mCachedPrevTracks.resize(boneCount, nullptr);
+
+    if (mCurrentState.isValid && mCurrentState.clip)
+    {
+        for (size_t i = 0; i < boneCount; ++i)
+        {
+            const std::string& key = boneToKeyMap[i];
+            if (!key.empty())
+            {
+                mCachedCurrentTracks[i] = mCurrentState.clip->GetTrack(key);
+            }
+        }
+    }
+
+    if (mIsTransitioning && mPrevState.isValid && mPrevState.clip)
+    {
+        for (size_t i = 0; i < boneCount; ++i)
+        {
+            const std::string& key = boneToKeyMap[i];
+            if (!key.empty())
+            {
+                mCachedPrevTracks[i] = mPrevState.clip->GetTrack(key);
+            }
+        }
+    }
+}
+
+float AnimationLayer::GetCachedMaskWeight(int boneIndex) const
+{
+    if (boneIndex >= 0 && boneIndex < mCachedMaskWeights.size())
+    {
+        return mCachedMaskWeights[boneIndex];
+    }
+    return 1.0f;
+}
+
+bool AnimationLayer::GetSample(const AnimationState& state, const std::string& key, XMVECTOR& s, XMVECTOR& r, XMVECTOR& t)
 {
     if (!state.isValid || !state.clip) return false;
 
@@ -99,7 +157,7 @@ bool AnimationLayer::GetSample(const AnimationState& state, const std::string& k
 }
 
 bool AnimationLayer::EvaluateAndBlend(
-    const std::string& abstractKey,
+    int boneIndex,
     float maskWeight,
     XMVECTOR& inOutS,
     XMVECTOR& inOutR,
@@ -111,15 +169,27 @@ bool AnimationLayer::EvaluateAndBlend(
     float finalAlpha = mLayerWeight * maskWeight;
     if (finalAlpha <= 0.001f) return false;
 
+    const AnimationTrack* currTrack = nullptr;
+    if (boneIndex < mCachedCurrentTracks.size())
+        currTrack = mCachedCurrentTracks[boneIndex];
+
+    if (!currTrack) return false;
+
     XMVECTOR s_curr, r_curr, t_curr;
-    if (!GetSample(mCurrentState, abstractKey, s_curr, r_curr, t_curr))
-        return false;
+
+    currTrack->Sample(mCurrentState.currentTime, s_curr, r_curr, t_curr);
 
     if (mIsTransitioning && mPrevState.isValid)
     {
-        XMVECTOR s_prev, r_prev, t_prev;
-        if (GetSample(mPrevState, abstractKey, s_prev, r_prev, t_prev))
+        const AnimationTrack* prevTrack = nullptr;
+        if (boneIndex < mCachedPrevTracks.size())
+            prevTrack = mCachedPrevTracks[boneIndex];
+
+        if (prevTrack)
         {
+            XMVECTOR s_prev, r_prev, t_prev;
+            prevTrack->Sample(mPrevState.currentTime, s_prev, r_prev, t_prev);
+
             float crossFadeAlpha = mCurrentState.weight;
             s_curr = XMVectorLerp(s_prev, s_curr, crossFadeAlpha);
             t_curr = XMVectorLerp(t_prev, t_curr, crossFadeAlpha);
@@ -133,9 +203,9 @@ bool AnimationLayer::EvaluateAndBlend(
         inOutT = XMVectorLerp(inOutT, t_curr, finalAlpha);
         inOutR = XMQuaternionSlerp(inOutR, r_curr, finalAlpha);
     }
-    else if (mBlendMode == LayerBlendMode::Additive)
+    if (mBlendMode == LayerBlendMode::Additive)
     {
-        // 추후 확장 시 구현
+
     }
 
     return true;

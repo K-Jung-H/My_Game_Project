@@ -147,6 +147,17 @@ XMMATRIX AnimationTrack::Sample(float time) const
     return XMMatrixScalingFromVector(S) * XMMatrixRotationQuaternion(R) * XMMatrixTranslationFromVector(T);
 }
 
+void AnimationTrack::Sample(float time, XMVECTOR& outS, XMVECTOR& outR, XMVECTOR& outT) const
+{
+    XMFLOAT3 s = SampleScale(time);
+    XMFLOAT4 r = SampleRotation(time);
+    XMFLOAT3 t = SamplePosition(time);
+
+    outS = XMLoadFloat3(&s);
+    outR = XMLoadFloat4(&r);
+    outT = XMLoadFloat3(&t);
+}
+
 AnimationClip::AnimationClip()
     : Game_Resource(ResourceType::AnimationClip)
 {

@@ -188,7 +188,7 @@ class DrawItem;
 class DX12_Renderer
 {
     static float clear_color[4];
-    XMFLOAT4 mAmbientColor = { 1.1f, 0.1f, 0.1f, 1.0f };
+    XMFLOAT4 mAmbientColor = { 0.4f, 0.4f, 0.4f, 1.0f };
 public:
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
@@ -344,3 +344,10 @@ private:
 void DrawObjectNode(Object* obj);
 void DrawInspector(Object* obj);
 void DrawComponentInspector(const std::shared_ptr<Component>& comp);
+
+void DrawMeshRendererInspector(const std::shared_ptr<Component>& comp);
+void DrawSkinnedMeshRendererInspector(const std::shared_ptr<Component>& comp);
+void DrawAnimationControllerInspector(const std::shared_ptr<Component>& comp);
+void DrawCameraInspector(const std::shared_ptr<Component>& comp);
+void DrawLightInspector(const std::shared_ptr<Component>& comp);
+void DrawRigidbodyInspector(const std::shared_ptr<Component>& comp);

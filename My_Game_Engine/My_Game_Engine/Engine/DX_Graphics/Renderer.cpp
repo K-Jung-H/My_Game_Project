@@ -2613,603 +2613,632 @@ void DrawComponentInspector(const std::shared_ptr<Component>& comp)
 
     switch (component_type)
     {
-
     case Mesh_Renderer:
-    {
-        std::shared_ptr<MeshRendererComponent> mr = std::dynamic_pointer_cast<MeshRendererComponent>(comp);
-        if (mr)
-        {
-            ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
-
-            ImGui::Text("MeshRenderer");
-            ImGui::Separator();
-            ImGui::Indent();
-
-            auto meshPtr = mr->GetMesh();
-            if (meshPtr)
-            {
-                ImGui::Text("Mesh Info");
-                ImGui::Separator();
-
-                if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-                {
-                    ImGui::TableSetupColumn("Property");
-                    ImGui::TableSetupColumn("Value");
-                    ImGui::TableHeadersRow();
-
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
-                    ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
-                    
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
-                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", mr->GetMesh()->GetId());
-
-
-                    ImGui::EndTable();
-                }
-
-                ImGui::Spacing();
-                ImGui::Text("Submesh Materials");
-                ImGui::Separator();
-
-                if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-                {
-                    ImGui::TableSetupColumn("Submesh Index");
-                    ImGui::TableSetupColumn("Material Alias");
-                    ImGui::TableSetupColumn("Material ID");
-                    ImGui::TableHeadersRow();
-
-                    const auto& submeshes = meshPtr->submeshes;
-                    for (size_t i = 0; i < submeshes.size(); ++i)
-                    {
-                        ImGui::TableNextRow();
-                        ImGui::TableSetColumnIndex(0);
-                        ImGui::Text("%zu", i);
-
-                        UINT matId = mr->GetMaterial(i);
-                        std::string matAlias = "<null>";
-
-                        if (matId != Engine::INVALID_ID)
-                        {
-                            auto matPtr = rsm->GetById<Material>(matId);
-                            if (matPtr)
-                                matAlias = matPtr->GetAlias();
-                        }
-
-                        ImGui::TableSetColumnIndex(1);
-                        ImGui::Text("%u", matId);
-
-                        ImGui::TableSetColumnIndex(2);
-                        ImGui::Text("%s", matAlias.c_str());
-                    }
-
-                    ImGui::EndTable();
-                }
-            }
-            else
-            {
-                ImGui::Text("Mesh: <invalid>");
-            }
-
-            ImGui::Unindent();
-        }
-    }
-    break;
+        DrawMeshRendererInspector(comp);
+        break;
 
     case Skinned_Mesh_Renderer:
-    {
-        std::shared_ptr<SkinnedMeshRendererComponent> smr = std::dynamic_pointer_cast<SkinnedMeshRendererComponent>(comp);
-        if (smr)
-        {
-            ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
-
-            ImGui::Text("SkinnedMeshRenderer");
-            ImGui::Separator();
-            ImGui::Indent();
-
-            auto meshPtr = smr->GetMesh();
-            if (meshPtr)
-            {
-                ImGui::Text("Mesh Info");
-                ImGui::Separator();
-                if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-                {
-                    ImGui::TableSetupColumn("Property");
-                    ImGui::TableSetupColumn("Value");
-                    ImGui::TableHeadersRow();
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
-                    ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
-                    ImGui::TableNextRow();
-                    ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
-                    ImGui::TableSetColumnIndex(1); ImGui::Text("%u", smr->GetMesh()->GetId());
-                    ImGui::EndTable();
-                }
-
-                ImGui::Spacing();
-                ImGui::Text("Submesh Materials");
-                ImGui::Separator();
-
-                if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
-                {
-                    ImGui::TableSetupColumn("Submesh Index");
-                    ImGui::TableSetupColumn("Material Alias");
-                    ImGui::TableSetupColumn("Material ID");
-                    ImGui::TableHeadersRow();
-
-                    const auto& submeshes = meshPtr->submeshes;
-                    for (size_t i = 0; i < submeshes.size(); ++i)
-                    {
-                        ImGui::TableNextRow();
-                        ImGui::TableSetColumnIndex(0);
-                        ImGui::Text("%zu", i);
-
-                        UINT matId = smr->GetMaterial(i);
-                        std::string matAlias = "<null>";
-
-                        if (matId != Engine::INVALID_ID)
-                        {
-                            auto matPtr = rsm->GetById<Material>(matId);
-                            if (matPtr)
-                                matAlias = matPtr->GetAlias();
-                        }
-
-                        ImGui::TableSetColumnIndex(1);
-                        ImGui::Text("%u", matId);
-
-                        ImGui::TableSetColumnIndex(2);
-                        ImGui::Text("%s", matAlias.c_str());
-                    }
-
-                    ImGui::EndTable();
-                }
-            }
-            else
-            {
-                ImGui::Text("Mesh: <invalid>");
-            }
-
-            ImGui::Spacing();
-            ImGui::Text("Skinned Renderer Info");
-            ImGui::Separator();
-
-            auto animController = smr->GetAnimController();
-            if (animController)
-            {
-                ImGui::Text("Controller: %s (ID: %u)", animController->GetOwner()->GetName().c_str(), animController->GetOwner()->GetId());
-            }
-            else
-            {
-                ImGui::Text("Controller: <Not Connected>");
-            }
-            ImGui::Text("Buffers Ready: %s", smr->HasValidBuffers() ? "Yes" : "No");
-
-            ImGui::Unindent();
-        }
-    }
-    break;
+        DrawSkinnedMeshRendererInspector(comp);
+        break;
 
     case Component_Type::AnimationController:
-    {
-        auto animCtrl = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
-        if (animCtrl)
-        {
-            ImGui::PushID(animCtrl.get());
-            if (ImGui::CollapsingHeader("Animation Controller", ImGuiTreeNodeFlags_DefaultOpen))
-            {
-                ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Status: %s",
-                    animCtrl->IsReady() ? "Ready" : "Not Ready");
-
-                ImGui::Separator();
-                ImGui::Indent();
-
-                ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
-
-                if (ImGui::TreeNodeEx("Global Settings", ImGuiTreeNodeFlags_DefaultOpen))
-                {
-                    auto currentSkeleton = animCtrl->GetSkeleton();
-                    std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
-
-                    if (ImGui::BeginCombo("Skeleton", skelName.c_str()))
-                    {
-                        auto skeletons = rs->GetAllResources<Skeleton>();
-                        for (const auto& skel : skeletons)
-                        {
-                            bool isSelected = (currentSkeleton == skel);
-                            ImGui::PushID(skel.get());
-                            if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
-                                animCtrl->SetSkeleton(skel);
-                            if (isSelected) ImGui::SetItemDefaultFocus();
-                            ImGui::PopID();
-                        }
-                        ImGui::EndCombo();
-                    }
-
-                    auto currentAvatar = animCtrl->GetModelAvatar();
-                    std::string avatarName = currentAvatar ? currentAvatar->GetAlias() : "None";
-
-                    if (ImGui::BeginCombo("Avatar", avatarName.c_str()))
-                    {
-                        auto avatars = rs->GetAllResources<Model_Avatar>();
-                        for (const auto& avatar : avatars)
-                        {
-                            bool isSelected = (currentAvatar == avatar);
-                            ImGui::PushID(avatar.get());
-                            if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
-                                animCtrl->SetModelAvatar(avatar);
-                            if (isSelected) ImGui::SetItemDefaultFocus();
-                            ImGui::PopID();
-                        }
-                        ImGui::EndCombo();
-                    }
-
-                    int layerCount = animCtrl->GetLayerCount();
-                    if (ImGui::InputInt("Layer Count", &layerCount))
-                    {
-                        if (layerCount < 1) layerCount = 1;
-                        animCtrl->SetLayerCount(layerCount);
-                    }
-
-                    ImGui::TreePop();
-                }
-
-                ImGui::Separator();
-                ImGui::Text("Global Timeline Control");
-
-                bool isPaused = animCtrl->IsPaused();
-                if (ImGui::Checkbox("Pause All", &isPaused))
-                {
-                    animCtrl->SetPause(isPaused);
-                }
-
-                static float globalProgress = 0.0f;
-
-                if (ImGui::SliderFloat("Global Progress", &globalProgress, 0.0f, 1.0f, "%.2f%%"))
-                {
-                    if (!isPaused)
-                    {
-                        animCtrl->SetPause(true);
-                        isPaused = true;
-                    }
-
-                    int count = animCtrl->GetLayerCount();
-                    for (int i = 0; i < count; ++i)
-                    {
-                        animCtrl->SetLayerNormalizedTime(i, globalProgress);
-                    }
-                }
-
-                ImGui::Separator();
-                ImGui::Text("Animation Layers");
-
-                int layerCount = animCtrl->GetLayerCount();
-                auto clips = rs->GetAllResources<AnimationClip>();
-
-                for (int i = 0; i < layerCount; ++i)
-                {
-                    ImGui::PushID(i);
-
-                    float childHeight = 210.0f;
-                    if (ImGui::BeginChild("LayerFrame", ImVec2(0, childHeight), true, ImGuiWindowFlags_None))
-                    {
-                        std::string headerName = "Layer " + std::to_string(i);
-                        if (i == 0) headerName += " (Base)";
-                        else headerName += " (Overlay)";
-
-                        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", headerName.c_str());
-                        ImGui::SameLine();
-                        ImGui::TextDisabled("(Index: %d)", i);
-                        ImGui::Separator();
-
-                        float weight = animCtrl->GetLayerWeight(i);
-                        if (ImGui::SliderFloat("Layer Weight", &weight, 0.0f, 1.0f))
-                        {
-                            animCtrl->SetLayerWeight(i, weight);
-                        }
-
-                        auto mask = animCtrl->GetLayerMask(i);
-                        ImGui::Text("Mask: %s", mask ? mask->GetAlias().c_str() : "None (Full Body)");
-
-                        ImGui::Spacing();
-
-                        const char* modeNames[] = { "Loop", "Once", "PingPong" };
-                        int currentModeIdx = (int)animCtrl->GetPlaybackMode(i);
-
-                        if (ImGui::Combo("Mode", &currentModeIdx, modeNames, IM_ARRAYSIZE(modeNames)))
-                        {
-                            animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx, i);
-                        }
-
-                        static float blendTimeInput = 0.2f;
-                        ImGui::DragFloat("Blend Time (s)", &blendTimeInput, 0.01f, 0.0f, 5.0f);
-
-                        auto currentClip = animCtrl->GetCurrentClip(i);
-                        std::string previewValue = currentClip ? currentClip->GetAlias() : "Select Clip...";
-                        std::unordered_map<std::string, int> nameCounts;
-
-                        if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
-                        {
-                            for (auto& clip : clips)
-                            {
-                                std::string alias = clip->GetAlias();
-                                nameCounts[alias]++;
-                                std::string displayName = alias;
-                                if (nameCounts[alias] > 1)
-                                    displayName += " (" + std::to_string(nameCounts[alias]) + ")";
-
-                                bool isSelected = (currentClip == clip);
-                                ImGui::PushID(clip.get());
-
-                                if (ImGui::Selectable(displayName.c_str(), isSelected))
-                                {
-                                    animCtrl->Play(i, clip, blendTimeInput, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
-                                }
-
-                                if (isSelected) ImGui::SetItemDefaultFocus();
-                                ImGui::PopID();
-                            }
-                            ImGui::EndCombo();
-                        }
-
-                        ImGui::SameLine();
-                        if (ImGui::Button("Replay"))
-                        {
-                            if (currentClip)
-                                animCtrl->Play(i, currentClip, 0.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
-                        }
-
-                        float speed = animCtrl->GetSpeed(i);
-                        if (ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 5.0f))
-                        {
-                            animCtrl->SetSpeed(speed, i);
-                        }
-
-                        ImGui::Spacing();
-
-                        float currentProgress = animCtrl->GetLayerNormalizedTime(i);
-                        float duration = animCtrl->GetLayerDuration(i);
-                        float currentTime = currentProgress * duration;
-
-                        char timeLabel[64];
-                        if (duration > 0.0f)
-                            sprintf_s(timeLabel, "%.2fs / %.2fs", currentTime, duration);
-                        else
-                            sprintf_s(timeLabel, "No Clip");
-
-                        if (ImGui::SliderFloat("Seek", &currentProgress, 0.0f, 1.0f, timeLabel))
-                        {
-                            animCtrl->SetPause(true);
-                            animCtrl->SetLayerNormalizedTime(i, currentProgress);
-                        }
-
-                        if (animCtrl->IsLayerTransitioning(i))
-                        {
-                            float progress = animCtrl->GetLayerTransitionProgress(i);
-                            char overlay[32];
-                            sprintf_s(overlay, "Blending... %.1f%%", progress * 100.0f);
-
-                            ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
-                            ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
-                            ImGui::PopStyleColor();
-                        }
-                    }
-                    ImGui::EndChild();
-
-                    ImGui::Spacing();
-                    ImGui::PopID();
-                }
-
-                ImGui::Unindent();
-            }
-
-            ImGui::PopID();
-        }
-    }
-    break;
+        DrawAnimationControllerInspector(comp);
+        break;
 
     case Camera:
-    {
-        std::shared_ptr<CameraComponent> cam = dynamic_pointer_cast<CameraComponent>(comp);
-        if (cam)
-        {
-            bool useTarget = cam->GetTargetUse();
-            XMFLOAT3 target_pos = cam->GetTargetPosition();
-
-            float FovY = cam->GetFovY();
-            float mNearZ = cam->GetNearZ();
-            float mFarZ = cam->GetFarZ();
-
-
-            if (ImGui::Checkbox("Use Target Focus", &useTarget))
-                cam->SetTargetUse(useTarget);
-
-            if (ImGui::DragFloat3("Focus Target", reinterpret_cast<float*>(&target_pos), 0.01f))
-                cam->SetTargetPosition(target_pos);
-
-            if (ImGui::DragFloat("FovY", &FovY, 0.1f, 0.1f, 100.0f))
-                cam->SetFovY(FovY);
-
-            if (ImGui::DragFloat("NearZ", &mNearZ, 0.1f, 0.1f, 100.0f))
-                cam->SetNearZ(mNearZ);
-
-            if (ImGui::DragFloat("FarZ", &mFarZ, 0.1f, 0.1f, 100.0f))
-                cam->SetFarZ(mFarZ);
-        }
-    }
-    break;
+        DrawCameraInspector(comp);
+        break;
 
     case Light:
-    {
-        std::shared_ptr<LightComponent> light = std::dynamic_pointer_cast<LightComponent>(comp);
-        if (light)
-        {
-            ImGui::Text("Light Component");
-            ImGui::Separator();
-            ImGui::Indent();
-
-            Light_Type type = light->GetLightType();
-            const char* typeNames[] = { "Directional", "Point", "Spot" };
-            int currentType = static_cast<int>(type);
-
-            // ==========================================================
-            // 1. General Light Settings
-            // ==========================================================
-            ImGui::Text("Light Settings");
-            ImGui::Separator();
-
-            if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
-                light->SetLightType(static_cast<Light_Type>(currentType));
-
-            XMFLOAT3 color = light->GetColor();
-            if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color)))
-                light->SetColor(color);
-
-            float intensity = light->GetIntensity();
-            if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
-                light->SetIntensity(intensity);
-
-            if (type == Light_Type::Directional || type == Light_Type::Spot)
-            {
-                XMFLOAT3 direction = light->GetDirection();
-                if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
-                {
-                    if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)
-                        direction.y = -1.0f;
-                    light->SetDirection(direction);
-                }
-            }
-
-            if (type == Light_Type::Point || type == Light_Type::Spot)
-            {
-                float range = light->GetRange();
-                if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 10000.0f))
-                    light->SetRange(range);
-            }
-
-            if (type == Light_Type::Spot)
-            {
-                float inner = XMConvertToDegrees(light->GetInnerAngle());
-                if (ImGui::DragFloat("Inner Angle", &inner, 0.5f, 0.0f, 90.0f))
-                    light->SetInnerAngle(XMConvertToRadians(inner));
-
-                float outer = XMConvertToDegrees(light->GetOuterAngle());
-                if (ImGui::DragFloat("Outer Angle", &outer, 0.5f, 0.0f, 180.0f))
-                    light->SetOuterAngle(XMConvertToRadians(outer));
-            }
-
-            ImGui::Spacing();
-
-            // ==========================================================
-            // 2. Shadow Settings
-            // ==========================================================
-            ImGui::Text("Shadow Settings");
-            ImGui::Separator();
-
-            bool castShadow = light->CastsShadow();
-            ImGui::Checkbox("Cast Shadow", &castShadow);
-            light->SetCastShadow(castShadow);
-
-            if (castShadow)
-            {
-                ShadowMode shadowMode = light->GetShadowMode();
-                const char* modeNames[] = { "Dynamic", "Static" };
-                int currentModeInt = static_cast<int>(shadowMode);
-
-                if (ImGui::Combo("Shadow Mode", &currentModeInt, modeNames, IM_ARRAYSIZE(modeNames)))
-                {
-                    light->SetShadowMode(static_cast<ShadowMode>(currentModeInt));
-                }
-
-                if (static_cast<ShadowMode>(currentModeInt) == ShadowMode::Static)
-                {
-                    if (ImGui::Button("Bake New ShadowMap"))
-                    {
-                        light->ForceShadowMapUpdate();
-                    }
-                    ImGui::SameLine();
-                    ImGui::TextDisabled("(One-time manual bake)");
-                }
-
-                ImGui::Separator();
-
-                if (type == Light_Type::Directional)
-                {
-                    DirectionalShadowMode dirMode = light->GetDirectionalShadowMode();
-                    const char* dirModeNames[] = { "Default (StaticGlobal)", "CSM (Camera Dependent)" };
-                    int currentDirModeInt = static_cast<int>(dirMode);
-
-                    if (ImGui::Combo("Directional Mode", &currentDirModeInt, dirModeNames, IM_ARRAYSIZE(dirModeNames)))
-                    {
-                        light->SetDirectionalShadowMode(static_cast<DirectionalShadowMode>(currentDirModeInt));
-                    }
-
-                    if (static_cast<DirectionalShadowMode>(currentDirModeInt) == DirectionalShadowMode::Default)
-                    {
-                        float orthoSize = light->GetStaticOrthoSize();
-                        if (ImGui::DragFloat("Static Ortho Size", &orthoSize, 1.0f, 1.0f, 10000.0f))
-                        {
-                            light->SetStaticOrthoSize(orthoSize);
-                        }
-                    }
-
-                    ImGui::Separator();
-
-                    float lambda = light->GetCascadeLambda();
-                    if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
-                        light->SetCascadeLambda(lambda);
-
-                    ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
-
-                    ImGui::Separator();
-                }
-
-                float shadowNear = light->GetShadowMapNear();
-                if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, light->GetShadowMapFar() - 1.0f))
-                    light->SetShadowMapNear(shadowNear);
-
-                float shadowFar = light->GetShadowMapFar();
-                if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, light->GetShadowMapNear() + 1.0f, 20000.0f))
-                    light->SetShadowMapFar(shadowFar);
-            }
-
-            ImGui::Unindent();
-        }
-    }
-    break;
-
-
-
+        DrawLightInspector(comp);
+        break;
 
     case Collider:
         break;
+
     case Rigidbody:
-    {
-        std::shared_ptr<RigidbodyComponent> rb = dynamic_pointer_cast<RigidbodyComponent>(comp);
-        if (rb)
-        {
-            ImGui::Text("Rigidbody");
-            ImGui::Indent();
-            float mass = rb->GetMass();
-            bool useGravity = rb->GetUseGravity();
-            XMFLOAT3 GravityValue = rb->GetGravity();
-
-            if (ImGui::DragFloat("Mass", &mass, 0.1f, 0.1f, 100.0f))
-                rb->SetMass(mass);
-            if (ImGui::Checkbox("Use Gravity", &useGravity))
-                rb->SetUseGravity(useGravity);
-            if (ImGui::DragFloat3("Gravity Value", reinterpret_cast<float*>(&GravityValue), 0.01f))
-                rb->SetGravity(GravityValue);
-
-            ImGui::Unindent();
-        } 
-    }
-    break;
+        DrawRigidbodyInspector(comp);
+        break;
 
     case Transform:
     case etc:
     default:
         ImGui::Text("Unknown Component");
         break;
+    }
+}
+
+void DrawMeshRendererInspector(const std::shared_ptr<Component>& comp)
+{
+    std::shared_ptr<MeshRendererComponent> mr = std::dynamic_pointer_cast<MeshRendererComponent>(comp);
+    if (mr)
+    {
+        ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+
+        ImGui::Text("MeshRenderer");
+        ImGui::Separator();
+        ImGui::Indent();
+
+        auto meshPtr = mr->GetMesh();
+        if (meshPtr)
+        {
+            ImGui::Text("Mesh Info");
+            ImGui::Separator();
+
+            if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+            {
+                ImGui::TableSetupColumn("Property");
+                ImGui::TableSetupColumn("Value");
+                ImGui::TableHeadersRow();
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
+                ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
+
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
+                ImGui::TableSetColumnIndex(1); ImGui::Text("%u", mr->GetMesh()->GetId());
+
+                ImGui::EndTable();
+            }
+
+            ImGui::Spacing();
+            ImGui::Text("Submesh Materials");
+            ImGui::Separator();
+
+            if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+            {
+                ImGui::TableSetupColumn("Submesh Index");
+                ImGui::TableSetupColumn("Material Alias");
+                ImGui::TableSetupColumn("Material ID");
+                ImGui::TableHeadersRow();
+
+                const auto& submeshes = meshPtr->submeshes;
+                for (size_t i = 0; i < submeshes.size(); ++i)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("%zu", i);
+
+                    UINT matId = mr->GetMaterial(i);
+                    std::string matAlias = "<null>";
+
+                    if (matId != Engine::INVALID_ID)
+                    {
+                        auto matPtr = rsm->GetById<Material>(matId);
+                        if (matPtr)
+                            matAlias = matPtr->GetAlias();
+                    }
+
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::Text("%u", matId);
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::Text("%s", matAlias.c_str());
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        else
+        {
+            ImGui::Text("Mesh: <invalid>");
+        }
+
+        ImGui::Unindent();
+    }
+}
+
+void DrawSkinnedMeshRendererInspector(const std::shared_ptr<Component>& comp)
+{
+    std::shared_ptr<SkinnedMeshRendererComponent> smr = std::dynamic_pointer_cast<SkinnedMeshRendererComponent>(comp);
+    if (smr)
+    {
+        ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+
+        ImGui::Text("SkinnedMeshRenderer");
+        ImGui::Separator();
+        ImGui::Indent();
+
+        auto meshPtr = smr->GetMesh();
+        if (meshPtr)
+        {
+            ImGui::Text("Mesh Info");
+            ImGui::Separator();
+            if (ImGui::BeginTable("MeshTable", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+            {
+                ImGui::TableSetupColumn("Property");
+                ImGui::TableSetupColumn("Value");
+                ImGui::TableHeadersRow();
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh Alias");
+                ImGui::TableSetColumnIndex(1); ImGui::Text("%s", meshPtr->GetAlias().c_str());
+                ImGui::TableNextRow();
+                ImGui::TableSetColumnIndex(0); ImGui::Text("Mesh ID");
+                ImGui::TableSetColumnIndex(1); ImGui::Text("%u", smr->GetMesh()->GetId());
+                ImGui::EndTable();
+            }
+
+            ImGui::Spacing();
+            ImGui::Text("Submesh Materials");
+            ImGui::Separator();
+
+            if (ImGui::BeginTable("MaterialTable", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
+            {
+                ImGui::TableSetupColumn("Submesh Index");
+                ImGui::TableSetupColumn("Material Alias");
+                ImGui::TableSetupColumn("Material ID");
+                ImGui::TableHeadersRow();
+
+                const auto& submeshes = meshPtr->submeshes;
+                for (size_t i = 0; i < submeshes.size(); ++i)
+                {
+                    ImGui::TableNextRow();
+                    ImGui::TableSetColumnIndex(0);
+                    ImGui::Text("%zu", i);
+
+                    UINT matId = smr->GetMaterial(i);
+                    std::string matAlias = "<null>";
+
+                    if (matId != Engine::INVALID_ID)
+                    {
+                        auto matPtr = rsm->GetById<Material>(matId);
+                        if (matPtr)
+                            matAlias = matPtr->GetAlias();
+                    }
+
+                    ImGui::TableSetColumnIndex(1);
+                    ImGui::Text("%u", matId);
+
+                    ImGui::TableSetColumnIndex(2);
+                    ImGui::Text("%s", matAlias.c_str());
+                }
+
+                ImGui::EndTable();
+            }
+        }
+        else
+        {
+            ImGui::Text("Mesh: <invalid>");
+        }
+
+        ImGui::Spacing();
+        ImGui::Text("Skinned Renderer Info");
+        ImGui::Separator();
+
+        auto animController = smr->GetAnimController();
+        if (animController)
+        {
+            ImGui::Text("Controller: %s (ID: %u)", animController->GetOwner()->GetName().c_str(), animController->GetOwner()->GetId());
+        }
+        else
+        {
+            ImGui::Text("Controller: <Not Connected>");
+        }
+        ImGui::Text("Buffers Ready: %s", smr->HasValidBuffers() ? "Yes" : "No");
+
+        ImGui::Unindent();
+    }
+}
+
+void DrawAnimationControllerInspector(const std::shared_ptr<Component>& comp)
+{
+    auto animCtrl = std::dynamic_pointer_cast<AnimationControllerComponent>(comp);
+    if (animCtrl)
+    {
+        ImGui::PushID(animCtrl.get());
+        if (ImGui::CollapsingHeader("Animation Controller", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::TextColored(ImVec4(0.5f, 0.5f, 0.5f, 1.0f), "Status: %s",
+                animCtrl->IsReady() ? "Ready" : "Not Ready");
+
+            ImGui::Separator();
+            ImGui::Indent();
+
+            ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
+            if (ImGui::TreeNodeEx("Global Settings", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                auto currentSkeleton = animCtrl->GetSkeleton();
+                std::string skelName = currentSkeleton ? currentSkeleton->GetAlias() : "None";
+
+                if (ImGui::BeginCombo("Skeleton", skelName.c_str()))
+                {
+                    auto skeletons = rs->GetAllResources<Skeleton>();
+                    for (const auto& skel : skeletons)
+                    {
+                        bool isSelected = (currentSkeleton == skel);
+                        ImGui::PushID(skel.get());
+                        if (ImGui::Selectable(skel->GetAlias().c_str(), isSelected))
+                            animCtrl->SetSkeleton(skel);
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                        ImGui::PopID();
+                    }
+                    ImGui::EndCombo();
+                }
+
+                auto currentAvatar = animCtrl->GetModelAvatar();
+                std::string avatarName = currentAvatar ? currentAvatar->GetAlias() : "None";
+
+                if (ImGui::BeginCombo("Avatar", avatarName.c_str()))
+                {
+                    auto avatars = rs->GetAllResources<Model_Avatar>();
+                    for (const auto& avatar : avatars)
+                    {
+                        bool isSelected = (currentAvatar == avatar);
+                        ImGui::PushID(avatar.get());
+                        if (ImGui::Selectable(avatar->GetAlias().c_str(), isSelected))
+                            animCtrl->SetModelAvatar(avatar);
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                        ImGui::PopID();
+                    }
+                    ImGui::EndCombo();
+                }
+
+                int layerCount = animCtrl->GetLayerCount();
+                if (ImGui::InputInt("Layer Count", &layerCount))
+                {
+                    if (layerCount < 1) layerCount = 1;
+                    animCtrl->SetLayerCount(layerCount);
+                }
+
+                ImGui::TreePop();
+            }
+
+            ImGui::Separator();
+            ImGui::Text("Global Timeline Control");
+
+            bool isPaused = animCtrl->IsPaused();
+            if (ImGui::Checkbox("Pause All", &isPaused))
+            {
+                animCtrl->SetPause(isPaused);
+            }
+
+            static float globalProgress = 0.0f;
+
+            if (ImGui::SliderFloat("Global Progress", &globalProgress, 0.0f, 1.0f, "%.2f%%"))
+            {
+                if (!isPaused)
+                {
+                    animCtrl->SetPause(true);
+                    isPaused = true;
+                }
+
+                int count = animCtrl->GetLayerCount();
+                for (int i = 0; i < count; ++i)
+                {
+                    animCtrl->SetLayerNormalizedTime(i, globalProgress);
+                }
+            }
+
+            ImGui::Separator();
+            ImGui::Text("Animation Layers");
+
+            int layerCount = animCtrl->GetLayerCount();
+            auto clips = rs->GetAllResources<AnimationClip>();
+
+            for (int i = 0; i < layerCount; ++i)
+            {
+                ImGui::PushID(i);
+
+                float childHeight = 230.0f;
+                if (ImGui::BeginChild("LayerFrame", ImVec2(0, childHeight), true, ImGuiWindowFlags_None))
+                {
+                    std::string headerName = "Layer " + std::to_string(i);
+                    if (i == 0) headerName += " (Base)";
+                    else headerName += " (Overlay)";
+
+                    ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "%s", headerName.c_str());
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(Index: %d)", i);
+                    ImGui::Separator();
+
+                    float weight = animCtrl->GetLayerWeight(i);
+                    if (ImGui::SliderFloat("Layer Weight", &weight, 0.0f, 1.0f))
+                    {
+                        animCtrl->SetLayerWeight(i, weight);
+                    }
+
+                    auto currentMask = animCtrl->GetLayerMask(i);
+                    std::string maskName = currentMask ? currentMask->GetAlias() : "None (Full Body)";
+
+                    if (ImGui::BeginCombo("Layer Mask", maskName.c_str()))
+                    {
+                        bool isNoneSelected = (currentMask == nullptr);
+                        if (ImGui::Selectable("None (Full Body)", isNoneSelected))
+                        {
+                            animCtrl->SetLayerMask(i, nullptr);
+                        }
+                        if (isNoneSelected) ImGui::SetItemDefaultFocus();
+
+                        const auto& masks = rs->GetAvatarMasks();
+                        for (const auto& maskRes : masks)
+                        {
+                            bool isSelected = (currentMask == maskRes);
+                            if (ImGui::Selectable(maskRes->GetAlias().c_str(), isSelected))
+                            {
+                                animCtrl->SetLayerMask(i, maskRes);
+                            }
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    ImGui::Spacing();
+
+                    const char* modeNames[] = { "Loop", "Once", "PingPong" };
+                    int currentModeIdx = (int)animCtrl->GetPlaybackMode(i);
+
+                    if (ImGui::Combo("Mode", &currentModeIdx, modeNames, IM_ARRAYSIZE(modeNames)))
+                    {
+                        animCtrl->SetPlaybackMode((PlaybackMode)currentModeIdx, i);
+                    }
+
+                    static float blendTimeInput = 0.2f;
+                    ImGui::DragFloat("Blend Time (s)", &blendTimeInput, 0.01f, 0.0f, 5.0f);
+
+                    auto currentClip = animCtrl->GetCurrentClip(i);
+                    std::string previewValue = currentClip ? currentClip->GetAlias() : "Select Clip...";
+                    std::unordered_map<std::string, int> nameCounts;
+
+                    if (ImGui::BeginCombo("Clip List", previewValue.c_str()))
+                    {
+                        for (auto& clip : clips)
+                        {
+                            std::string alias = clip->GetAlias();
+                            nameCounts[alias]++;
+                            std::string displayName = alias;
+                            if (nameCounts[alias] > 1)
+                                displayName += " (" + std::to_string(nameCounts[alias]) + ")";
+
+                            bool isSelected = (currentClip == clip);
+                            ImGui::PushID(clip.get());
+
+                            if (ImGui::Selectable(displayName.c_str(), isSelected))
+                            {
+                                animCtrl->Play(i, clip, blendTimeInput, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
+                            }
+
+                            if (isSelected) ImGui::SetItemDefaultFocus();
+                            ImGui::PopID();
+                        }
+                        ImGui::EndCombo();
+                    }
+
+                    ImGui::SameLine();
+                    if (ImGui::Button("Replay"))
+                    {
+                        if (currentClip)
+                            animCtrl->Play(i, currentClip, 0.0f, (PlaybackMode)currentModeIdx, animCtrl->GetSpeed(i));
+                    }
+
+                    float speed = animCtrl->GetSpeed(i);
+                    if (ImGui::DragFloat("Speed", &speed, 0.01f, 0.0f, 5.0f))
+                    {
+                        animCtrl->SetSpeed(speed, i);
+                    }
+
+                    ImGui::Spacing();
+
+                    float currentProgress = animCtrl->GetLayerNormalizedTime(i);
+                    float duration = animCtrl->GetLayerDuration(i);
+                    float currentTime = currentProgress * duration;
+
+                    char timeLabel[64];
+                    if (duration > 0.0f)
+                        sprintf_s(timeLabel, "%.2fs / %.2fs", currentTime, duration);
+                    else
+                        sprintf_s(timeLabel, "No Clip");
+
+                    if (ImGui::SliderFloat("Seek", &currentProgress, 0.0f, 1.0f, timeLabel))
+                    {
+                        animCtrl->SetPause(true);
+                        animCtrl->SetLayerNormalizedTime(i, currentProgress);
+                    }
+
+                    if (animCtrl->IsLayerTransitioning(i))
+                    {
+                        float progress = animCtrl->GetLayerTransitionProgress(i);
+                        char overlay[32];
+                        sprintf_s(overlay, "Blending... %.1f%%", progress * 100.0f);
+
+                        ImGui::PushStyleColor(ImGuiCol_PlotHistogram, ImVec4(0.2f, 0.7f, 0.2f, 1.0f));
+                        ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), overlay);
+                        ImGui::PopStyleColor();
+                    }
+                }
+                ImGui::EndChild();
+
+                ImGui::Spacing();
+                ImGui::PopID();
+            }
+
+            ImGui::Unindent();
+        }
+
+        ImGui::PopID();
+    }
+}
+
+void DrawCameraInspector(const std::shared_ptr<Component>& comp)
+{
+    std::shared_ptr<CameraComponent> cam = std::dynamic_pointer_cast<CameraComponent>(comp);
+    if (cam)
+    {
+        bool useTarget = cam->GetTargetUse();
+        XMFLOAT3 target_pos = cam->GetTargetPosition();
+
+        float FovY = cam->GetFovY();
+        float mNearZ = cam->GetNearZ();
+        float mFarZ = cam->GetFarZ();
+
+        if (ImGui::Checkbox("Use Target Focus", &useTarget))
+            cam->SetTargetUse(useTarget);
+
+        if (ImGui::DragFloat3("Focus Target", reinterpret_cast<float*>(&target_pos), 0.01f))
+            cam->SetTargetPosition(target_pos);
+
+        if (ImGui::DragFloat("FovY", &FovY, 0.1f, 0.1f, 100.0f))
+            cam->SetFovY(FovY);
+
+        if (ImGui::DragFloat("NearZ", &mNearZ, 0.1f, 0.1f, 100.0f))
+            cam->SetNearZ(mNearZ);
+
+        if (ImGui::DragFloat("FarZ", &mFarZ, 0.1f, 0.1f, 100.0f))
+            cam->SetFarZ(mFarZ);
+    }
+}
+
+void DrawLightInspector(const std::shared_ptr<Component>& comp)
+{
+    std::shared_ptr<LightComponent> light = std::dynamic_pointer_cast<LightComponent>(comp);
+    if (light)
+    {
+        ImGui::Text("Light Component");
+        ImGui::Separator();
+        ImGui::Indent();
+
+        Light_Type type = light->GetLightType();
+        const char* typeNames[] = { "Directional", "Point", "Spot" };
+        int currentType = static_cast<int>(type);
+
+        ImGui::Text("Light Settings");
+        ImGui::Separator();
+
+        if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
+            light->SetLightType(static_cast<Light_Type>(currentType));
+
+        XMFLOAT3 color = light->GetColor();
+        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color)))
+            light->SetColor(color);
+
+        float intensity = light->GetIntensity();
+        if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
+            light->SetIntensity(intensity);
+
+        if (type == Light_Type::Directional || type == Light_Type::Spot)
+        {
+            XMFLOAT3 direction = light->GetDirection();
+            if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
+            {
+                if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)
+                    direction.y = -1.0f;
+                light->SetDirection(direction);
+            }
+        }
+
+        if (type == Light_Type::Point || type == Light_Type::Spot)
+        {
+            float range = light->GetRange();
+            if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 10000.0f))
+                light->SetRange(range);
+        }
+
+        if (type == Light_Type::Spot)
+        {
+            float inner = XMConvertToDegrees(light->GetInnerAngle());
+            if (ImGui::DragFloat("Inner Angle", &inner, 0.5f, 0.0f, 90.0f))
+                light->SetInnerAngle(XMConvertToRadians(inner));
+
+            float outer = XMConvertToDegrees(light->GetOuterAngle());
+            if (ImGui::DragFloat("Outer Angle", &outer, 0.5f, 0.0f, 180.0f))
+                light->SetOuterAngle(XMConvertToRadians(outer));
+        }
+
+        ImGui::Spacing();
+
+        ImGui::Text("Shadow Settings");
+        ImGui::Separator();
+
+        bool castShadow = light->CastsShadow();
+        ImGui::Checkbox("Cast Shadow", &castShadow);
+        light->SetCastShadow(castShadow);
+
+        if (castShadow)
+        {
+            ShadowMode shadowMode = light->GetShadowMode();
+            const char* modeNames[] = { "Dynamic", "Static" };
+            int currentModeInt = static_cast<int>(shadowMode);
+
+            if (ImGui::Combo("Shadow Mode", &currentModeInt, modeNames, IM_ARRAYSIZE(modeNames)))
+            {
+                light->SetShadowMode(static_cast<ShadowMode>(currentModeInt));
+            }
+
+            if (static_cast<ShadowMode>(currentModeInt) == ShadowMode::Static)
+            {
+                if (ImGui::Button("Bake New ShadowMap"))
+                {
+                    light->ForceShadowMapUpdate();
+                }
+                ImGui::SameLine();
+                ImGui::TextDisabled("(One-time manual bake)");
+            }
+
+            ImGui::Separator();
+
+            if (type == Light_Type::Directional)
+            {
+                DirectionalShadowMode dirMode = light->GetDirectionalShadowMode();
+                const char* dirModeNames[] = { "Default (StaticGlobal)", "CSM (Camera Dependent)" };
+                int currentDirModeInt = static_cast<int>(dirMode);
+
+                if (ImGui::Combo("Directional Mode", &currentDirModeInt, dirModeNames, IM_ARRAYSIZE(dirModeNames)))
+                {
+                    light->SetDirectionalShadowMode(static_cast<DirectionalShadowMode>(currentDirModeInt));
+                }
+
+                if (static_cast<DirectionalShadowMode>(currentDirModeInt) == DirectionalShadowMode::Default)
+                {
+                    float orthoSize = light->GetStaticOrthoSize();
+                    if (ImGui::DragFloat("Static Ortho Size", &orthoSize, 1.0f, 1.0f, 10000.0f))
+                    {
+                        light->SetStaticOrthoSize(orthoSize);
+                    }
+                }
+
+                ImGui::Separator();
+
+                float lambda = light->GetCascadeLambda();
+                if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
+                    light->SetCascadeLambda(lambda);
+
+                ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
+
+                ImGui::Separator();
+            }
+
+            float shadowNear = light->GetShadowMapNear();
+            if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, light->GetShadowMapFar() - 1.0f))
+                light->SetShadowMapNear(shadowNear);
+
+            float shadowFar = light->GetShadowMapFar();
+            if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, light->GetShadowMapNear() + 1.0f, 20000.0f))
+                light->SetShadowMapFar(shadowFar);
+        }
+
+        ImGui::Unindent();
+    }
+}
+
+void DrawRigidbodyInspector(const std::shared_ptr<Component>& comp)
+{
+    std::shared_ptr<RigidbodyComponent> rb = std::dynamic_pointer_cast<RigidbodyComponent>(comp);
+    if (rb)
+    {
+        ImGui::Text("Rigidbody");
+        ImGui::Indent();
+        float mass = rb->GetMass();
+        bool useGravity = rb->GetUseGravity();
+        XMFLOAT3 GravityValue = rb->GetGravity();
+
+        if (ImGui::DragFloat("Mass", &mass, 0.1f, 0.1f, 100.0f))
+            rb->SetMass(mass);
+        if (ImGui::Checkbox("Use Gravity", &useGravity))
+            rb->SetUseGravity(useGravity);
+        if (ImGui::DragFloat3("Gravity Value", reinterpret_cast<float*>(&GravityValue), 0.01f))
+            rb->SetGravity(GravityValue);
+
+        ImGui::Unindent();
     }
 }

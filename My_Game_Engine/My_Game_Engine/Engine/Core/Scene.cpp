@@ -135,6 +135,17 @@ void Scene::Build()
 		}
 	}
 
+	std::shared_ptr<AvatarMask> upperMask = std::make_shared<AvatarMask>();
+	upperMask->SetAlias("Mask_UpperBody");
+	upperMask->SetWeight("Spine", 1.0f);
+	rsm->RegisterResource(upperMask);
+
+	std::shared_ptr<AvatarMask> lowerMask = std::make_shared<AvatarMask>();
+	lowerMask->SetAlias("Mask_LowerBody");
+	lowerMask->SetWeight("Hips", 1.0f);
+	lowerMask->SetWeight("Spine", 0.0f);
+	rsm->RegisterResource(lowerMask);
+
 
 	bool is_debugging = false;
 	if (is_debugging)

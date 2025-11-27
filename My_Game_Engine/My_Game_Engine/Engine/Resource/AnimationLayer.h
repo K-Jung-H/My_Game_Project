@@ -13,12 +13,17 @@ public:
     void Update(float deltaTime);
 
     bool EvaluateAndBlend(
-        const std::string& abstractKey,
+        int boneIndex,
         float maskWeight,
-        DirectX::XMVECTOR& inOutS,
-        DirectX::XMVECTOR& inOutR,
-        DirectX::XMVECTOR& inOutT
+        XMVECTOR& inOutS,
+        XMVECTOR& inOutR,
+        XMVECTOR& inOutT
     );
+
+    void UpdateMaskCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap);
+    void UpdateTrackCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap);
+
+    float GetCachedMaskWeight(int boneIndex) const;
 
     void SetWeight(float w) { mLayerWeight = w; }
     float GetWeight() const { return mLayerWeight; }
@@ -52,7 +57,7 @@ public:
 
 private:
     bool GetSample(const AnimationState& state, const std::string& key,
-        DirectX::XMVECTOR& s, DirectX::XMVECTOR& r, DirectX::XMVECTOR& t);
+        XMVECTOR& s, XMVECTOR& r, XMVECTOR& t);
 
 private:
     std::string mName;
@@ -66,4 +71,8 @@ private:
     bool mIsTransitioning = false;
     float mTransitionTime = 0.0f;
     float mTransitionDuration = 0.0f;
+
+    std::vector<float> mCachedMaskWeights;
+    std::vector<const AnimationTrack*> mCachedCurrentTracks;
+    std::vector<const AnimationTrack*> mCachedPrevTracks;
 };
