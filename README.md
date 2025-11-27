@@ -44,14 +44,7 @@ Entity-Component-System (ECS) 아키텍처 기반.
 ## Currently In Progress & Issues
 
 현재 개발 단계 진행 상황.
-
-### 1. Animation Mask Implementation
-* **목표:** 캐릭터의 특정 부위(예: 상체, 하체, 특정 팔 등)에만 애니메이션을 적용하거나 제외하는 마스킹 시스템 구현.
-* **진행 상황:**
-    * 특정 Bone을 기준으로 하위 계층을 포함/제외하는 필터링 로직 설계 중.
-    * Animation Layer와 연동하여 복합 애니메이션 처리 기능 강화 예정.
-
-### 2. Root Motion
+### 1. Root Motion
 * 애니메이션의 루트 본(Hips) 이동 데이터를 추출하여 실제 GameObject의 월드 좌표 이동으로 변환하는 로직 구현 예정.
 
 ---
