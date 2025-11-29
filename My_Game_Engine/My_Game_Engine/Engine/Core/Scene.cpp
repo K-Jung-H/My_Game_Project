@@ -58,7 +58,7 @@ void Scene::Build()
 	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
-	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx"; // Catwalk Walk
+	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx";
 	const std::string animation_clip_path_1 = "Assets/Animation/Catwalk Walk.fbx";
 	const std::string animation_clip_path_2 = "Assets/Animation/Ymca Dance.fbx";
  	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
@@ -135,12 +135,23 @@ void Scene::Build()
 		}
 	}
 
+	std::shared_ptr<AvatarMask> upperMask = std::make_shared<AvatarMask>();
+	upperMask->SetAlias("Mask_UpperBody");
+	upperMask->SetWeight("Spine", 1.0f);
+	rsm->RegisterResource(upperMask);
+
+	std::shared_ptr<AvatarMask> lowerMask = std::make_shared<AvatarMask>();
+	lowerMask->SetAlias("Mask_LowerBody");
+	lowerMask->SetWeight("Hips", 1.0f);
+	lowerMask->SetWeight("Spine", 0.0f);
+	rsm->RegisterResource(lowerMask);
+
 
 	bool is_debugging = false;
 	if (is_debugging)
 	{
 		std::shared_ptr<Model> model_ptr;
-		Object* test_obj;
+		Object* test_obj = NULL;
 		UINT model_node_num = Model::CountNodes(model_ptr);
 		UINT node_num = Object::CountNodes(test_obj);
 		Model::loadAndExport(path_0, "test_assimp_export.txt");

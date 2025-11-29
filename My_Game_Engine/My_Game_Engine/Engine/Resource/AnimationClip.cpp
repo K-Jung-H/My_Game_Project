@@ -71,6 +71,78 @@ namespace
     }
 }
 
+bool AnimationClip::SaveToFile(const std::string& path) const
+{
+    Document doc(kObjectType);
+    Document::AllocatorType& alloc = doc.GetAllocator();
+
+    doc.AddMember("DefinitionType", (int)mAvatarDefinitionType, alloc);
+    doc.AddMember("Duration", mDuration, alloc);
+    doc.AddMember("TicksPerSecond", mTicksPerSecond, alloc);
+
+    Value tracks(kObjectType);
+    for (const auto& [name, track] : mTracks)
+    {
+        Value trackObj(kObjectType);
+        WriteKeyVector(trackObj, "PositionKeys", track.PositionKeys, alloc);
+        WriteKeyVector(trackObj, "RotationKeys", track.RotationKeys, alloc);
+        WriteKeyVector(trackObj, "ScaleKeys", track.ScaleKeys, alloc);
+        tracks.AddMember(Value(name.c_str(), alloc), trackObj, alloc);
+    }
+    doc.AddMember("Tracks", tracks, alloc);
+
+    StringBuffer buffer;
+    PrettyWriter<StringBuffer> writer(buffer);
+    doc.Accept(writer);
+
+    std::ofstream ofs(path);
+    if (!ofs.is_open()) return false;
+    ofs << buffer.GetString();
+    ofs.close();
+    return true;
+}
+
+bool AnimationClip::LoadFromFile(std::string path, const RendererContext& ctx)
+{
+    std::ifstream ifs(path);
+    if (!ifs.is_open()) return false;
+
+    std::stringstream buffer;
+    buffer << ifs.rdbuf();
+    std::string json = buffer.str();
+    ifs.close();
+
+    Document doc;
+    if (doc.Parse(json.c_str()).HasParseError()) return false;
+
+    if (doc.HasMember("DefinitionType"))
+        mAvatarDefinitionType = (DefinitionType)doc["DefinitionType"].GetInt();
+    if (doc.HasMember("Duration"))
+        mDuration = doc["Duration"].GetFloat();
+    if (doc.HasMember("TicksPerSecond"))
+        mTicksPerSecond = doc["TicksPerSecond"].GetFloat();
+
+    mTracks.clear();
+    mTracks.reserve(doc["Tracks"].MemberCount());
+
+    for (auto it = doc["Tracks"].MemberBegin(); it != doc["Tracks"].MemberEnd(); ++it)
+    {
+        std::string boneName = it->name.GetString();
+        const auto& trackObj = it->value;
+
+        AnimationTrack track;
+        ReadKeyVector(trackObj, "PositionKeys", track.PositionKeys);
+        ReadKeyVector(trackObj, "RotationKeys", track.RotationKeys);
+        ReadKeyVector(trackObj, "ScaleKeys", track.ScaleKeys);
+
+        mTracks.emplace_back(std::move(boneName), std::move(track));
+    }
+
+    std::sort(mTracks.begin(), mTracks.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+
+    return true;
+}
+
 XMFLOAT3 AnimationTrack::SamplePosition(float time) const
 {
     if (PositionKeys.empty()) return XMFLOAT3(0, 0, 0);
@@ -147,6 +219,17 @@ XMMATRIX AnimationTrack::Sample(float time) const
     return XMMatrixScalingFromVector(S) * XMMatrixRotationQuaternion(R) * XMMatrixTranslationFromVector(T);
 }
 
+void AnimationTrack::Sample(float time, XMVECTOR& outS, XMVECTOR& outR, XMVECTOR& outT) const
+{
+    XMFLOAT3 s = SampleScale(time);
+    XMFLOAT4 r = SampleRotation(time);
+    XMFLOAT3 t = SamplePosition(time);
+
+    outS = XMLoadFloat3(&s);
+    outR = XMLoadFloat4(&r);
+    outT = XMLoadFloat3(&t);
+}
+
 AnimationClip::AnimationClip()
     : Game_Resource(ResourceType::AnimationClip)
 {
@@ -154,83 +237,29 @@ AnimationClip::AnimationClip()
 
 const AnimationTrack* AnimationClip::GetTrack(const std::string& boneKey) const
 {
-    auto it = mTracks.find(boneKey);
-    if (it != mTracks.end())
+    auto it = std::lower_bound(mTracks.begin(), mTracks.end(), boneKey,
+        [](const std::pair<std::string, AnimationTrack>& element, const std::string& key) {
+            return element.first < key;
+        });
+
+    if (it != mTracks.end() && it->first == boneKey)
     {
         return &it->second;
     }
     return nullptr;
 }
 
-bool AnimationClip::SaveToFile(const std::string& path) const
+const AnimationTrack* AnimationClip::GetRootTrack() const
 {
-    using namespace rapidjson;
-    Document doc(kObjectType);
-    Document::AllocatorType& alloc = doc.GetAllocator();
+    if (!mModelSkeleton)
+        return nullptr;
 
-    doc.AddMember("DefinitionType", (int)mAvatarDefinitionType, alloc);
-    doc.AddMember("Duration", mDuration, alloc);
-    doc.AddMember("TicksPerSecond", mTicksPerSecond, alloc);
+    int rootIdx = mModelSkeleton->GetRootBoneIndex();
+    if (rootIdx == -1)
+        return nullptr;
 
-    Value tracks(kObjectType);
-    for (const auto& [name, track] : mTracks)
-    {
-        Value trackObj(kObjectType);
-        WriteKeyVector(trackObj, "PositionKeys", track.PositionKeys, alloc);
-        WriteKeyVector(trackObj, "RotationKeys", track.RotationKeys, alloc);
-        WriteKeyVector(trackObj, "ScaleKeys", track.ScaleKeys, alloc);
-        tracks.AddMember(Value(name.c_str(), alloc), trackObj, alloc);
-    }
-    doc.AddMember("Tracks", tracks, alloc);
+    const std::string& rootName = mModelSkeleton->GetBoneName(rootIdx);
 
-    StringBuffer buffer;
-    PrettyWriter<StringBuffer> writer(buffer);
-    doc.Accept(writer);
-
-    std::ofstream ofs(path);
-    if (!ofs.is_open()) return false;
-    ofs << buffer.GetString();
-    ofs.close();
-    return true;
+    return GetTrack("Hips");
 }
 
-bool AnimationClip::LoadFromFile(std::string path, const RendererContext& ctx)
-{
-    using namespace rapidjson;
-
-    std::ifstream ifs(path);
-    if (!ifs.is_open()) return false;
-
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    std::string json = buffer.str();
-    ifs.close();
-
-    Document doc;
-    if (doc.Parse(json.c_str()).HasParseError()) return false;
-
-    if (doc.HasMember("DefinitionType"))
-        mAvatarDefinitionType = (DefinitionType)doc["DefinitionType"].GetInt();
-    if (doc.HasMember("Duration"))
-        mDuration = doc["Duration"].GetFloat();
-    if (doc.HasMember("TicksPerSecond"))
-        mTicksPerSecond = doc["TicksPerSecond"].GetFloat();
-
-    mTracks.clear();
-    if (doc.HasMember("Tracks") && doc["Tracks"].IsObject())
-    {
-        for (auto it = doc["Tracks"].MemberBegin(); it != doc["Tracks"].MemberEnd(); ++it)
-        {
-            std::string boneName = it->name.GetString();
-            const auto& trackObj = it->value;
-
-            AnimationTrack track;
-            ReadKeyVector(trackObj, "PositionKeys", track.PositionKeys);
-            ReadKeyVector(trackObj, "RotationKeys", track.RotationKeys);
-            ReadKeyVector(trackObj, "ScaleKeys", track.ScaleKeys);
-
-            mTracks[boneName] = std::move(track);
-        }
-    }
-    return true;
-}

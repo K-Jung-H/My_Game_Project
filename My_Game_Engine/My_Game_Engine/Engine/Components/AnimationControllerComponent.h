@@ -4,6 +4,20 @@
 #include "Resource/Model_Avatar.h"
 #include "Resource/AnimationLayer.h"
 
+class TransformComponent;
+
+struct ControllerBoneCache
+{
+    bool isRootMotion = false;
+    bool hasMapping = false;
+    int logicalParentIdx = -1;
+
+    XMFLOAT3 bindScale;
+    XMFLOAT4 bindRotation;
+    XMFLOAT3 bindTranslation;
+
+    XMMATRIX globalTransform;
+};
 struct BoneMatrixData
 {
     XMFLOAT4X4 transform;
@@ -18,6 +32,9 @@ public:
 public:
     AnimationControllerComponent();
     virtual ~AnimationControllerComponent() = default;
+
+    void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
+    std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton);
     void SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar);
@@ -64,15 +81,20 @@ private:
     void UpdateBoneMappingCache();
     void EvaluateLayers();
 
+
 private:
+    std::weak_ptr<TransformComponent> mTransform;
+
     std::shared_ptr<Model_Avatar> mModelAvatar;
     std::shared_ptr<Skeleton> mModelSkeleton;
-
-    std::vector<std::string> mCachedBoneToKey;
-
     std::vector<AnimationLayer> mLayers;
     bool mIsPaused = false;
 
+    std::vector<std::string> mCachedBoneToKey;
+    std::vector<ControllerBoneCache> mControllerBoneCache;
+
+
+    //-------------------------------------------------------
     std::vector<BoneMatrixData> mCpuBoneMatrices;
     ComPtr<ID3D12Resource> mBoneMatrixBuffer;
     BoneMatrixData* mMappedBoneBuffer = nullptr;

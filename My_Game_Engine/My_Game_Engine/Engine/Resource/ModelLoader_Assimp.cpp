@@ -473,6 +473,8 @@ std::shared_ptr<AnimationClip> ModelLoader_Assimp::ProcessAnimation(const aiAnim
     std::map<std::string, std::string> boneMap;
     for (auto const& [k, v] : avatar->GetBoneMap()) boneMap[v] = k;
 
+    clip->mTracks.reserve(anim->mNumChannels);
+
     for (unsigned int i = 0; i < anim->mNumChannels; ++i)
     {
         aiNodeAnim* channel = anim->mChannels[i];
@@ -493,7 +495,11 @@ std::shared_ptr<AnimationClip> ModelLoader_Assimp::ProcessAnimation(const aiAnim
         for (unsigned int k = 0; k < channel->mNumScalingKeys; ++k)
             track.ScaleKeys.push_back({ ToTime(channel->mScalingKeys[k].mTime), Vec3FromAssimp(channel->mScalingKeys[k].mValue) });
 
-        clip->mTracks[key] = std::move(track);
+        clip->mTracks.emplace_back(key, std::move(track));
     }
+
+    std::sort(clip->mTracks.begin(), clip->mTracks.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
+
     return clip;
 }

@@ -102,6 +102,7 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     case ResourceType::Skeleton:  mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
     case ResourceType::ModelAvatar: mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
     case ResourceType::AnimationClip: mAnimationClips.push_back(std::dynamic_pointer_cast<AnimationClip>(res)); break;
+    case ResourceType::AvatarMask: mAvatarMasks.push_back(std::dynamic_pointer_cast<AvatarMask>(res)); break;
     default: break;
     }
 
@@ -203,6 +204,20 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         {
             OutputDebugStringA(("[ResourceSystem] Texture load failed: " + path + "\n").c_str());
         }
+        break;
+    }
+    
+    case FileCategory::AvatarMask:
+    {
+        auto mask = LoadOrReuse<AvatarMask>(path, std::string(alias), ctx,
+            [&]() -> std::shared_ptr<AvatarMask> {
+                return std::make_shared<AvatarMask>();
+            }
+        );
+
+        if (mask)
+            result.maskID = mask->GetId();
+
         break;
     }
 

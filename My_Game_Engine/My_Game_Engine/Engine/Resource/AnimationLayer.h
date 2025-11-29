@@ -2,6 +2,12 @@
 #include "AnimationCommon.h"
 #include "AvatarMask.h"
 
+struct LayerBoneCache
+{
+    const AnimationTrack* currentTrack = nullptr;
+    const AnimationTrack* prevTrack = nullptr;
+    float maskWeight = 1.0f;
+};
 
 class AnimationLayer
 {
@@ -13,12 +19,15 @@ public:
     void Update(float deltaTime);
 
     bool EvaluateAndBlend(
-        const std::string& abstractKey,
-        float maskWeight,
-        DirectX::XMVECTOR& inOutS,
-        DirectX::XMVECTOR& inOutR,
-        DirectX::XMVECTOR& inOutT
-    );
+        int boneIndex,
+        XMVECTOR& inOutS,
+        XMVECTOR& inOutR,
+        XMVECTOR& inOutT);
+
+    void UpdateMaskCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap);
+    void UpdateTrackCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap);
+
+    float GetCachedMaskWeight(int boneIndex) const;
 
     void SetWeight(float w) { mLayerWeight = w; }
     float GetWeight() const { return mLayerWeight; }
@@ -49,10 +58,11 @@ public:
     float GetCurrentDuration() const;
     std::shared_ptr<AnimationClip> GetCurrentClip() const { return mCurrentState.clip; }
 
+    std::pair<XMVECTOR, XMVECTOR> GetRootMotionDelta(float deltaTime);
 
 private:
     bool GetSample(const AnimationState& state, const std::string& key,
-        DirectX::XMVECTOR& s, DirectX::XMVECTOR& r, DirectX::XMVECTOR& t);
+        XMVECTOR& s, XMVECTOR& r, XMVECTOR& t);
 
 private:
     std::string mName;
@@ -66,4 +76,9 @@ private:
     bool mIsTransitioning = false;
     float mTransitionTime = 0.0f;
     float mTransitionDuration = 0.0f;
+
+    std::vector<LayerBoneCache> mBoneCache;
+
+    bool mEnableRootMotion = true;
+    float mPrevFrameTime = 0.0f;
 };

@@ -41,7 +41,15 @@ bool AvatarMask::LoadFromFile(std::string path, const RendererContext& ctx)
 
 bool AvatarMask::SaveToFile(const std::string& path) const
 {
-    using namespace rapidjson;
+    std::string dirPath = "Mask";
+    if (!std::filesystem::exists(dirPath))
+        std::filesystem::create_directory(dirPath);
+
+    std::string fileName = GetAlias();
+    if (fileName.empty())
+        fileName = "UnnamedMask";
+
+    std::string fullPath = dirPath + "/" + fileName + ".mask";
 
     Document doc(kObjectType);
     Document::AllocatorType& alloc = doc.GetAllocator();
@@ -68,6 +76,40 @@ bool AvatarMask::SaveToFile(const std::string& path) const
     ofs.close();
 
     return true;
+}
+
+void AvatarMask::ExpandHierarchy(const Skeleton* skeleton, const std::vector<std::string>& boneToKeyMap)
+{
+    if (!skeleton) return;
+
+    const auto& bones = skeleton->GetBones();
+    size_t boneCount = bones.size();
+
+    if (boneToKeyMap.size() != boneCount) return;
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        const BoneInfo& bone = bones[i];
+
+        const std::string& currentKey = boneToKeyMap[i];
+        if (currentKey.empty()) continue;
+
+        bool hasWeight = (mWeights.find(currentKey) != mWeights.end());
+
+        if (!hasWeight && bone.parentIndex >= 0)
+        {
+            const std::string& parentKey = boneToKeyMap[bone.parentIndex];
+
+            if (!parentKey.empty())
+            {
+                auto parentIt = mWeights.find(parentKey);
+                if (parentIt != mWeights.end())
+                {
+                    mWeights[currentKey] = parentIt->second;
+                }
+            }
+        }
+    }
 }
 
 float AvatarMask::GetWeight(const std::string& abstractKey) const

@@ -55,6 +55,8 @@ void AnimationLayer::Play(std::shared_ptr<AnimationClip> clip, float blendTime, 
 
 void AnimationLayer::Update(float deltaTime)
 {
+    mPrevFrameTime = mCurrentState.currentTime;
+
     mCurrentState.Update(deltaTime);
 
     if (mIsTransitioning)
@@ -79,8 +81,68 @@ void AnimationLayer::Update(float deltaTime)
     }
 }
 
-bool AnimationLayer::GetSample(const AnimationState& state, const std::string& key,
-    XMVECTOR& s, XMVECTOR& r, XMVECTOR& t)
+void AnimationLayer::UpdateMaskCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap)
+{
+    if (mBoneCache.size() != boneCount)
+    {
+        mBoneCache.resize(boneCount);
+    }
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        if (mMask && !boneToKeyMap[i].empty())
+        {
+            mBoneCache[i].maskWeight = mMask->GetWeight(boneToKeyMap[i]);
+        }
+        else
+        {
+            mBoneCache[i].maskWeight = 1.0f;
+        }
+    }
+}
+
+void AnimationLayer::UpdateTrackCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap)
+{
+    if (mBoneCache.size() != boneCount)
+    {
+        mBoneCache.resize(boneCount);
+    }
+
+    bool hasCurrent = (mCurrentState.isValid && mCurrentState.clip);
+    bool hasPrev = (mIsTransitioning && mPrevState.isValid && mPrevState.clip);
+
+    for (size_t i = 0; i < boneCount; ++i)
+    {
+        LayerBoneCache& cache = mBoneCache[i];
+
+        cache.currentTrack = nullptr;
+        cache.prevTrack = nullptr;
+
+        const std::string& key = boneToKeyMap[i];
+        if (key.empty()) continue;
+
+        if (hasCurrent)
+        {
+            cache.currentTrack = mCurrentState.clip->GetTrack(key);
+        }
+
+        if (hasPrev)
+        {
+            cache.prevTrack = mPrevState.clip->GetTrack(key);
+        }
+    }
+}
+
+float AnimationLayer::GetCachedMaskWeight(int boneIndex) const
+{
+    if (boneIndex >= 0 && boneIndex < mBoneCache.size())
+    {
+        return mBoneCache[boneIndex].maskWeight;
+    }
+    return 1.0f;
+}
+
+bool AnimationLayer::GetSample(const AnimationState& state, const std::string& key, XMVECTOR& s, XMVECTOR& r, XMVECTOR& t)
 {
     if (!state.isValid || !state.clip) return false;
 
@@ -98,33 +160,84 @@ bool AnimationLayer::GetSample(const AnimationState& state, const std::string& k
     return true;
 }
 
+std::pair<XMVECTOR, XMVECTOR> AnimationLayer::GetRootMotionDelta(float deltaTime)
+{
+    if (!mCurrentState.clip || !mEnableRootMotion)
+    {
+        return { XMVectorZero(), XMQuaternionIdentity() };
+    }
+
+    const AnimationTrack* rootTrack = mCurrentState.clip->GetRootTrack();
+    if (!rootTrack)
+    {
+        return { XMVectorZero(), XMQuaternionIdentity() };
+    }
+
+    float prevTime = mPrevFrameTime;
+    float currTime = mCurrentState.currentTime;
+
+    XMVECTOR p1, r1, s1; 
+    XMVECTOR p2, r2, s2; 
+
+    rootTrack->Sample(prevTime, s1, r1, p1);
+    rootTrack->Sample(currTime, s2, r2, p2);
+
+    XMVECTOR deltaPos = XMVectorSubtract(p2, p1);
+    XMVECTOR deltaRot = XMQuaternionMultiply(r2, XMQuaternionInverse(r1));
+
+    if (mCurrentState.mode == PlaybackMode::Loop && currTime < prevTime)
+    {
+        float duration = mCurrentState.clip->GetDuration();
+        XMVECTOR startP, startR, startS;
+        XMVECTOR endP, endR, endS;
+
+        rootTrack->Sample(0.0f, startS, startR, startP);
+        rootTrack->Sample(duration, endS, endR, endP);
+
+        XMVECTOR deltaTailP = XMVectorSubtract(endP, p1);
+        XMVECTOR deltaTailR = XMQuaternionMultiply(endR, XMQuaternionInverse(r1));
+
+        XMVECTOR deltaHeadP = XMVectorSubtract(p2, startP);
+        XMVECTOR deltaHeadR = XMQuaternionMultiply(r2, XMQuaternionInverse(startR));
+
+        deltaPos = XMVectorAdd(deltaTailP, deltaHeadP);
+        deltaRot = XMQuaternionMultiply(deltaTailR, deltaHeadR);
+    }
+
+    return { deltaPos, deltaRot };
+}
+
 bool AnimationLayer::EvaluateAndBlend(
-    const std::string& abstractKey,
-    float maskWeight,
+    int boneIndex,
     XMVECTOR& inOutS,
     XMVECTOR& inOutR,
     XMVECTOR& inOutT)
 {
-    if (!mCurrentState.isValid || mLayerWeight <= 0.0f || maskWeight <= 0.0f)
+    if (!mCurrentState.isValid || mLayerWeight <= 0.0f)
         return false;
 
-    float finalAlpha = mLayerWeight * maskWeight;
+    if (boneIndex < 0 || boneIndex >= mBoneCache.size()) return false;
+    const LayerBoneCache& cache = mBoneCache[boneIndex];
+
+    if (cache.maskWeight <= 0.0f) return false;
+
+    float finalAlpha = mLayerWeight * cache.maskWeight;
     if (finalAlpha <= 0.001f) return false;
 
-    XMVECTOR s_curr, r_curr, t_curr;
-    if (!GetSample(mCurrentState, abstractKey, s_curr, r_curr, t_curr))
-        return false;
+    if (!cache.currentTrack) return false;
 
-    if (mIsTransitioning && mPrevState.isValid)
+    XMVECTOR s_curr, r_curr, t_curr;
+    cache.currentTrack->Sample(mCurrentState.currentTime, s_curr, r_curr, t_curr);
+
+    if (mIsTransitioning && mPrevState.isValid && cache.prevTrack)
     {
         XMVECTOR s_prev, r_prev, t_prev;
-        if (GetSample(mPrevState, abstractKey, s_prev, r_prev, t_prev))
-        {
-            float crossFadeAlpha = mCurrentState.weight;
-            s_curr = XMVectorLerp(s_prev, s_curr, crossFadeAlpha);
-            t_curr = XMVectorLerp(t_prev, t_curr, crossFadeAlpha);
-            r_curr = XMQuaternionSlerp(r_prev, r_curr, crossFadeAlpha);
-        }
+        cache.prevTrack->Sample(mPrevState.currentTime, s_prev, r_prev, t_prev);
+
+        float crossFadeAlpha = mCurrentState.weight;
+        s_curr = XMVectorLerp(s_prev, s_curr, crossFadeAlpha);
+        t_curr = XMVectorLerp(t_prev, t_curr, crossFadeAlpha);
+        r_curr = XMQuaternionSlerp(r_prev, r_curr, crossFadeAlpha);
     }
 
     if (mBlendMode == LayerBlendMode::Override)
@@ -132,10 +245,6 @@ bool AnimationLayer::EvaluateAndBlend(
         inOutS = XMVectorLerp(inOutS, s_curr, finalAlpha);
         inOutT = XMVectorLerp(inOutT, t_curr, finalAlpha);
         inOutR = XMQuaternionSlerp(inOutR, r_curr, finalAlpha);
-    }
-    else if (mBlendMode == LayerBlendMode::Additive)
-    {
-        // 추후 확장 시 구현
     }
 
     return true;

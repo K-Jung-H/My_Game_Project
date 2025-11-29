@@ -7,6 +7,7 @@
 #include "Model_Avatar.h"
 #include "Skeleton.h"
 #include "AnimationClip.h"
+#include "AvatarMask.h"
 #include "MetaIO.h"
 
 struct LoadResult
@@ -19,6 +20,7 @@ struct LoadResult
     UINT modelId = Engine::INVALID_ID;
 	UINT skeletonId = Engine::INVALID_ID;
 	UINT avatarId = Engine::INVALID_ID;
+	UINT maskID = Engine::INVALID_ID;
 };
 
 inline std::string MakeSubresourcePath(const std::string& containerPath, const char* kind, const std::string& nameOrIndex)
@@ -41,6 +43,8 @@ public:
     template<typename T> std::shared_ptr<T> GetByAlias(const std::string& alias) const;
     template<typename T> std::vector<std::shared_ptr<T>> GetAllResources();
     template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
+
+    const std::vector<std::shared_ptr<class AvatarMask>>& GetAvatarMasks() const { return mAvatarMasks; }
 
     // Meta
     std::string GetOrCreateGUID(const std::string& path);
@@ -76,6 +80,7 @@ private:
     std::vector<std::shared_ptr<Skeleton>> mSkeletons;
     std::vector<std::shared_ptr<Model_Avatar>> mAvatars;
     std::vector<std::shared_ptr<AnimationClip>> mAnimationClips;
+    std::vector<std::shared_ptr<AvatarMask>> mAvatarMasks;
 
     // GUID Ä³½Ì (meta scan)
     std::unordered_map<std::string, std::string> mPathToGUID;

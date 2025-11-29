@@ -4,8 +4,6 @@
 #include "GameEngine.h"
 #include "DX_Graphics/ResourceUtils.h"
 
-using namespace DirectX;
-
 AnimationControllerComponent::AnimationControllerComponent()
     : Component()
 {
@@ -95,13 +93,59 @@ void AnimationControllerComponent::UpdateBoneMappingCache()
     if (!mModelSkeleton || !mModelAvatar) return;
 
     size_t boneCount = mModelSkeleton->GetBoneCount();
+    const auto& bones = mModelSkeleton->GetBones();
+
     mCachedBoneToKey.clear();
     mCachedBoneToKey.resize(boneCount);
+
+    mControllerBoneCache.clear();
+    mControllerBoneCache.resize(boneCount);
 
     for (size_t i = 0; i < boneCount; ++i)
     {
         std::string boneName = mModelSkeleton->GetBoneName((int)i);
         mCachedBoneToKey[i] = mModelAvatar->GetMappedKeyByBoneName(boneName);
+
+        ControllerBoneCache& cache = mControllerBoneCache[i];
+        const BoneInfo& boneInfo = bones[i];
+
+
+        cache.hasMapping = !mCachedBoneToKey[i].empty();
+        cache.isRootMotion = (boneInfo.parentIndex == -1) || (mCachedBoneToKey[i] == "Hips");
+
+        cache.bindScale = boneInfo.bindScale;
+        cache.bindRotation = boneInfo.bindRotation;
+        cache.bindTranslation = boneInfo.bindTranslation;
+
+        int logicalParent = -1;
+        if (cache.hasMapping)
+        {
+            int curr = boneInfo.parentIndex;
+            while (curr >= 0)
+            {
+                if (!mCachedBoneToKey[curr].empty())
+                {
+                    logicalParent = curr;
+                    break;
+                }
+                curr = bones[curr].parentIndex;
+            }
+        }
+        else
+        {
+            logicalParent = boneInfo.parentIndex;
+        }
+        cache.logicalParentIdx = logicalParent;
+        cache.globalTransform = XMMatrixIdentity();
+    }
+
+    for (auto& layer : mLayers)
+    {
+        auto mask = layer.GetMask();
+        if (mask) mask->ExpandHierarchy(mModelSkeleton.get(), mCachedBoneToKey);
+
+        layer.UpdateMaskCache(boneCount, mCachedBoneToKey);
+        layer.UpdateTrackCache(boneCount, mCachedBoneToKey);
     }
 }
 
@@ -133,6 +177,14 @@ void AnimationControllerComponent::SetLayerMask(int layerIndex, std::shared_ptr<
     if (layerIndex >= 0 && layerIndex < mLayers.size())
     {
         mLayers[layerIndex].SetMask(mask);
+
+        if (mModelSkeleton)
+        {
+            if (mask)
+                mask->ExpandHierarchy(mModelSkeleton.get(), mCachedBoneToKey);
+
+            mLayers[layerIndex].UpdateMaskCache(mModelSkeleton->GetBoneCount(), mCachedBoneToKey);
+        }
     }
 }
 
@@ -189,6 +241,9 @@ void AnimationControllerComponent::Play(int layerIndex, std::shared_ptr<Animatio
         mLayers.resize(layerIndex + 1);
 
     mLayers[layerIndex].Play(clip, blendTime, mode, speed);
+
+    if (mModelSkeleton)
+        mLayers[layerIndex].UpdateTrackCache(mModelSkeleton->GetBoneCount(), mCachedBoneToKey);
 }
 
 bool AnimationControllerComponent::IsLayerTransitioning(int layerIndex) const
@@ -238,11 +293,22 @@ void AnimationControllerComponent::Update(float deltaTime)
 {
     if (!IsReady()) return;
 
+    std::shared_ptr<TransformComponent> transform = mTransform.lock();
+    if (!transform)
+    {
+        if (auto owner = GetOwner())
+        {
+            transform = owner->GetComponent<TransformComponent>();
+            mTransform = transform;
+        }
+    }
+
     if (!mIsPaused)
     {
         for (auto& layer : mLayers)
         {
             layer.Update(deltaTime);
+            layer.GetRootMotionDelta(deltaTime);
         }
     }
 
@@ -258,132 +324,89 @@ void AnimationControllerComponent::EvaluateLayers()
 {
     if (!mModelSkeleton || !mModelAvatar) return;
 
-    const auto& bones = mModelSkeleton->GetBones();
-    const size_t boneCount = bones.size();
+    const size_t boneCount = mControllerBoneCache.size();
 
     if (mCpuBoneMatrices.size() != boneCount)
-    {
         mCpuBoneMatrices.resize(boneCount);
-    }
-
-    std::vector<XMMATRIX> globalTransforms(boneCount);
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        const BoneInfo& boneInfo = bones[i];
-        int parentIdx = boneInfo.parentIndex;
-        std::string abstractKey = mCachedBoneToKey[i];
+        ControllerBoneCache& cache = mControllerBoneCache[i];
 
-        // 1. Bind Pose 정보 가져오기
-        XMMATRIX bindLocal = XMLoadFloat4x4(&boneInfo.bindLocal);
-        XMVECTOR S_bind, R_bind, T_bind;
-        XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);
+        XMVECTOR S_bind = XMLoadFloat3(&cache.bindScale);
+        XMVECTOR R_bind = XMLoadFloat4(&cache.bindRotation);
+        XMVECTOR T_bind = XMLoadFloat3(&cache.bindTranslation);
 
-        // 2. 애니메이션 적용 변수 초기화
-        XMVECTOR S_anim = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
-        XMVECTOR R_anim = XMQuaternionIdentity();
-        XMVECTOR T_anim = T_bind; // 위치는 Bind Pose 유지 (Bone Length 보존)
+        XMVECTOR S_anim = S_bind;
+        XMVECTOR R_anim = R_bind;
+        XMVECTOR T_anim = T_bind;
 
-        // Hips(Root) 판별
-        bool isRootMotionBone = (parentIdx == -1) || (abstractKey == "Hips");
+        bool isRootMotionBone = cache.isRootMotion;
 
-        // 3. 애니메이션 블렌딩 (매핑된 뼈만 영향 받음)
         for (auto& layer : mLayers)
         {
-            float weight = layer.GetWeight();
-            if (weight <= 0.001f) continue;
-
-            float maskWeight = 1.0f;
-            auto mask = layer.GetMask();
-            if (mask && !abstractKey.empty())
-            {
-                maskWeight = mask->GetWeight(abstractKey);
-            }
-
-            float finalWeight = layer.GetWeight() * maskWeight;
-            if (finalWeight <= 0.001f) continue;
-
-            // 매핑된 뼈는 여기서 R_anim이 애니메이션 값으로 갱신됨
             if (isRootMotionBone)
             {
-                layer.EvaluateAndBlend(abstractKey, finalWeight, S_anim, R_anim, T_anim);
+                layer.EvaluateAndBlend((int)i, S_anim, R_anim, T_anim);
             }
             else
             {
-                // 위치(T)는 덮어쓰지 않도록 임시 변수 사용
                 XMVECTOR tempS = S_anim;
                 XMVECTOR tempR = R_anim;
                 XMVECTOR tempT = T_anim;
 
-                layer.EvaluateAndBlend(abstractKey, finalWeight, tempS, tempR, tempT);
-
-                S_anim = tempS;
-                R_anim = tempR;
-                // T_anim은 변경 안 함 (T_bind 유지)
+                if (layer.EvaluateAndBlend((int)i, tempS, tempR, tempT))
+                {
+                    S_anim = tempS;
+                    R_anim = tempR;
+                    // T_anim = tempT;
+                }
             }
         }
 
+        R_anim = XMQuaternionNormalize(R_anim);
+
         XMMATRIX finalGlobalTransform;
 
-        if (!abstractKey.empty())
+        if (cache.hasMapping)
         {
-            // ========================================================
-            // Case A: 매핑된 뼈 (Animation Driven)
-            // ========================================================
-            // 가상 부모(Virtual Parent) 로직 적용
-
-            int logicalParentIdx = -1;
-            int curr = parentIdx;
-            while (curr >= 0)
-            {
-                if (!mCachedBoneToKey[curr].empty())
-                {
-                    logicalParentIdx = curr;
-                    break;
-                }
-                curr = bones[curr].parentIndex;
-            }
-
-            // 내 애니메이션 로컬 행렬
             XMMATRIX matAnimLocal = XMMatrixScalingFromVector(S_anim) * XMMatrixRotationQuaternion(R_anim) * XMMatrixTranslationFromVector(T_anim);
 
-            // 논리적 부모의 월드 행렬
             XMMATRIX matLogicalParentGlobal = XMMatrixIdentity();
+
+            int logicalParentIdx = cache.logicalParentIdx;
             if (logicalParentIdx >= 0)
             {
-                matLogicalParentGlobal = globalTransforms[logicalParentIdx];
+                matLogicalParentGlobal = mControllerBoneCache[logicalParentIdx].globalTransform;
             }
 
             finalGlobalTransform = matAnimLocal * matLogicalParentGlobal;
         }
         else
         {
-            // ========================================================
-            // Case B: 매핑 안 된 뼈 (Bind Pose Driven)
-            // ========================================================
-            // [수정] 회전값을 Identity(0)로 강제하지 않고, 원래 Bind Pose의 회전값(R_bind)을 사용합니다.
-            // 이렇게 해야 원래 굽혀져 있던 장식 뼈나 Roll 본의 각도가 유지됩니다.
+            int parentIdx = cache.logicalParentIdx;
 
             XMMATRIX matParentGlobal = XMMatrixIdentity();
             if (parentIdx >= 0)
             {
-                matParentGlobal = globalTransforms[parentIdx];
+                matParentGlobal = mControllerBoneCache[parentIdx].globalTransform;
             }
 
-            // S_bind, R_bind, T_bind를 사용하여 원래 모양 유지
-            // (S_anim 대신 S_bind를 쓰는 것이 더 안전할 수 있음)
             XMMATRIX matLocal = XMMatrixScalingFromVector(S_bind) * XMMatrixRotationQuaternion(R_bind) * XMMatrixTranslationFromVector(T_bind);
 
             finalGlobalTransform = matLocal * matParentGlobal;
         }
 
-        globalTransforms[i] = finalGlobalTransform;
+        cache.globalTransform = finalGlobalTransform;
     }
 
+
+    const auto& bones = mModelSkeleton->GetBones(); 
     for (size_t i = 0; i < boneCount; ++i)
     {
         XMMATRIX invBind = XMLoadFloat4x4(&bones[i].inverseBind);
-        XMMATRIX finalMat = XMMatrixTranspose(invBind * globalTransforms[i]);
+        XMMATRIX finalMat = XMMatrixTranspose(invBind * mControllerBoneCache[i].globalTransform);
+
         XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, finalMat);
     }
 }

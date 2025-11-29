@@ -7,6 +7,7 @@ enum class FileCategory
     FBX,
     Texture,
     Material,
+    AvatarMask,
     Unknown
 };
 
@@ -34,6 +35,9 @@ static FileCategory DetectFileCategory(const std::string& path)
 
     if (ext == ".mat")
         return FileCategory::Material;
+
+    if (ext == ".mask")
+        return FileCategory::AvatarMask;
 
     return FileCategory::Unknown;
 }

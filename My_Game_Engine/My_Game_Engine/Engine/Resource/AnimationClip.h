@@ -22,7 +22,7 @@ public:
     XMFLOAT3 SampleScale(float time) const;
 
     XMMATRIX Sample(float time) const;
-
+    void Sample(float time, XMVECTOR& outS, XMVECTOR& outR, XMVECTOR& outT) const;
 public:
     std::vector<VectorKey> PositionKeys;
     std::vector<QuatKey>   RotationKeys;
@@ -40,7 +40,9 @@ public:
 
     DefinitionType GetDefinitionType() const { return mAvatarDefinitionType; }
     float GetDuration() const { return mDuration; }
+
     const AnimationTrack* GetTrack(const std::string& boneKey) const;
+    const AnimationTrack* GetRootTrack() const;
 
 	void SetAvatar(std::shared_ptr<Model_Avatar> avatar) { mModelAvatar = avatar; }
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton) { mModelSkeleton = skeleton; }
@@ -56,6 +58,6 @@ public:
 	std::shared_ptr<Model_Avatar> mModelAvatar;
 	std::shared_ptr<Skeleton> mModelSkeleton;
 
-    std::map<std::string, AnimationTrack> mTracks;
+    std::vector<std::pair<std::string, AnimationTrack>> mTracks;
 
 };

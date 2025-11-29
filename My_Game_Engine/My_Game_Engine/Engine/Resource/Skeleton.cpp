@@ -45,6 +45,22 @@ int Skeleton::GetBoneIndex(const std::string& name) const
     return -1;
 }
 
+int Skeleton::GetRootBoneIndex() const
+{
+    if (mCachedRootIndex != -1)
+        return mCachedRootIndex;
+
+    for (int i = 0; i < mBones.size(); ++i)
+    {
+        if (mBones[i].parentIndex == -1)
+        {
+            const_cast<Skeleton*>(this)->mCachedRootIndex = i;
+            return i;
+        }
+    }
+    return 0; 
+}
+
 void Skeleton::BuildNameToIndex()
 {
     mNameToIndex.clear();
@@ -96,6 +112,21 @@ bool Skeleton::LoadFromFile(std::string path, const RendererContext& ctx)
                 bl[8].GetFloat(), bl[9].GetFloat(), bl[10].GetFloat(), bl[11].GetFloat(),
                 bl[12].GetFloat(), bl[13].GetFloat(), bl[14].GetFloat(), bl[15].GetFloat()
             );
+
+            XMMATRIX matBind = XMLoadFloat4x4(&info.bindLocal);
+            XMVECTOR s, r, t;
+            if (XMMatrixDecompose(&s, &r, &t, matBind))
+            {
+                XMStoreFloat3(&info.bindScale, s);
+                XMStoreFloat4(&info.bindRotation, r);
+                XMStoreFloat3(&info.bindTranslation, t);
+            }
+            else
+            {
+                info.bindScale = { 1.0f, 1.0f, 1.0f };
+                info.bindRotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+                info.bindTranslation = { 0.0f, 0.0f, 0.0f };
+            }
 
             const auto& ib = entry["inverseBind"].GetArray();
             info.inverseBind = XMFLOAT4X4(
