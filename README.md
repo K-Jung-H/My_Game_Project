@@ -44,19 +44,11 @@ Entity-Component-System (ECS) 아키텍처 기반.
 ## Currently In Progress & Issues
 
 현재 개발 단계 진행 상황.
-### 1. Root Motion
-* 애니메이션의 루트 본(Hips) 이동 데이터를 추출하여 실제 GameObject의 월드 좌표 이동으로 변환하는 로직 구현 예정.
-- 사용하던 애니메이션들에서 문제 발생
-	- Mixamo로 추출하는 애니메이션의 경우, 루트 모션이 없음
-	- Unity로 애니메이션을 추출 시도
-		- FBX_EXPORTER: 모델과 애니메이션 파일의 리타게팅 구조가 FBX 파잃에 저장 안됨 
-		- Clip을 Bake 하는 Script 작성: 루트 모션이 추출 안됨. 
-	
-	- Blender 를 사용하여 Mixamo에서 루트 모션을 생성하여 적용
-		- Blender 숙련도 부족
-
--> 루트 모션에 계획된 것보다 너무 많은 시간 할애함. 
--> 애니메이션은 구조 정리 후, 다른 것부터 처리하기.
+### 1. ResourceSystem GUI 구현
+* ResourceSystem 에서 관리하는 리소스들의 컨트롤러 역할
+	- 속성 정보 확인 // 리소스 타입에 따른 디테일 추가하기
+	- 씬 뷰와 상호작용
+	- 외부 파일 Import, Export
 
 ---
 

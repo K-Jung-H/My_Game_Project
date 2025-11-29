@@ -5,6 +5,7 @@
 #include "ResourceUtils.h"
 #include "Resource/Mesh.h"
 #include "Resource/Material.h"
+
 #include "Components/RigidbodyComponent.h"
 #include <stdexcept>
 
@@ -88,6 +89,8 @@ bool DX12_Renderer::Initialize(HWND m_hWnd, UINT width, UINT height)
     if (FAILED(mDevice->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&mImguiSrvHeap))))
         return false;
 
+    //---------------------------------------------------------------------
+    inspector.Initialize(GameEngine::Get().GetResourceSystem());
 
     is_initialized = true;
 
@@ -2372,6 +2375,9 @@ void DX12_Renderer::ImguiPass()
         ImGui_ImplWin32_NewFrame();
         ImGui::NewFrame();
 
+		inspector.Update();
+        inspector.Render();
+
         ImGui::Begin("Performance");
         ImGui::Text("FPS: %lu", fps);
         
@@ -2403,7 +2409,6 @@ void DX12_Renderer::ImguiPass()
 
 
         ImGui::Render();
-
 
 
         // ---- ImGui µå·Î¿ì ----

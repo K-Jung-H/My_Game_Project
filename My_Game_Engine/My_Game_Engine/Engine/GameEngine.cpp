@@ -6,6 +6,13 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_hInstance = hInstance;
 	m_hWnd = hMainWnd;
 
+	mTimer = std::make_unique<GameTimer>();
+	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
+	m_ResourceSystem = std::make_unique<ResourceSystem>();
+	m_ResourceSystem->Initialize("Assets");
+	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
+	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
+
 
 	CoInitialize(NULL);
 
@@ -35,12 +42,7 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	ImGui_ImplDX12_InitInfo init_info = mRenderer->GetImGuiInitInfo();
 	ImGui_ImplDX12_Init(&init_info);
 
-	mTimer = std::make_unique<GameTimer>();
-	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
-	m_ResourceSystem = std::make_unique<ResourceSystem>();
-	m_ResourceSystem->Initialize("Assets");
-	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
-	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
+
 
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();

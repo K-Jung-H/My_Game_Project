@@ -2,7 +2,7 @@
 #include "DescriptorManager.h"
 #include "Graphic_Shader.h"
 #include "Core/Scene.h"
-
+#include "Inspector_UI.h"
 
 struct ResourceStateTracker
 {
@@ -338,6 +338,7 @@ public:
 
 private:
     ComPtr<ID3D12DescriptorHeap> mImguiSrvHeap;
+    ResourceInspector inspector;
 };
 
 

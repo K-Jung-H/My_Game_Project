@@ -28,6 +28,16 @@ inline std::string MakeSubresourcePath(const std::string& containerPath, const c
     return containerPath + "#" + kind + ":" + nameOrIndex;
 }
 
+struct ResourceEntry
+{
+    UINT id = 0;
+    std::string guid;
+    std::string path;
+    std::string alias;
+    std::shared_ptr<Game_Resource> resource;
+};
+
+
 class ResourceSystem
 {
 public:
@@ -46,6 +56,7 @@ public:
 
     const std::vector<std::shared_ptr<class AvatarMask>>& GetAvatarMasks() const { return mAvatarMasks; }
 
+    const std::unordered_map<UINT, ResourceEntry>& GetResourceMap() const { return mResources; }
     // Meta
     std::string GetOrCreateGUID(const std::string& path);
     void LoadAllMeta(const std::string& assetRoot);
@@ -56,14 +67,6 @@ public:
 
 
 private:
-    struct ResourceEntry
-    {
-        UINT id = 0;
-        std::string guid;
-        std::string path;
-        std::string alias;
-        std::shared_ptr<Game_Resource> resource;
-    };
 
     std::unordered_map<UINT, ResourceEntry> mResources; // id 중심 구조
 
