@@ -7,6 +7,10 @@ struct BoneInfo
     int parentIndex;
     XMFLOAT4X4 bindLocal;
     XMFLOAT4X4 inverseBind;
+
+    XMFLOAT3 bindScale;
+    XMFLOAT4 bindRotation;
+    XMFLOAT3 bindTranslation;
 };
 
 class Skeleton : public Game_Resource

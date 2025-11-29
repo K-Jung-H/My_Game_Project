@@ -111,29 +111,29 @@ void Scene::Build()
 		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
 	}
 
-	//{
-	//	for (int i = 0; i < 3; ++i)
-	//	{
-	//		Object* test_obj = m_pObjectManager->CreateFromModel(model_1_ptr);
-	//		m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
-	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-	//		test_obj->GetTransform()->SetPosition({ 10.0f * (i + 1), 0, 0 });
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			Object* test_obj = m_pObjectManager->CreateFromModel(model_1_ptr);
+			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
+			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+			test_obj->GetTransform()->SetPosition({ 10.0f * (i + 1), 0, 0 });
 
-	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
-	//		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
-	//		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
+			auto rb = test_obj->AddComponent<RigidbodyComponent>();
+			auto animController = test_obj->AddComponent<AnimationControllerComponent>();
+			auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-	//		rb->SetUseGravity(false);
+			rb->SetUseGravity(false);
 
-	//		for (auto& renderer : skinnedRenderers)
-	//			renderer->Initialize();
+			for (auto& renderer : skinnedRenderers)
+				renderer->Initialize();
 
-	//		animController->SetModelAvatar(model_1_avatar);
-	//		animController->SetSkeleton(model_1_skeleton);
+			animController->SetModelAvatar(model_1_avatar);
+			animController->SetSkeleton(model_1_skeleton);
 
-	//		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
-	//	}
-	//}
+			animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
+		}
+	}
 
 	std::shared_ptr<AvatarMask> upperMask = std::make_shared<AvatarMask>();
 	upperMask->SetAlias("Mask_UpperBody");

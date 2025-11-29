@@ -585,6 +585,9 @@ std::shared_ptr<AnimationClip> ModelLoader_FBX::BuildAnimation(
     flip[2][2] = -1.0;
 
     size_t boneCount = skeletonRes->GetBoneCount();
+
+    newClip->mTracks.reserve(boneCount);
+
     for (size_t bIdx = 0; bIdx < boneCount; ++bIdx)
     {
         std::string boneName = skeletonRes->GetBoneName(bIdx);
@@ -664,7 +667,11 @@ std::shared_ptr<AnimationClip> ModelLoader_FBX::BuildAnimation(
             track.ScaleKeys.push_back({ time, XMFLOAT3((float)s[0], (float)s[1], (float)s[2]) });
         }
 
-        newClip->mTracks[abstractKey] = std::move(track);
+        newClip->mTracks.emplace_back(abstractKey, std::move(track));
     }
+
+    std::sort(newClip->mTracks.begin(), newClip->mTracks.end(),
+        [](const auto& a, const auto& b) { return a.first < b.first; });
+
     return newClip;
 }

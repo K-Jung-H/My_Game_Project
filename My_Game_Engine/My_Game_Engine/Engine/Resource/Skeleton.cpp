@@ -113,6 +113,21 @@ bool Skeleton::LoadFromFile(std::string path, const RendererContext& ctx)
                 bl[12].GetFloat(), bl[13].GetFloat(), bl[14].GetFloat(), bl[15].GetFloat()
             );
 
+            XMMATRIX matBind = XMLoadFloat4x4(&info.bindLocal);
+            XMVECTOR s, r, t;
+            if (XMMatrixDecompose(&s, &r, &t, matBind))
+            {
+                XMStoreFloat3(&info.bindScale, s);
+                XMStoreFloat4(&info.bindRotation, r);
+                XMStoreFloat3(&info.bindTranslation, t);
+            }
+            else
+            {
+                info.bindScale = { 1.0f, 1.0f, 1.0f };
+                info.bindRotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+                info.bindTranslation = { 0.0f, 0.0f, 0.0f };
+            }
+
             const auto& ib = entry["inverseBind"].GetArray();
             info.inverseBind = XMFLOAT4X4(
                 ib[0].GetFloat(), ib[1].GetFloat(), ib[2].GetFloat(), ib[3].GetFloat(),

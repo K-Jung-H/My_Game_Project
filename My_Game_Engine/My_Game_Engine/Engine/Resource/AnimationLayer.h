@@ -2,6 +2,12 @@
 #include "AnimationCommon.h"
 #include "AvatarMask.h"
 
+struct LayerBoneCache
+{
+    const AnimationTrack* currentTrack = nullptr;
+    const AnimationTrack* prevTrack = nullptr;
+    float maskWeight = 1.0f;
+};
 
 class AnimationLayer
 {
@@ -14,11 +20,9 @@ public:
 
     bool EvaluateAndBlend(
         int boneIndex,
-        float maskWeight,
         XMVECTOR& inOutS,
         XMVECTOR& inOutR,
-        XMVECTOR& inOutT
-    );
+        XMVECTOR& inOutT);
 
     void UpdateMaskCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap);
     void UpdateTrackCache(size_t boneCount, const std::vector<std::string>& boneToKeyMap);
@@ -73,9 +77,7 @@ private:
     float mTransitionTime = 0.0f;
     float mTransitionDuration = 0.0f;
 
-    std::vector<float> mCachedMaskWeights;
-    std::vector<const AnimationTrack*> mCachedCurrentTracks;
-    std::vector<const AnimationTrack*> mCachedPrevTracks;
+    std::vector<LayerBoneCache> mBoneCache;
 
     bool mEnableRootMotion = true;
     float mPrevFrameTime = 0.0f;

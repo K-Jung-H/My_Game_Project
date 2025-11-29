@@ -58,6 +58,6 @@ public:
 	std::shared_ptr<Model_Avatar> mModelAvatar;
 	std::shared_ptr<Skeleton> mModelSkeleton;
 
-    std::map<std::string, AnimationTrack> mTracks;
+    std::vector<std::pair<std::string, AnimationTrack>> mTracks;
 
 };

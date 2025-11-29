@@ -93,21 +93,56 @@ void AnimationControllerComponent::UpdateBoneMappingCache()
     if (!mModelSkeleton || !mModelAvatar) return;
 
     size_t boneCount = mModelSkeleton->GetBoneCount();
+    const auto& bones = mModelSkeleton->GetBones();
+
     mCachedBoneToKey.clear();
     mCachedBoneToKey.resize(boneCount);
+
+    mControllerBoneCache.clear();
+    mControllerBoneCache.resize(boneCount);
 
     for (size_t i = 0; i < boneCount; ++i)
     {
         std::string boneName = mModelSkeleton->GetBoneName((int)i);
         mCachedBoneToKey[i] = mModelAvatar->GetMappedKeyByBoneName(boneName);
+
+        ControllerBoneCache& cache = mControllerBoneCache[i];
+        const BoneInfo& boneInfo = bones[i];
+
+
+        cache.hasMapping = !mCachedBoneToKey[i].empty();
+        cache.isRootMotion = (boneInfo.parentIndex == -1) || (mCachedBoneToKey[i] == "Hips");
+
+        cache.bindScale = boneInfo.bindScale;
+        cache.bindRotation = boneInfo.bindRotation;
+        cache.bindTranslation = boneInfo.bindTranslation;
+
+        int logicalParent = -1;
+        if (cache.hasMapping)
+        {
+            int curr = boneInfo.parentIndex;
+            while (curr >= 0)
+            {
+                if (!mCachedBoneToKey[curr].empty())
+                {
+                    logicalParent = curr;
+                    break;
+                }
+                curr = bones[curr].parentIndex;
+            }
+        }
+        else
+        {
+            logicalParent = boneInfo.parentIndex;
+        }
+        cache.logicalParentIdx = logicalParent;
+        cache.globalTransform = XMMatrixIdentity();
     }
 
     for (auto& layer : mLayers)
     {
         auto mask = layer.GetMask();
-
-        if (mask)
-            mask->ExpandHierarchy(mModelSkeleton.get(), mCachedBoneToKey);
+        if (mask) mask->ExpandHierarchy(mModelSkeleton.get(), mCachedBoneToKey);
 
         layer.UpdateMaskCache(boneCount, mCachedBoneToKey);
         layer.UpdateTrackCache(boneCount, mCachedBoneToKey);
@@ -289,42 +324,30 @@ void AnimationControllerComponent::EvaluateLayers()
 {
     if (!mModelSkeleton || !mModelAvatar) return;
 
-    const auto& bones = mModelSkeleton->GetBones();
-    const size_t boneCount = bones.size();
+    const size_t boneCount = mControllerBoneCache.size();
 
     if (mCpuBoneMatrices.size() != boneCount)
-    {
         mCpuBoneMatrices.resize(boneCount);
-    }
-
-    std::vector<XMMATRIX> globalTransforms(boneCount);
 
     for (size_t i = 0; i < boneCount; ++i)
     {
-        const BoneInfo& boneInfo = bones[i];
-        int parentIdx = boneInfo.parentIndex;
-        std::string abstractKey = mCachedBoneToKey[i];
+        ControllerBoneCache& cache = mControllerBoneCache[i];
 
-        XMMATRIX bindLocal = XMLoadFloat4x4(&boneInfo.bindLocal);
-        XMVECTOR S_bind, R_bind, T_bind;
-        XMMatrixDecompose(&S_bind, &R_bind, &T_bind, bindLocal);
+        XMVECTOR S_bind = XMLoadFloat3(&cache.bindScale);
+        XMVECTOR R_bind = XMLoadFloat4(&cache.bindRotation);
+        XMVECTOR T_bind = XMLoadFloat3(&cache.bindTranslation);
 
-        XMVECTOR S_anim = XMVectorSet(1.0f, 1.0f, 1.0f, 0.0f);
-        XMVECTOR R_anim = XMQuaternionIdentity();
+        XMVECTOR S_anim = S_bind;
+        XMVECTOR R_anim = R_bind;
         XMVECTOR T_anim = T_bind;
 
-        bool isRootMotionBone = (parentIdx == -1) || (abstractKey == "Hips");
+        bool isRootMotionBone = cache.isRootMotion;
 
         for (auto& layer : mLayers)
         {
-            float maskWeight = layer.GetCachedMaskWeight((int)i);
-            float finalWeight = layer.GetWeight() * maskWeight;
-
-            if (finalWeight <= 0.001f) continue;
-
             if (isRootMotionBone)
             {
-                layer.EvaluateAndBlend((int)i, finalWeight, S_anim, R_anim, T_anim);
+                layer.EvaluateAndBlend((int)i, S_anim, R_anim, T_anim);
             }
             else
             {
@@ -332,45 +355,41 @@ void AnimationControllerComponent::EvaluateLayers()
                 XMVECTOR tempR = R_anim;
                 XMVECTOR tempT = T_anim;
 
-                layer.EvaluateAndBlend((int)i, finalWeight, tempS, tempR, tempT);
-
-                S_anim = tempS;
-                R_anim = tempR;
+                if (layer.EvaluateAndBlend((int)i, tempS, tempR, tempT))
+                {
+                    S_anim = tempS;
+                    R_anim = tempR;
+                    // T_anim = tempT;
+                }
             }
         }
 
+        R_anim = XMQuaternionNormalize(R_anim);
+
         XMMATRIX finalGlobalTransform;
 
-        if (!abstractKey.empty())
+        if (cache.hasMapping)
         {
-            int logicalParentIdx = -1;
-            int curr = parentIdx;
-            while (curr >= 0)
-            {
-                if (!mCachedBoneToKey[curr].empty())
-                {
-                    logicalParentIdx = curr;
-                    break;
-                }
-                curr = bones[curr].parentIndex;
-            }
-
             XMMATRIX matAnimLocal = XMMatrixScalingFromVector(S_anim) * XMMatrixRotationQuaternion(R_anim) * XMMatrixTranslationFromVector(T_anim);
 
             XMMATRIX matLogicalParentGlobal = XMMatrixIdentity();
+
+            int logicalParentIdx = cache.logicalParentIdx;
             if (logicalParentIdx >= 0)
             {
-                matLogicalParentGlobal = globalTransforms[logicalParentIdx];
+                matLogicalParentGlobal = mControllerBoneCache[logicalParentIdx].globalTransform;
             }
 
             finalGlobalTransform = matAnimLocal * matLogicalParentGlobal;
         }
         else
         {
+            int parentIdx = cache.logicalParentIdx;
+
             XMMATRIX matParentGlobal = XMMatrixIdentity();
             if (parentIdx >= 0)
             {
-                matParentGlobal = globalTransforms[parentIdx];
+                matParentGlobal = mControllerBoneCache[parentIdx].globalTransform;
             }
 
             XMMATRIX matLocal = XMMatrixScalingFromVector(S_bind) * XMMatrixRotationQuaternion(R_bind) * XMMatrixTranslationFromVector(T_bind);
@@ -378,13 +397,16 @@ void AnimationControllerComponent::EvaluateLayers()
             finalGlobalTransform = matLocal * matParentGlobal;
         }
 
-        globalTransforms[i] = finalGlobalTransform;
+        cache.globalTransform = finalGlobalTransform;
     }
 
+
+    const auto& bones = mModelSkeleton->GetBones(); 
     for (size_t i = 0; i < boneCount; ++i)
     {
         XMMATRIX invBind = XMLoadFloat4x4(&bones[i].inverseBind);
-        XMMATRIX finalMat = XMMatrixTranspose(invBind * globalTransforms[i]);
+        XMMATRIX finalMat = XMMatrixTranspose(invBind * mControllerBoneCache[i].globalTransform);
+
         XMStoreFloat4x4(&mCpuBoneMatrices[i].transform, finalMat);
     }
 }

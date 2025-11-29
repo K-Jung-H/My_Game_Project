@@ -6,6 +6,18 @@
 
 class TransformComponent;
 
+struct ControllerBoneCache
+{
+    bool isRootMotion = false;
+    bool hasMapping = false;
+    int logicalParentIdx = -1;
+
+    XMFLOAT3 bindScale;
+    XMFLOAT4 bindRotation;
+    XMFLOAT3 bindTranslation;
+
+    XMMATRIX globalTransform;
+};
 struct BoneMatrixData
 {
     XMFLOAT4X4 transform;
@@ -75,12 +87,14 @@ private:
 
     std::shared_ptr<Model_Avatar> mModelAvatar;
     std::shared_ptr<Skeleton> mModelSkeleton;
-
-    std::vector<std::string> mCachedBoneToKey;
-
     std::vector<AnimationLayer> mLayers;
     bool mIsPaused = false;
 
+    std::vector<std::string> mCachedBoneToKey;
+    std::vector<ControllerBoneCache> mControllerBoneCache;
+
+
+    //-------------------------------------------------------
     std::vector<BoneMatrixData> mCpuBoneMatrices;
     ComPtr<ID3D12Resource> mBoneMatrixBuffer;
     BoneMatrixData* mMappedBoneBuffer = nullptr;
