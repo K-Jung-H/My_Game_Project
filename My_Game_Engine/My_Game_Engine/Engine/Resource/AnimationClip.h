@@ -40,7 +40,9 @@ public:
 
     DefinitionType GetDefinitionType() const { return mAvatarDefinitionType; }
     float GetDuration() const { return mDuration; }
+
     const AnimationTrack* GetTrack(const std::string& boneKey) const;
+    const AnimationTrack* GetRootTrack() const;
 
 	void SetAvatar(std::shared_ptr<Model_Avatar> avatar) { mModelAvatar = avatar; }
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton) { mModelSkeleton = skeleton; }

@@ -405,8 +405,6 @@ std::shared_ptr<Mesh> ModelLoader_FBX::CreateMeshFromNode(
 
 std::shared_ptr<Skeleton> ModelLoader_FBX::BuildSkeleton(FbxScene* fbxScene)
 {
-    using namespace DirectX;
-
     auto skeletonRes = std::make_shared<Skeleton>();
     if (!fbxScene) return skeletonRes;
 

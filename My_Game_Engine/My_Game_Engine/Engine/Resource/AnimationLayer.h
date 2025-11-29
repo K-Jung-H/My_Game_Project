@@ -54,6 +54,7 @@ public:
     float GetCurrentDuration() const;
     std::shared_ptr<AnimationClip> GetCurrentClip() const { return mCurrentState.clip; }
 
+    std::pair<XMVECTOR, XMVECTOR> GetRootMotionDelta(float deltaTime);
 
 private:
     bool GetSample(const AnimationState& state, const std::string& key,
@@ -75,4 +76,7 @@ private:
     std::vector<float> mCachedMaskWeights;
     std::vector<const AnimationTrack*> mCachedCurrentTracks;
     std::vector<const AnimationTrack*> mCachedPrevTracks;
+
+    bool mEnableRootMotion = true;
+    float mPrevFrameTime = 0.0f;
 };

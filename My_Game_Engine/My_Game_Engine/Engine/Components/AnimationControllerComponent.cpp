@@ -258,11 +258,22 @@ void AnimationControllerComponent::Update(float deltaTime)
 {
     if (!IsReady()) return;
 
+    std::shared_ptr<TransformComponent> transform = mTransform.lock();
+    if (!transform)
+    {
+        if (auto owner = GetOwner())
+        {
+            transform = owner->GetComponent<TransformComponent>();
+            mTransform = transform;
+        }
+    }
+
     if (!mIsPaused)
     {
         for (auto& layer : mLayers)
         {
             layer.Update(deltaTime);
+            layer.GetRootMotionDelta(deltaTime);
         }
     }
 

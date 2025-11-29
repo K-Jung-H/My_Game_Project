@@ -55,6 +55,8 @@ void AnimationLayer::Play(std::shared_ptr<AnimationClip> clip, float blendTime, 
 
 void AnimationLayer::Update(float deltaTime)
 {
+    mPrevFrameTime = mCurrentState.currentTime;
+
     mCurrentState.Update(deltaTime);
 
     if (mIsTransitioning)
@@ -209,4 +211,51 @@ bool AnimationLayer::EvaluateAndBlend(
     }
 
     return true;
+}
+
+std::pair<XMVECTOR, XMVECTOR> AnimationLayer::GetRootMotionDelta(float deltaTime)
+{
+    if (!mCurrentState.clip || !mEnableRootMotion)
+    {
+        return { XMVectorZero(), XMQuaternionIdentity() };
+    }
+
+    const AnimationTrack* rootTrack = mCurrentState.clip->GetRootTrack();
+    if (!rootTrack)
+    {
+        return { XMVectorZero(), XMQuaternionIdentity() };
+    }
+
+    float prevTime = mPrevFrameTime;
+    float currTime = mCurrentState.currentTime;
+
+    XMVECTOR p1, r1, s1; 
+    XMVECTOR p2, r2, s2; 
+
+    rootTrack->Sample(prevTime, s1, r1, p1);
+    rootTrack->Sample(currTime, s2, r2, p2);
+
+    XMVECTOR deltaPos = XMVectorSubtract(p2, p1);
+    XMVECTOR deltaRot = XMQuaternionMultiply(r2, XMQuaternionInverse(r1));
+
+    if (mCurrentState.mode == PlaybackMode::Loop && currTime < prevTime)
+    {
+        float duration = mCurrentState.clip->GetDuration();
+        XMVECTOR startP, startR, startS;
+        XMVECTOR endP, endR, endS;
+
+        rootTrack->Sample(0.0f, startS, startR, startP);
+        rootTrack->Sample(duration, endS, endR, endP);
+
+        XMVECTOR deltaTailP = XMVectorSubtract(endP, p1);
+        XMVECTOR deltaTailR = XMQuaternionMultiply(endR, XMQuaternionInverse(r1));
+
+        XMVECTOR deltaHeadP = XMVectorSubtract(p2, startP);
+        XMVECTOR deltaHeadR = XMQuaternionMultiply(r2, XMQuaternionInverse(startR));
+
+        deltaPos = XMVectorAdd(deltaTailP, deltaHeadP);
+        deltaRot = XMQuaternionMultiply(deltaTailR, deltaHeadR);
+    }
+
+    return { deltaPos, deltaRot };
 }

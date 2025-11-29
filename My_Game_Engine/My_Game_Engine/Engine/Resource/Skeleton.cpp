@@ -45,6 +45,22 @@ int Skeleton::GetBoneIndex(const std::string& name) const
     return -1;
 }
 
+int Skeleton::GetRootBoneIndex() const
+{
+    if (mCachedRootIndex != -1)
+        return mCachedRootIndex;
+
+    for (int i = 0; i < mBones.size(); ++i)
+    {
+        if (mBones[i].parentIndex == -1)
+        {
+            const_cast<Skeleton*>(this)->mCachedRootIndex = i;
+            return i;
+        }
+    }
+    return 0; 
+}
+
 void Skeleton::BuildNameToIndex()
 {
     mNameToIndex.clear();

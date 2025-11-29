@@ -4,6 +4,8 @@
 #include "Resource/Model_Avatar.h"
 #include "Resource/AnimationLayer.h"
 
+class TransformComponent;
+
 struct BoneMatrixData
 {
     XMFLOAT4X4 transform;
@@ -18,6 +20,9 @@ public:
 public:
     AnimationControllerComponent();
     virtual ~AnimationControllerComponent() = default;
+
+    void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
+    std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 
     void SetSkeleton(std::shared_ptr<Skeleton> skeleton);
     void SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar);
@@ -64,7 +69,10 @@ private:
     void UpdateBoneMappingCache();
     void EvaluateLayers();
 
+
 private:
+    std::weak_ptr<TransformComponent> mTransform;
+
     std::shared_ptr<Model_Avatar> mModelAvatar;
     std::shared_ptr<Skeleton> mModelSkeleton;
 

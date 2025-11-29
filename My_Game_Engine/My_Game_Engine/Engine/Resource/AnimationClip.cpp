@@ -173,9 +173,22 @@ const AnimationTrack* AnimationClip::GetTrack(const std::string& boneKey) const
     return nullptr;
 }
 
+const AnimationTrack* AnimationClip::GetRootTrack() const
+{
+    if (!mModelSkeleton)
+        return nullptr;
+
+    int rootIdx = mModelSkeleton->GetRootBoneIndex();
+    if (rootIdx == -1)
+        return nullptr;
+
+    const std::string& rootName = mModelSkeleton->GetBoneName(rootIdx);
+
+    return GetTrack("Hips");
+}
+
 bool AnimationClip::SaveToFile(const std::string& path) const
 {
-    using namespace rapidjson;
     Document doc(kObjectType);
     Document::AllocatorType& alloc = doc.GetAllocator();
 
@@ -207,8 +220,6 @@ bool AnimationClip::SaveToFile(const std::string& path) const
 
 bool AnimationClip::LoadFromFile(std::string path, const RendererContext& ctx)
 {
-    using namespace rapidjson;
-
     std::ifstream ifs(path);
     if (!ifs.is_open()) return false;
 

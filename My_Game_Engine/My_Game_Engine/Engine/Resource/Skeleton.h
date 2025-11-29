@@ -33,7 +33,7 @@ public:
 
     const std::string& GetBoneName(int index) const;
     int GetBoneIndex(const std::string& name) const;
-
+    int GetRootBoneIndex() const;
 private:
     void BuildNameToIndex();
 
@@ -42,4 +42,5 @@ private:
     std::unordered_map<std::string, int> mNameToIndex;
 
     std::vector<BoneInfo> mBones;
+    int mCachedRootIndex = -1;
 };

@@ -58,7 +58,7 @@ void Scene::Build()
 	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
-	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx"; // Catwalk Walk
+	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx";
 	const std::string animation_clip_path_1 = "Assets/Animation/Catwalk Walk.fbx";
 	const std::string animation_clip_path_2 = "Assets/Animation/Ymca Dance.fbx";
  	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
@@ -111,29 +111,29 @@ void Scene::Build()
 		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
 	}
 
-	{
-		for (int i = 0; i < 3; ++i)
-		{
-			Object* test_obj = m_pObjectManager->CreateFromModel(model_1_ptr);
-			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
-			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-			test_obj->GetTransform()->SetPosition({ 10.0f * (i + 1), 0, 0 });
+	//{
+	//	for (int i = 0; i < 3; ++i)
+	//	{
+	//		Object* test_obj = m_pObjectManager->CreateFromModel(model_1_ptr);
+	//		m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
+	//		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+	//		test_obj->GetTransform()->SetPosition({ 10.0f * (i + 1), 0, 0 });
 
-			auto rb = test_obj->AddComponent<RigidbodyComponent>();
-			auto animController = test_obj->AddComponent<AnimationControllerComponent>();
-			auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
+	//		auto rb = test_obj->AddComponent<RigidbodyComponent>();
+	//		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
+	//		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-			rb->SetUseGravity(false);
+	//		rb->SetUseGravity(false);
 
-			for (auto& renderer : skinnedRenderers)
-				renderer->Initialize();
+	//		for (auto& renderer : skinnedRenderers)
+	//			renderer->Initialize();
 
-			animController->SetModelAvatar(model_1_avatar);
-			animController->SetSkeleton(model_1_skeleton);
+	//		animController->SetModelAvatar(model_1_avatar);
+	//		animController->SetSkeleton(model_1_skeleton);
 
-			animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
-		}
-	}
+	//		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
+	//	}
+	//}
 
 	std::shared_ptr<AvatarMask> upperMask = std::make_shared<AvatarMask>();
 	upperMask->SetAlias("Mask_UpperBody");
@@ -151,7 +151,7 @@ void Scene::Build()
 	if (is_debugging)
 	{
 		std::shared_ptr<Model> model_ptr;
-		Object* test_obj;
+		Object* test_obj = NULL;
 		UINT model_node_num = Model::CountNodes(model_ptr);
 		UINT node_num = Object::CountNodes(test_obj);
 		Model::loadAndExport(path_0, "test_assimp_export.txt");
