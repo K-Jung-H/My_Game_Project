@@ -28,6 +28,9 @@ DescriptorManager::DescriptorManager(ID3D12Device* device,
         mRegions[HeapRegion::SRV_Frame] = { offset, MAX_SRV_FRAME, 0 };
         offset += MAX_SRV_FRAME;
 
+        mRegions[HeapRegion::UI] = { offset, MAX_UI_SRV, 0 };
+        offset += MAX_UI_SRV;
+
         mRegions[HeapRegion::CBV] = { offset, MAX_CBV, 0 };
         offset += MAX_CBV;
 

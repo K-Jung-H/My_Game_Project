@@ -189,6 +189,7 @@ class DX12_Renderer
 {
     static float clear_color[4];
     XMFLOAT4 mAmbientColor = { 0.4f, 0.4f, 0.4f, 1.0f };
+
 public:
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     bool OnResize(UINT newWidth, UINT newHeight);
@@ -208,9 +209,13 @@ public:
 private:
 	bool is_initialized = false;
 
+	// Window Size
     UINT mWidth = 0;
     UINT mHeight = 0;
 
+    // Game Viewport Size
+	UINT mRenderWidth = 0; 
+    UINT mRenderHeight = 0;
 
     ComPtr<IDXGIFactory4> mFactory;
     ComPtr<IDXGIAdapter1> mAdapter;
@@ -333,22 +338,7 @@ private:
 
     void Bind_SceneCBV(Shader_Type shader_type, UINT rootParameter);
 
-public:
-    ImGui_ImplDX12_InitInfo GetImGuiInitInfo() const;
-
 private:
     ComPtr<ID3D12DescriptorHeap> mImguiSrvHeap;
-    ResourceInspector inspector;
+    UIManager ui_manager;
 };
-
-
-void DrawObjectNode(Object* obj);
-void DrawInspector(Object* obj);
-void DrawComponentInspector(const std::shared_ptr<Component>& comp);
-
-void DrawMeshRendererInspector(const std::shared_ptr<Component>& comp);
-void DrawSkinnedMeshRendererInspector(const std::shared_ptr<Component>& comp);
-void DrawAnimationControllerInspector(const std::shared_ptr<Component>& comp);
-void DrawCameraInspector(const std::shared_ptr<Component>& comp);
-void DrawLightInspector(const std::shared_ptr<Component>& comp);
-void DrawRigidbodyInspector(const std::shared_ptr<Component>& comp);

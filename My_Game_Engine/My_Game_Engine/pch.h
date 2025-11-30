@@ -94,6 +94,7 @@
 // Imgui
 #include "../Editor_Source/imgui.h"
 #include "../Editor_Source/ImGuizmo.h"
+#include "../Editor_Source/imgui_internal.h"
 
 #include "../Editor_Source/imgui_impl_win32.h"
 #include "../Editor_Source/imgui_impl_dx12.h"

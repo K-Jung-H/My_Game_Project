@@ -20,30 +20,6 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	mRenderer = std::make_unique<DX12_Renderer>();
 	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-	// ImGui ÃÊ±âÈ­
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-	io.ConfigFlags |= ImGuiDockNodeFlags_PassthruCentralNode;
-
-	ImGui::StyleColorsDark();
-
-	ImGuiStyle& style = ImGui::GetStyle();
-	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-	{
-		style.WindowRounding = 0.0f;
-		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-	}
-
-	ImGui_ImplWin32_Init(hMainWnd);
-
-	ImGui_ImplDX12_InitInfo init_info = mRenderer->GetImGuiInitInfo();
-	ImGui_ImplDX12_Init(&init_info);
-
-
-
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();
 
