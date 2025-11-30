@@ -50,6 +50,12 @@ Entity-Component-System (ECS) 아키텍처 기반.
 	- 씬 뷰와 상호작용
 	- 외부 파일 Import, Export
 
+### 2. 기존 GameScreen Gui 연동
+	- SceneView, GameView 분리 및 Gui 연동
+		- 사용하는 Screen Size 분리 <- 진행중
+			- Game Screen Size
+			- Window Screen Size
+
 ---
 
 ## Getting Started
