@@ -52,10 +52,10 @@ Entity-Component-System (ECS) 아키텍처 기반.
 
 ### 2. 기존 GameScreen Gui 연동
 	- SceneView, GameView 분리 및 Gui 연동
-		- 사용하는 Screen Size 분리 <- 진행중
+		- 사용하는 Screen Size 분리
 			- Game Screen Size
 			- Window Screen Size
-
+	 *완료*
 ---
 
 ## Getting Started
