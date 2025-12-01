@@ -132,15 +132,8 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 		else if (wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED)
 		{
 			if (mRenderer && Is_Initialized)
-				mRenderer->OnResize(newWidth, newHeight);
-
-			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				if (auto cam = scene->GetActiveCamera())
-				{
-					cam->SetViewport({ 0, 0 }, { newWidth, newHeight });
-					cam->SetScissorRect({ 0, 0 }, { newWidth, newHeight });
-				}
+				mRenderer->ResizeSwapChain(newWidth, newHeight);
 			}
 		}
 		else
@@ -152,23 +145,15 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 	}
 	break;
 
-
 	case WM_EXITSIZEMOVE:
 	{
 		if (mResizeRequested)
 		{
 			if (mRenderer && Is_Initialized)
-				mRenderer->OnResize(mPendingWidth, mPendingHeight);
-			mResizeRequested = false;
-
-			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				if (auto cam = scene->GetActiveCamera())
-				{
-					cam->SetViewport({ 0, 0 }, { mPendingWidth, mPendingHeight });
-					cam->SetScissorRect({ 0, 0 }, { mPendingWidth, mPendingHeight });
-				}
+				mRenderer->ResizeSwapChain(mPendingWidth, mPendingHeight);
 			}
+			mResizeRequested = false;
 		}
 	}
 	break;

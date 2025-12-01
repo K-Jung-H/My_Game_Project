@@ -127,17 +127,41 @@ void UIManager::Render(ID3D12GraphicsCommandList* cmdList, D3D12_GPU_DESCRIPTOR_
     }
     ImGui::End();
 
-    // [게임 뷰포트 창 그리기]
+    // [Render Game Viewport]
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     if (ImGui::Begin("Game Viewport"))
     {
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-        ImGui::Image((ImTextureID)gameSceneTexture.ptr, viewportSize);
+
+        DX12_Renderer* renderer = GameEngine::Get().GetRenderer();
+        bool resized = false;
+
+        if (renderer)
+        {
+            UINT currentW = renderer->GetRenderWidth();
+            UINT currentH = renderer->GetRenderHeight();
+
+            if ((viewportSize.x > 0 && viewportSize.y > 0) &&
+                ((UINT)viewportSize.x != currentW || (UINT)viewportSize.y != currentH))
+            {
+                renderer->ResizeViewport((UINT)viewportSize.x, (UINT)viewportSize.y);
+                resized = true;
+            }
+        }
+
+        if (resized)
+        {
+            ImGui::Text("Resizing Viewport...");
+        }
+        else
+        {
+            ImGui::Image((ImTextureID)gameSceneTexture.ptr, viewportSize);
+        }
     }
     ImGui::End();
     ImGui::PopStyleVar();
 
-    // [다른 창들 그리기]
+    // [Render UI Windows]
     DrawPerformanceWindow();
     DrawResourceWindow();
     DrawInspectorWindow();
