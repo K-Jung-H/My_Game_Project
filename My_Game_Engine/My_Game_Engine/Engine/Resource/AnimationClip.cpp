@@ -235,6 +235,21 @@ AnimationClip::AnimationClip()
 {
 }
 
+UINT AnimationClip::GetTotalKeyframes() 
+{
+    if (!TotalKeyframe)
+    {
+        for (const auto& trackPair : mTracks)
+        {
+            const AnimationTrack& track = trackPair.second;
+            TotalKeyframe += track.PositionKeys.size();
+            TotalKeyframe += track.RotationKeys.size();
+            TotalKeyframe += track.ScaleKeys.size();
+        }
+    }
+    return TotalKeyframe;
+}
+
 const AnimationTrack* AnimationClip::GetTrack(const std::string& boneKey) const
 {
     auto it = std::lower_bound(mTracks.begin(), mTracks.end(), boneKey,

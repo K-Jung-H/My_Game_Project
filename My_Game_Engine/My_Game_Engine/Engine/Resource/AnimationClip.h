@@ -39,7 +39,10 @@ public:
     virtual bool SaveToFile(const std::string& path) const;
 
     DefinitionType GetDefinitionType() const { return mAvatarDefinitionType; }
+
     float GetDuration() const { return mDuration; }
+    float GetTicksPerSecond() const { return mTicksPerSecond; }
+    UINT GetTotalKeyframes();
 
     const AnimationTrack* GetTrack(const std::string& boneKey) const;
     const AnimationTrack* GetRootTrack() const;
@@ -54,7 +57,8 @@ public:
     DefinitionType mAvatarDefinitionType = DefinitionType::None;
     float mDuration = 0.0f;
     float mTicksPerSecond = 0.0f;
-
+    UINT TotalKeyframe = 0;
+    
 	std::shared_ptr<Model_Avatar> mModelAvatar;
 	std::shared_ptr<Skeleton> mModelSkeleton;
 

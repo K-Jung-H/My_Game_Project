@@ -2,8 +2,11 @@
 #include "GameEngine.h"
 #include "Core/Object.h"
 #include "Components/RigidbodyComponent.h"
+#include "Resource/Mesh.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+static UINT g_SelectedResID = Engine::INVALID_ID;
 
 void UIManager::Initialize(HWND hWnd, ID3D12Device* device, ID3D12CommandQueue* cmdQueue, DescriptorManager* heapManager, ResourceSystem* resSystem)
 {
@@ -56,7 +59,6 @@ void UIManager::Update(float dt)
     UpdateShortcuts();
 }
 
-
 void UIManager::Render(ID3D12GraphicsCommandList* cmdList, D3D12_GPU_DESCRIPTOR_HANDLE gameSceneTexture)
 {
     ImGui_ImplDX12_NewFrame();
@@ -64,7 +66,6 @@ void UIManager::Render(ID3D12GraphicsCommandList* cmdList, D3D12_GPU_DESCRIPTOR_
     ImGui::NewFrame();
 
     static bool opt_fullscreen = true;
-    static bool opt_padding = false;
     static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
 
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
@@ -100,20 +101,13 @@ void UIManager::Render(ID3D12GraphicsCommandList* cmdList, D3D12_GPU_DESCRIPTOR_
         if (first_time)
         {
             first_time = false;
-
             ImGui::DockBuilderRemoveNode(dockspace_id);
-
             ImGui::DockBuilderAddNode(dockspace_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
-
             ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
 
             ImGuiID dock_main_id = dockspace_id;
-
-
             ImGuiID dock_right_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
-
             ImGuiID dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.2f, nullptr, &dock_main_id);
-
             ImGuiID dock_down_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Down, 0.3f, nullptr, &dock_main_id);
 
             ImGui::DockBuilderDockWindow("Game Viewport", dock_main_id);
@@ -127,12 +121,10 @@ void UIManager::Render(ID3D12GraphicsCommandList* cmdList, D3D12_GPU_DESCRIPTOR_
     }
     ImGui::End();
 
-    // [Render Game Viewport]
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     if (ImGui::Begin("Game Viewport"))
     {
         ImVec2 viewportSize = ImGui::GetContentRegionAvail();
-
         DX12_Renderer* renderer = GameEngine::Get().GetRenderer();
         bool resized = false;
 
@@ -161,7 +153,6 @@ void UIManager::Render(ID3D12GraphicsCommandList* cmdList, D3D12_GPU_DESCRIPTOR_
     ImGui::End();
     ImGui::PopStyleVar();
 
-    // [Render UI Windows]
     DrawPerformanceWindow();
     DrawResourceWindow();
     DrawInspectorWindow();
@@ -185,26 +176,6 @@ void UIManager::UpdatePerformanceData(const PerformanceData& data)
 void UIManager::SetSelectedObject(Object* obj)
 {
     mSelectedObject = obj;
-}
-
-void UIManager::UpdateResourceWindow()
-{
-    if (mNeedFilterUpdate)
-    {
-        FilterResources();
-        mNeedFilterUpdate = false;
-    }
-}
-
-void UIManager::UpdateSceneData()
-{
-    if (mSelectedObject)
-    {
-    }
-}
-
-void UIManager::UpdateShortcuts()
-{
 }
 
 void UIManager::DrawPerformanceWindow()
@@ -233,8 +204,28 @@ void UIManager::DrawResourceWindow()
     if (ImGui::Begin("Resource Inspector"))
     {
         static float listWidth = 300.0f;
+
         ImGui::BeginChild("ResourceList", ImVec2(listWidth, 0), true);
-        DrawResourceList();
+        {
+            static int filterIdx = 0;
+            const char* filters[] = { "All", "Mesh", "Material", "Texture", "Model", "Animation" };
+            ImGui::Combo("Filter", &filterIdx, filters, IM_ARRAYSIZE(filters));
+            ImGui::Separator();
+
+            bool showAll = (filterIdx == 0);
+
+            if (showAll || filterIdx == 1) DrawTypedList<Mesh>("Meshes", "Mesh", PAYLOAD_MESH);
+            if (showAll || filterIdx == 2) DrawTypedList<Material>("Materials", "Material", PAYLOAD_MATERIAL);
+            if (showAll || filterIdx == 3) DrawTypedList<Texture>("Textures", "Texture", PAYLOAD_TEXTURE);
+            if (showAll || filterIdx == 4) DrawTypedList<Model>("Models", "Model", PAYLOAD_MODEL);
+
+            if (showAll || filterIdx == 5)
+            {
+                DrawTypedList<Skeleton>("Skeletons", "Skeleton", PAYLOAD_SKELETON);
+                DrawTypedList<AnimationClip>("Animation Clips", "Clip", PAYLOAD_CLIP);
+                DrawTypedList<AvatarMask>("Avatar Masks", "Mask", PAYLOAD_MASK);
+            }
+        }
         ImGui::EndChild();
 
         ImGui::SameLine();
@@ -284,139 +275,15 @@ void UIManager::DrawHierarchyWindow()
     ImGui::End();
 }
 
-void UIManager::DrawResourceList()
+void UIManager::UpdateSceneData()
 {
-    if (ImGui::InputText("Search", mSearchBuffer, sizeof(mSearchBuffer)))
+    if (mSelectedObject)
     {
-        mNeedFilterUpdate = true;
-    }
-
-    const char* types[] = { "All", "Mesh", "Material", "Texture", "Model", "ModelAvatar", "Skeleton", "AnimationClip", "AvatarMask" };
-    if (ImGui::Combo("Type", &mCurrentFilterType, types, IM_ARRAYSIZE(types)))
-    {
-        mNeedFilterUpdate = true;
-    }
-
-    ImGui::Separator();
-
-    for (UINT id : mFilteredResourceIds)
-    {
-        auto res = mResourceSystem->GetById<Game_Resource>(id);
-        if (!res) continue;
-
-        std::string label = res->GetAlias().empty() ? std::filesystem::path(res->GetPath()).filename().string() : res->GetAlias();
-        std::string itemId = label + "##" + std::to_string(id);
-
-        bool isSelected = (mSelectedResourceId == id);
-        if (ImGui::Selectable(itemId.c_str(), isSelected))
-        {
-            mSelectedResourceId = id;
-        }
-
-        if (ImGui::BeginDragDropSource())
-        {
-            ImGui::SetDragDropPayload("RESOURCE_ID", &id, sizeof(UINT));
-            ImGui::Text("%s", label.c_str());
-            ImGui::EndDragDropSource();
-        }
     }
 }
 
-void UIManager::DrawResourceDetails()
+void UIManager::UpdateShortcuts()
 {
-    if (mSelectedResourceId == (UINT)-1)
-    {
-        ImGui::Text("Select a resource to view details.");
-        return;
-    }
-
-    auto res = mResourceSystem->GetById<Game_Resource>(mSelectedResourceId);
-    if (!res) return;
-
-    ImGui::Text("Resource ID: %d", res->GetId());
-    ImGui::Text("GUID: %s", res->GetGUID().c_str());
-    ImGui::Text("Type: %s", GetResourceTypeString(res->Get_Type()));
-
-    ImGui::Separator();
-
-    static char aliasBuf[128];
-    static UINT lastId = (UINT)-1;
-    if (lastId != mSelectedResourceId)
-    {
-        strcpy_s(aliasBuf, res->GetAlias().c_str());
-        lastId = mSelectedResourceId;
-    }
-
-    if (ImGui::InputText("Alias", aliasBuf, sizeof(aliasBuf), ImGuiInputTextFlags_EnterReturnsTrue))
-    {
-        res->SetAlias(std::string(aliasBuf));
-    }
-
-    ImGui::TextWrapped("Path: %s", res->GetPath().c_str());
-
-    if (res->Get_Type() == ResourceType::Texture)
-    {
-        auto tex = std::dynamic_pointer_cast<Texture>(res);
-        if (tex)
-        {
-            ImGui::Separator();
-            ImGui::Text("Preview:");
-
-            UINT srvSlot = tex->GetSlot();
-            if (srvSlot != (UINT)-1)
-            {
-                D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = mHeapManager->GetGpuHandle(srvSlot);
-                ImGui::Image((ImTextureID)gpuHandle.ptr, ImVec2(128, 128));
-            }
-            else
-            {
-                ImGui::TextDisabled("No SRV Handle");
-            }
-        }
-    }
-}
-
-void UIManager::FilterResources()
-{
-    mFilteredResourceIds.clear();
-    const auto& resources = mResourceSystem->GetResourceMap();
-
-    std::string search = mSearchBuffer;
-
-    for (const auto& [id, entry] : resources)
-    {
-        if (mCurrentFilterType > 0)
-        {
-            if ((int)entry.resource->Get_Type() != (mCurrentFilterType - 1))
-                continue;
-        }
-
-        if (!search.empty())
-        {
-            bool matchAlias = entry.alias.find(search) != std::string::npos;
-            bool matchPath = entry.path.find(search) != std::string::npos;
-            if (!matchAlias && !matchPath)
-                continue;
-        }
-
-        mFilteredResourceIds.push_back(id);
-    }
-}
-
-const char* UIManager::GetResourceTypeString(ResourceType type)
-{
-    switch (type)
-    {
-    case ResourceType::Mesh: return "Mesh";
-    case ResourceType::Material: return "Material";
-    case ResourceType::Texture: return "Texture";
-    case ResourceType::Model: return "Model";
-    case ResourceType::ModelAvatar: return "ModelAvatar";
-    case ResourceType::Skeleton: return "Skeleton";
-    case ResourceType::AnimationClip: return "AnimationClip";
-    case ResourceType::AvatarMask: return "AvatarMask";
-    default: return "Unknown";
-    }
 }
 
 void UIManager::DrawSceneNode(Object* obj)
@@ -864,5 +731,362 @@ void UIManager::DrawRigidbodyInspector(Component* comp)
 
         if (ImGui::DragFloat("Mass", &mass, 0.1f, 0.0f, 1000.0f)) rb->SetMass(mass);
         if (ImGui::Checkbox("Use Gravity", &useGravity)) rb->SetUseGravity(useGravity);
+    }
+}
+
+void UIManager::UpdateResourceWindow()
+{
+    if (mNeedFilterUpdate)
+    {
+        FilterResources();
+        mNeedFilterUpdate = false;
+    }
+}
+
+void UIManager::DrawResourceList()
+{
+    if (ImGui::InputText("Search", mSearchBuffer, sizeof(mSearchBuffer)))
+    {
+        mNeedFilterUpdate = true;
+    }
+
+    const char* types[] = { "All", "Mesh", "Material", "Texture", "Model", "ModelAvatar", "Skeleton", "AnimationClip", "AvatarMask" };
+    if (ImGui::Combo("Type", &mCurrentFilterType, types, IM_ARRAYSIZE(types)))
+    {
+        mNeedFilterUpdate = true;
+    }
+
+    ImGui::Separator();
+
+    for (UINT id : mFilteredResourceIds)
+    {
+        auto res = mResourceSystem->GetById<Game_Resource>(id);
+        if (!res) continue;
+
+        std::string label = res->GetAlias().empty() ? std::filesystem::path(res->GetPath()).filename().string() : res->GetAlias();
+        std::string itemId = label + "##" + std::to_string(id);
+
+        bool isSelected = (mSelectedResourceId == id);
+        if (ImGui::Selectable(itemId.c_str(), isSelected))
+        {
+            mSelectedResourceId = id;
+        }
+
+        if (ImGui::BeginDragDropSource())
+        {
+            ImGui::SetDragDropPayload("RESOURCE_ID", &id, sizeof(UINT));
+            ImGui::Text("%s", label.c_str());
+            ImGui::EndDragDropSource();
+        }
+    }
+}
+
+void UIManager::DrawResourceDetails()
+{
+    if (g_SelectedResID == Engine::INVALID_ID)
+    {
+        ImGui::TextDisabled("Select a resource to view details.");
+        return;
+    }
+
+    auto res = GameEngine::Get().GetResourceSystem()->GetById<Game_Resource>(g_SelectedResID);
+    if (!res)
+    {
+        ImGui::TextColored(ImVec4(1, 0, 0, 1), "Resource Not Found (ID: %d)", g_SelectedResID);
+        return;
+    }
+
+    ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "[ %s ]", res->GetAlias().c_str());
+    ImGui::Text("ID: %d", res->GetId());
+    ImGui::TextWrapped("Path: %s", res->GetPath().c_str());
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    switch (res->Get_Type())
+    {
+    case ResourceType::Mesh:          DrawDetailInfo(static_cast<Mesh*>(res.get())); break;
+    case ResourceType::Material:      DrawDetailInfo(static_cast<Material*>(res.get())); break;
+    case ResourceType::Texture:       DrawDetailInfo(static_cast<Texture*>(res.get())); break;
+    case ResourceType::Model:         DrawDetailInfo(static_cast<Model*>(res.get())); break;
+    case ResourceType::ModelAvatar:   DrawDetailInfo(static_cast<Model_Avatar*>(res.get())); break;
+    case ResourceType::Skeleton:      DrawDetailInfo(static_cast<Skeleton*>(res.get())); break;
+    case ResourceType::AnimationClip: DrawDetailInfo(static_cast<AnimationClip*>(res.get())); break;
+    case ResourceType::AvatarMask:    DrawDetailInfo(static_cast<AvatarMask*>(res.get())); break;
+    default: ImGui::Text("Unknown Type Details"); break;
+    }
+}
+
+void UIManager::FilterResources()
+{
+    mFilteredResourceIds.clear();
+    const auto& resources = mResourceSystem->GetResourceMap();
+
+    std::string search = mSearchBuffer;
+
+    for (const auto& [id, entry] : resources)
+    {
+        if (mCurrentFilterType > 0)
+        {
+            if ((int)entry.resource->Get_Type() != (mCurrentFilterType - 1))
+                continue;
+        }
+
+        if (!search.empty())
+        {
+            bool matchAlias = entry.alias.find(search) != std::string::npos;
+            bool matchPath = entry.path.find(search) != std::string::npos;
+            if (!matchAlias && !matchPath)
+                continue;
+        }
+
+        mFilteredResourceIds.push_back(id);
+    }
+}
+
+const char* UIManager::GetResourceTypeString(ResourceType type)
+{
+    switch (type)
+    {
+    case ResourceType::Mesh: return "Mesh";
+    case ResourceType::Material: return "Material";
+    case ResourceType::Texture: return "Texture";
+    case ResourceType::Model: return "Model";
+    case ResourceType::ModelAvatar: return "ModelAvatar";
+    case ResourceType::Skeleton: return "Skeleton";
+    case ResourceType::AnimationClip: return "AnimationClip";
+    case ResourceType::AvatarMask: return "AvatarMask";
+    default: return "Unknown";
+    }
+}
+
+void UIManager::DrawSimpleTooltip(Game_Resource* res)
+{
+    ImGui::Text("Name: %s", res->GetAlias().c_str());
+    ImGui::TextDisabled("Path: %s", res->GetPath().c_str());
+}
+
+void UIManager::DrawDetailInfo(Mesh* mesh)
+{
+    ImGui::Text("Vertex Count: %d", mesh->GetVertexCount());
+    ImGui::Text("SubMesh Count: %d", mesh->GetSubMeshCount());
+    ImGui::Text("Index Count:  %d", mesh->GetIndexCount());
+
+    SkinnedMesh* skinnedMesh = dynamic_cast<SkinnedMesh*>(mesh);
+    if (skinnedMesh) ImGui::BulletText("Skinned Mesh (Has Bones)");
+}
+
+void UIManager::DrawDetailInfo(Material* mat)
+{
+    ImGui::ColorEdit3("Albedo Color", &mat->albedoColor.x);
+    ImGui::SliderFloat("Roughness", &mat->roughness, 0.0f, 1.0f);
+    ImGui::SliderFloat("Metallic", &mat->metallic, 0.0f, 1.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Texture Maps");
+
+    ResourceSystem* resSystem = GameEngine::Get().GetResourceSystem();
+    RendererContext rendererContext = GameEngine::Get().Get_RenderContext();
+
+    auto DrawTextureSlot = [&](const char* label, UINT texId)
+        {
+            ImGui::Text("%-12s:", label);
+            ImGui::SameLine();
+
+            if (texId == Engine::INVALID_ID)
+            {
+                ImGui::TextDisabled("None");
+                return;
+            }
+
+            auto tex = resSystem->GetById<Texture>(texId);
+            if (!tex)
+            {
+                ImGui::TextColored(ImVec4(1, 0, 0, 1), "Missing (ID: %d)", texId);
+                return;
+            }
+
+            ImGui::Text("%s (ID: %d)", tex->GetAlias().c_str(), texId);
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::BeginTooltip();
+                ImGui::Text("Preview");
+
+                UINT slot = tex->GetSlot();
+                D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = rendererContext.resourceHeap->GetGpuHandle(slot);
+
+                ImGui::Image((ImTextureID)gpuHandle.ptr, ImVec2(128, 128));
+
+                ImGui::EndTooltip();
+            }
+        };
+
+    DrawTextureSlot("Diffuse", mat->diffuseTexId);
+    DrawTextureSlot("Normal", mat->normalTexId);
+    DrawTextureSlot("Roughness", mat->roughnessTexId);
+    DrawTextureSlot("Metallic", mat->metallicTexId);
+}
+
+void UIManager::DrawDetailInfo(Texture* tex)
+{
+    ImGui::Text("Resolution: %d x %d", tex->GetWidth(), tex->GetHeight());
+
+    RendererContext rendererContext = GameEngine::Get().Get_RenderContext();
+
+    UINT slot = tex->GetSlot();
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = rendererContext.resourceHeap->GetGpuHandle(slot);
+
+    ImGui::Spacing();
+    ImGui::Text("Preview:");
+
+    ImGui::Image((ImTextureID)gpuHandle.ptr, ImVec2(200, 200));
+}
+
+void UIManager::DrawDetailInfo(Model* model)
+{
+    ImGui::Text("Mesh Count:     %d", model->GetMeshCount());
+    ImGui::Text("Material Count: %d", model->GetMaterialCount());
+    ImGui::Text("Texture Count:  %d", model->GetTextureCount());
+}
+
+void UIManager::DrawDetailInfo(Model_Avatar* avatar)
+{
+    ImGui::Text("Bone Map Size: %d", (int)avatar->GetBoneMap().size());
+
+    const char* typeLabel = "Unknown";
+    switch (avatar->GetDefinitionType())
+    {
+    case DefinitionType::None:     typeLabel = "None"; break;
+    case DefinitionType::Humanoid: typeLabel = "Humanoid"; break;
+    case DefinitionType::Animal:   typeLabel = "Animal"; break;
+    }
+
+    ImGui::Text("Definition Type: ");
+    ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.5f, 1.0f, 0.5f, 1.0f), "%s", typeLabel);
+}
+
+void UIManager::DrawDetailInfo(Skeleton* skeleton)
+{
+    ImGui::Text("Bone Count: %d", skeleton->GetBoneCount());
+
+    const auto& names = skeleton->GetBoneNames();
+
+    if (ImGui::CollapsingHeader("Bone Names", ImGuiTreeNodeFlags_None))
+    {
+        ImGui::BeginChild("BoneList", ImVec2(0, 200), true);
+        for (size_t i = 0; i < names.size(); ++i)
+        {
+            ImGui::Text("[%03d] %s", (int)i, names[i].c_str());
+        }
+        ImGui::EndChild();
+    }
+}
+
+void UIManager::DrawDetailInfo(AnimationClip* clip)
+{
+    ImGui::Text("Duration:  %.2f sec", clip->GetDuration());
+    ImGui::Text("FrameRate: %.2f FPS", clip->GetTicksPerSecond());
+    ImGui::Text("Total Keyframes: %d", clip->GetTotalKeyframes());
+}
+
+void UIManager::DrawDetailInfo(AvatarMask* mask)
+{
+    const auto& weightMap = mask->GetMetaMap();
+    ImGui::Text("Masked Bones Count: %d", (int)weightMap.size());
+
+    if (weightMap.empty()) return;
+
+    ImGui::Separator();
+
+    if (ImGui::CollapsingHeader("Bone Weights", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        std::vector<std::pair<std::string, float>> sortedList(weightMap.begin(), weightMap.end());
+        std::sort(sortedList.begin(), sortedList.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        ImGui::BeginChild("WeightScrollRegion", ImVec2(0, 250), true);
+
+        for (const auto& item : sortedList)
+        {
+            const std::string& name = item.first;
+            float weight = item.second;
+
+            ImGui::Text("%s", name.c_str());
+            ImGui::SameLine(200);
+
+            ImVec4 color = ImVec4(1.f, 1.f, 1.f, 1.f);
+            const char* stateText = "";
+
+            if (weight >= 0.99f)
+            {
+                color = ImVec4(0.2f, 1.0f, 0.2f, 1.0f);
+                stateText = "(Include)";
+            }
+            else if (weight <= 0.01f)
+            {
+                color = ImVec4(0.5f, 0.5f, 0.5f, 1.0f);
+                stateText = "(Exclude)";
+            }
+
+            ImGui::TextColored(color, "%.2f %s", weight, stateText);
+        }
+
+        ImGui::EndChild();
+    }
+}
+
+template<typename T>
+void UIManager::DrawTypedList(const char* categoryLabel, const char* typeName, const char* payloadType)
+{
+    ResourceSystem* resourceSystem = GameEngine::Get().GetResourceSystem();
+    auto resources = resourceSystem->GetAllResources<T>();
+
+    if (resources.empty()) return;
+
+    if (ImGui::TreeNodeEx(categoryLabel, ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        for (auto& res : resources)
+        {
+            ImGui::PushID(res->GetId());
+
+            bool isSelected = (g_SelectedResID == res->GetId());
+            if (ImGui::Selectable(res->GetAlias().c_str(), isSelected))
+            {
+                g_SelectedResID = res->GetId();
+            }
+
+            if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceAllowNullID))
+            {
+                UINT id = res->GetId();
+                ImGui::SetDragDropPayload(payloadType, &id, sizeof(UINT));
+
+                ImGui::Text("%s: %s", typeName, res->GetAlias().c_str());
+
+                if constexpr (std::is_same_v<T, Texture>)
+                {
+                    ImGui::SameLine();
+
+                    UINT slot = res->GetSlot();
+                    if (mHeapManager)
+                    {
+                        D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = mHeapManager->GetGpuHandle(slot);
+                        ImGui::Image((ImTextureID)gpuHandle.ptr, ImVec2(32, 32));
+                    }
+                }
+
+                ImGui::EndDragDropSource();
+            }
+
+            if (ImGui::IsItemHovered())
+            {
+                ImGui::BeginTooltip();
+                DrawSimpleTooltip(res.get());
+                ImGui::EndTooltip();
+            }
+
+            ImGui::PopID();
+        }
+        ImGui::TreePop();
     }
 }

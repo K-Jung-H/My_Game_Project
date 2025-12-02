@@ -46,16 +46,10 @@ Entity-Component-System (ECS) 아키텍처 기반.
 현재 개발 단계 진행 상황.
 ### 1. ResourceSystem GUI 구현
 * ResourceSystem 에서 관리하는 리소스들의 컨트롤러 역할
-	- 속성 정보 확인 // 리소스 타입에 따른 디테일 추가하기
-	- 씬 뷰와 상호작용
+	- 속성 정보 확인 // 리소스 타입에 따른 디테일 추가하기 <- 구현 및 테스트 완료
+	- 씬 뷰와 상호작용 // 리스스 뷰에서 씬 뷰로 드래그 & 드랍 및 변경 적용 <- 진행 예정
 	- 외부 파일 Import, Export
 
-### 2. 기존 GameScreen Gui 연동
-	- SceneView, GameView 분리 및 Gui 연동
-		- 사용하는 Screen Size 분리
-			- Game Screen Size
-			- Window Screen Size
-	 *완료*
 ---
 
 ## Getting Started

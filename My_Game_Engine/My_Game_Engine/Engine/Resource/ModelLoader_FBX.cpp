@@ -111,6 +111,17 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
 
                 if (!mat) continue;
                 matMap[fbxMat] = mat->GetId();
+
+                if (mat->diffuseTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->diffuseTexId);
+                if (mat->normalTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->normalTexId);
+                if (mat->roughnessTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->roughnessTexId);
+                if (mat->metallicTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->metallicTexId);
+
+
                 result.materialIds.push_back(mat->GetId());
             }
         }
@@ -212,6 +223,8 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
             {
                 skinned->Skinning_Skeleton_Bones(skeletonRes);
             }
+
+            result.meshIds.push_back(mesh->GetId());
         }
     }
 
@@ -267,6 +280,14 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     }
 
     MetaIO::SaveFbxMeta(meta);
+
+    if (model)
+    { 
+        model->SetMeshCount((UINT)result.meshIds.size());
+        model->SetMaterialCount((UINT)result.materialIds.size());
+        model->SetTextureCount((UINT)result.textureIds.size());
+    }
+
     fbxManager->Destroy();
     return true;
 }

@@ -101,6 +101,16 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             if (mat)
             {
                 materialIDs.push_back(mat->GetId());
+
+                if (mat->diffuseTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->diffuseTexId);
+                if (mat->normalTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->normalTexId);
+                if (mat->roughnessTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->roughnessTexId);
+                if (mat->metallicTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->metallicTexId);
+
                 result.materialIds.push_back(mat->GetId());
             }
             else
@@ -168,10 +178,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         if (model)
         {
             model->SetRoot(rootNode);
-            for (const auto& mesh : loadedMeshes)
-            {
-                model->AddMesh(mesh);
-            }
         }
     }
 
@@ -217,6 +223,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             {
                 skinned->Skinning_Skeleton_Bones(skeletonRes);
             }
+			result.meshIds.push_back(mesh->GetId());
         }
     }
 
@@ -233,6 +240,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = mesh->GetGUID();
         meta.sub_resources.push_back(s);
     }
+
     for (UINT matId : materialIDs)
     {
         auto mat = rs->GetById<Material>(matId);
@@ -243,6 +251,8 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = mat->GetGUID();
         meta.sub_resources.push_back(s);
     }
+
+
     for (auto& texId : result.textureIds)
     {
         auto tex = rs->GetById<Texture>(texId);
@@ -253,6 +263,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = tex->GetGUID();
         meta.sub_resources.push_back(s);
     }
+
     for (auto& clip : loadedClips)
     {
         SubResourceMeta s{};
@@ -263,6 +274,13 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
     }
 
     MetaIO::SaveFbxMeta(meta);
+
+    if (model)
+    {
+        model->SetMeshCount((UINT)result.meshIds.size());
+        model->SetMaterialCount((UINT)result.materialIds.size());
+        model->SetTextureCount((UINT)result.textureIds.size());
+    }
 
     return true;
 }
