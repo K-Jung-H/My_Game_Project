@@ -114,22 +114,22 @@ void ObjectManager::DestroyObject(UINT id)
     }
 }
 
-void ObjectManager::DestroyObjectRecursive(Object* pObject) 
+void ObjectManager::DestroyObjectRecursive(Object* pObject)
 {
     if (!pObject) return;
 
     auto childrenCopy = pObject->GetChildren();
-    for (Object* pChild : childrenCopy) 
+    for (Object* pChild : childrenCopy)
     {
         DestroyObjectRecursive(pChild);
     }
 
-    if (auto pParent = pObject->GetParent()) 
+    if (auto pParent = pObject->GetParent())
     {
-        auto children = pParent->m_pChildren;
+        auto& children = pParent->m_pChildren;
         children.erase(std::remove(children.begin(), children.end(), pObject), children.end());
     }
-    else 
+    else
     {
         m_pRootObjects.erase(std::remove(m_pRootObjects.begin(), m_pRootObjects.end(), pObject), m_pRootObjects.end());
     }

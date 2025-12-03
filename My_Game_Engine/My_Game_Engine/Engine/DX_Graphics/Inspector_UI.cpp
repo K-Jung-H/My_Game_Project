@@ -266,6 +266,22 @@ void UIManager::DrawHierarchyWindow()
             {
                 DrawSceneNode(root);
             }
+
+            if (ImGui::BeginPopupContextWindow(nullptr, ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+            {
+                if (ImGui::MenuItem("Create Empty Object"))
+                {
+                    Object* newObj = scene->GetObjectManager()->CreateObject("New Object");
+
+                    if (newObj)
+                    {
+                        GameEngine::Get().SelectObject(newObj);
+                    }
+                }
+                ImGui::EndPopup();
+            }
+
+
         }
         else
         {
@@ -305,6 +321,26 @@ void UIManager::DrawSceneNode(Object* obj)
         GameEngine::Get().SelectObject(obj);
     }
 
+    if (ImGui::BeginPopupContextItem())
+    {
+        if (ImGui::MenuItem("Create Child Object"))
+        {
+            auto scene = GameEngine::Get().GetActiveScene();
+            Object* newChild = scene->GetObjectManager()->CreateObject("New Child");
+            newChild->SetParent(obj);
+            GameEngine::Get().SelectObject(newChild);
+        }
+
+        if (ImGui::MenuItem("Delete Object"))
+        {
+            auto scene = GameEngine::Get().GetActiveScene();
+            scene->GetObjectManager()->DestroyObject(obj->GetId());
+            if (mSelectedObject == obj) GameEngine::Get().SelectObject(nullptr);
+        }
+
+        ImGui::EndPopup();
+    }
+
     if (opened && !(flags & ImGuiTreeNodeFlags_NoTreePushOnOpen))
     {
         for (auto& child : obj->GetChildren())
@@ -317,7 +353,13 @@ void UIManager::DrawSceneNode(Object* obj)
 
 void UIManager::DrawObjectNode(Object* obj)
 {
-    ImGui::Text("Name: %s", obj->GetName().c_str());
+    char nameBuffer[128];
+    strcpy_s(nameBuffer, obj->GetName().c_str());
+    if (ImGui::InputText("Name", nameBuffer, sizeof(nameBuffer)))
+    {
+        GameEngine::Get().GetActiveScene()->GetObjectManager()->SetObjectName(obj, nameBuffer);
+    }
+
     ImGui::Text("ID: %u", obj->GetId());
 
     ImGui::Separator();
@@ -365,6 +407,54 @@ void UIManager::DrawObjectNode(Object* obj)
                 DrawComponentInspector(comp.get());
             }
         }
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::Button("Add Component", ImVec2(-1, 0)))
+    {
+        ImGui::OpenPopup("AddComponentPopup");
+    }
+
+    if (ImGui::BeginPopup("AddComponentPopup"))
+    {
+        if (ImGui::MenuItem("Mesh Renderer"))
+        {
+            obj->AddComponent<MeshRendererComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::MenuItem("Skinned Mesh Renderer"))
+        {
+            obj->AddComponent<SkinnedMeshRendererComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::MenuItem("Light"))
+        {
+            obj->AddComponent<LightComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::MenuItem("Camera"))
+        {
+            obj->AddComponent<CameraComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::MenuItem("Rigidbody"))
+        {
+            obj->AddComponent<RigidbodyComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        if (ImGui::MenuItem("Animation Controller"))
+        {
+            obj->AddComponent<AnimationControllerComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
+        ImGui::EndPopup();
     }
 }
 
@@ -823,15 +913,130 @@ void UIManager::DrawCameraInspector(Component* comp)
 void UIManager::DrawLightInspector(Component* comp)
 {
     auto light = static_cast<LightComponent*>(comp);
-    if (ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        DirectX::XMFLOAT3 color = light->GetColor();
-        float intensity = light->GetIntensity();
-        float range = light->GetRange();
 
-        if (ImGui::ColorEdit3("Color", &color.x)) light->SetColor(color);
-        if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f)) light->SetIntensity(intensity);
-        if (ImGui::DragFloat("Range", &range, 0.1f, 0.0f, 10000.0f)) light->SetRange(range);
+    if (light && ImGui::CollapsingHeader("Light", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Indent();
+
+        Light_Type type = light->GetLightType();
+        const char* typeNames[] = { "Directional", "Point", "Spot" };
+        int currentType = static_cast<int>(type);
+
+        if (ImGui::Combo("Light Type", &currentType, typeNames, IM_ARRAYSIZE(typeNames)))
+            light->SetLightType(static_cast<Light_Type>(currentType));
+
+        ImGui::Separator();
+
+        DirectX::XMFLOAT3 color = light->GetColor();
+        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color)))
+            light->SetColor(color);
+
+        float intensity = light->GetIntensity();
+        if (ImGui::DragFloat("Intensity", &intensity, 0.1f, 0.0f, 1000.0f))
+            light->SetIntensity(intensity);
+
+        if (type == Light_Type::Directional || type == Light_Type::Spot)
+        {
+            DirectX::XMFLOAT3 direction = light->GetDirection();
+            if (ImGui::DragFloat3("Direction", reinterpret_cast<float*>(&direction), 0.01f, -1.0f, 1.0f))
+            {
+                if (direction.x == 0.0f && direction.y == 0.0f && direction.z == 0.0f)
+                    direction.y = -1.0f;
+                light->SetDirection(direction);
+            }
+        }
+
+        if (type == Light_Type::Point || type == Light_Type::Spot)
+        {
+            float range = light->GetRange();
+            if (ImGui::DragFloat("Range", &range, 0.1f, 0.1f, 10000.0f))
+                light->SetRange(range);
+        }
+
+        if (type == Light_Type::Spot)
+        {
+            float inner = DirectX::XMConvertToDegrees(light->GetInnerAngle());
+            if (ImGui::DragFloat("Inner Angle", &inner, 0.5f, 0.0f, 90.0f))
+                light->SetInnerAngle(DirectX::XMConvertToRadians(inner));
+
+            float outer = DirectX::XMConvertToDegrees(light->GetOuterAngle());
+            if (ImGui::DragFloat("Outer Angle", &outer, 0.5f, 0.0f, 180.0f))
+                light->SetOuterAngle(DirectX::XMConvertToRadians(outer));
+        }
+
+        ImGui::Spacing();
+
+        if (ImGui::TreeNodeEx("Shadow Settings", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            bool castShadow = light->CastsShadow();
+            if (ImGui::Checkbox("Cast Shadow", &castShadow))
+                light->SetCastShadow(castShadow);
+
+            if (castShadow)
+            {
+                ShadowMode shadowMode = light->GetShadowMode();
+                const char* modeNames[] = { "Dynamic", "Static" };
+                int currentModeInt = static_cast<int>(shadowMode);
+
+                if (ImGui::Combo("Shadow Mode", &currentModeInt, modeNames, IM_ARRAYSIZE(modeNames)))
+                {
+                    light->SetShadowMode(static_cast<ShadowMode>(currentModeInt));
+                }
+
+                if (static_cast<ShadowMode>(currentModeInt) == ShadowMode::Static)
+                {
+                    if (ImGui::Button("Bake New ShadowMap"))
+                    {
+                        light->ForceShadowMapUpdate();
+                    }
+                    ImGui::SameLine();
+                    ImGui::TextDisabled("(One-time manual bake)");
+                }
+
+                ImGui::Separator();
+
+                if (type == Light_Type::Directional)
+                {
+                    DirectionalShadowMode dirMode = light->GetDirectionalShadowMode();
+                    const char* dirModeNames[] = { "Default (StaticGlobal)", "CSM (Camera Dependent)" };
+                    int currentDirModeInt = static_cast<int>(dirMode);
+
+                    if (ImGui::Combo("Directional Mode", &currentDirModeInt, dirModeNames, IM_ARRAYSIZE(dirModeNames)))
+                    {
+                        light->SetDirectionalShadowMode(static_cast<DirectionalShadowMode>(currentDirModeInt));
+                    }
+
+                    if (static_cast<DirectionalShadowMode>(currentDirModeInt) == DirectionalShadowMode::Default)
+                    {
+                        float orthoSize = light->GetStaticOrthoSize();
+                        if (ImGui::DragFloat("Static Ortho Size", &orthoSize, 1.0f, 1.0f, 10000.0f))
+                        {
+                            light->SetStaticOrthoSize(orthoSize);
+                        }
+                    }
+
+                    ImGui::Separator();
+
+                    float lambda = light->GetCascadeLambda();
+                    if (ImGui::SliderFloat("Cascade Lambda", &lambda, 0.0f, 1.0f, "%.2f"))
+                        light->SetCascadeLambda(lambda);
+
+                    ImGui::TextDisabled("0.0 = Uniform, 1.0 = Logarithmic");
+                    ImGui::Separator();
+                }
+
+                float shadowNear = light->GetShadowMapNear();
+                if (ImGui::DragFloat("Shadow Near", &shadowNear, 0.1f, 0.01f, light->GetShadowMapFar() - 1.0f))
+                    light->SetShadowMapNear(shadowNear);
+
+                float shadowFar = light->GetShadowMapFar();
+                if (ImGui::DragFloat("Shadow Far", &shadowFar, 1.0f, light->GetShadowMapNear() + 1.0f, 20000.0f))
+                    light->SetShadowMapFar(shadowFar);
+            }
+            ImGui::TreePop();
+        }
+
+        ImGui::Unindent();
     }
 }
 
