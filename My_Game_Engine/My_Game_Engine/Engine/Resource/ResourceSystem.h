@@ -54,6 +54,13 @@ public:
     template<typename T> std::vector<std::shared_ptr<T>> GetAllResources();
     template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
 
+    const std::vector<std::shared_ptr<Mesh>>& GetMeshes() const { return mMeshes; }
+    const std::vector<std::shared_ptr<Material>>& GetMaterials() const { return mMaterials; }
+    const std::vector<std::shared_ptr<Texture>>& GetTextures() const { return mTextures; }
+    const std::vector<std::shared_ptr<Model>>& GetModels() const { return mModels; }
+    const std::vector<std::shared_ptr<Skeleton>>& GetSkeletons() const { return mSkeletons; }
+    const std::vector<std::shared_ptr<Model_Avatar>>& GetAvatars() const { return mAvatars; }
+    const std::vector<std::shared_ptr<AnimationClip>>& GetAnimationClips() const { return mAnimationClips; }
     const std::vector<std::shared_ptr<class AvatarMask>>& GetAvatarMasks() const { return mAvatarMasks; }
 
     const std::unordered_map<UINT, ResourceEntry>& GetResourceMap() const { return mResources; }

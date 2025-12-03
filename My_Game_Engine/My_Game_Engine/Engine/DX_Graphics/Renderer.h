@@ -192,6 +192,7 @@ public:
     // --- Core Lifecycle ---
     bool Initialize(HWND m_hWnd, UINT width, UINT height);
     void Cleanup();
+    void FlushCommandQueue();
 
     // --- Resizing ---
     bool ResizeSwapChain(UINT newWidth, UINT newHeight); // OS Window Resizing
@@ -268,6 +269,7 @@ private:
     void TransitionBackBufferToPresent();
     void PresentFrame();
     void WaitForFrame(UINT64 fenceValue);
+
     FrameResource& GetCurrentFrameResource();
 
     void ClearGBuffer();

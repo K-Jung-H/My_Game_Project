@@ -119,6 +119,10 @@ private:
     template<typename T>
     void DrawTypedList(const char* categoryLabel, const char* typeName, const char* payloadType);
 
+	// Template Resource Picker UI
+    template<typename T>
+    bool DrawResourcePickUI(const char* label, T* currentRes, const std::vector<std::shared_ptr<T>>& resources, const char* payloadType, std::function<void(T*)> onSelect);
+
 private:
     // Systems
     DescriptorManager* mHeapManager = nullptr;

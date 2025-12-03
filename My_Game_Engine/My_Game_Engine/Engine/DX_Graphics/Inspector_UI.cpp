@@ -372,13 +372,13 @@ void UIManager::DrawComponentInspector(Component* comp)
 {
     if (!comp) return;
 
-    if (auto mr = dynamic_cast<MeshRendererComponent*>(comp))
-    {
-        DrawMeshRendererInspector(mr);
-    }
-    else if (auto smr = dynamic_cast<SkinnedMeshRendererComponent*>(comp))
+    if (auto smr = dynamic_cast<SkinnedMeshRendererComponent*>(comp))
     {
         DrawSkinnedMeshRendererInspector(smr);
+    }
+    else if (auto mr = dynamic_cast<MeshRendererComponent*>(comp))
+    {
+        DrawMeshRendererInspector(mr);
     }
     else if (auto ac = dynamic_cast<AnimationControllerComponent*>(comp))
     {
@@ -408,27 +408,83 @@ void UIManager::DrawComponentInspector(Component* comp)
 void UIManager::DrawMeshRendererInspector(Component* comp)
 {
     auto mr = static_cast<MeshRendererComponent*>(comp);
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
     if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        auto mesh = mr->GetMesh();
-        if (mesh)
+        ImGui::Spacing();
+
+
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Mesh Source");
+        Mesh* currentMesh = mr->GetMesh().get();
+
+        const auto& meshList = rs->GetMeshes();
+
+        DrawResourcePickUI<Mesh>(
+            "##MeshSelect",
+            currentMesh,
+            meshList,
+            PAYLOAD_MESH,
+            [mr](Mesh* newMesh) {
+                if (newMesh) mr->SetMesh(newMesh->GetId());
+                else mr->SetMesh(Engine::INVALID_ID);
+            }
+        );
+
+        if (currentMesh)
         {
-            ImGui::Text("Mesh: %s (ID: %u)", mesh->GetAlias().c_str(), mesh->GetId());
+            ImGui::Separator();
+            ImGui::Text("Materials (SubMeshes: %d)", currentMesh->GetSubMeshCount());
+            ImGui::Spacing();
+
+            const auto& matList = rs->GetMaterials();
+            int subMeshCount = currentMesh->GetSubMeshCount();
+
+            for (int i = 0; i < subMeshCount; ++i)
+            {
+                ImGui::PushID(i);
+
+                char label[32];
+                sprintf_s(label, "Slot [%d]", i);
+                ImGui::Text("%s", label);
+                ImGui::SameLine();
+
+                UINT currentMatID = mr->GetMaterial(i);
+
+                if (currentMatID == Engine::INVALID_ID && i < currentMesh->submeshes.size())
+                {
+                    currentMatID = currentMesh->submeshes[i].materialId;
+                }
+
+                auto matRes = rs->GetById<Material>(currentMatID);
+                Material* currentMat = matRes.get();
+
+                DrawResourcePickUI<Material>(
+                    "##MatSelect",
+                    currentMat,
+                    matList,
+                    PAYLOAD_MATERIAL,
+                    [mr, i](Material* newMat) {
+                        if (newMat) mr->SetMaterial(i, newMat->GetId());
+                        else mr->SetMaterial(i, Engine::INVALID_ID);
+                    }
+                );
+
+                if (currentMat && ImGui::IsItemHovered())
+                {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Alias: %s", currentMat->GetAlias().c_str());
+                    ImGui::Text("ID: %d", currentMat->GetId());
+                    ImGui::ColorButton("Preview", ImVec4(currentMat->albedoColor.x, currentMat->albedoColor.y, currentMat->albedoColor.z, 1.0f));
+                    ImGui::EndTooltip();
+                }
+
+                ImGui::PopID();
+            }
         }
         else
         {
-            ImGui::Text("Mesh: None");
-        }
-
-        if (ImGui::BeginDragDropTarget())
-        {
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("RESOURCE_ID"))
-            {
-                UINT id = *(const UINT*)payload->Data;
-                auto res = mResourceSystem->GetById<Mesh>(id);
-                if (res) mr->SetMesh(id);
-            }
-            ImGui::EndDragDropTarget();
+            ImGui::TextDisabled("No Mesh Assigned");
         }
     }
 }
@@ -436,18 +492,76 @@ void UIManager::DrawMeshRendererInspector(Component* comp)
 void UIManager::DrawSkinnedMeshRendererInspector(Component* comp)
 {
     auto smr = static_cast<SkinnedMeshRendererComponent*>(comp);
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
     if (ImGui::CollapsingHeader("Skinned Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        auto mesh = smr->GetMesh();
-        if (mesh)
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Mesh Source");
+
+        Mesh* currentMesh = smr->GetMesh().get();
+
+        const auto& meshList = rs->GetMeshes();
+
+        DrawResourcePickUI<Mesh>(
+            "##MeshSelect",
+            currentMesh,
+            meshList,
+            PAYLOAD_MESH,
+            [smr](Mesh* newMesh) {
+                if (newMesh) smr->SetMesh(newMesh->GetId());
+                else smr->SetMesh(Engine::INVALID_ID);
+            }
+        );
+
+        if (currentMesh)
         {
-            ImGui::Text("Mesh: %s", mesh->GetAlias().c_str());
+            ImGui::Separator();
+            ImGui::Text("Materials");
+            ImGui::Spacing();
+
+            const auto& matList = rs->GetMaterials();
+            int subMeshCount = currentMesh->GetSubMeshCount();
+
+            for (int i = 0; i < subMeshCount; ++i)
+            {
+                ImGui::PushID(i);
+
+                char label[32];
+                sprintf_s(label, "Slot [%d]", i);
+                ImGui::Text("%s", label);
+                ImGui::SameLine();
+
+                UINT currentMatID = smr->GetMaterial(i);
+
+                if (currentMatID == Engine::INVALID_ID && i < currentMesh->submeshes.size())
+                {
+                    currentMatID = currentMesh->submeshes[i].materialId;
+                }
+
+                auto matRes = rs->GetById<Material>(currentMatID);
+                Material* currentMat = matRes.get();
+
+                DrawResourcePickUI<Material>(
+                    "##MatSelect",
+                    currentMat,
+                    matList,
+                    PAYLOAD_MATERIAL,
+                    [smr, i](Material* newMat) {
+                        if (newMat) smr->SetMaterial(i, newMat->GetId());
+                        else smr->SetMaterial(i, Engine::INVALID_ID);
+                    }
+                );
+
+                if (currentMat && ImGui::IsItemHovered())
+                {
+                    ImGui::BeginTooltip();
+                    ImGui::Text("Alias: %s", currentMat->GetAlias().c_str());
+                    ImGui::EndTooltip();
+                }
+
+                ImGui::PopID();
+            }
         }
-        else
-        {
-            ImGui::Text("Mesh: None");
-        }
-        ImGui::Text("Buffers Ready: %s", smr->HasValidBuffers() ? "Yes" : "No");
     }
 }
 
@@ -1089,4 +1203,63 @@ void UIManager::DrawTypedList(const char* categoryLabel, const char* typeName, c
         }
         ImGui::TreePop();
     }
+}
+
+template<typename T>
+bool UIManager::DrawResourcePickUI(const char* label, T* currentRes, const std::vector<std::shared_ptr<T>>& resources, const char* payloadType, std::function<void(T*)> onSelect)
+{
+    bool changed = false;
+    ResourceSystem* resourceSystem = GameEngine::Get().GetResourceSystem();
+
+    std::string previewName = currentRes ? currentRes->GetAlias() : "None";
+    if (previewName.empty() && currentRes) previewName = currentRes->GetPath();
+
+    if (ImGui::BeginCombo(label, previewName.c_str()))
+    {
+        {
+            bool isSelected = (currentRes == nullptr);
+            if (ImGui::Selectable("None", isSelected))
+            {
+                onSelect(nullptr);
+                changed = true;
+            }
+            if (isSelected) ImGui::SetItemDefaultFocus();
+        }
+
+        for (const auto& res : resources)
+        {
+            if (!res) continue;
+
+            bool isSelected = (currentRes == res.get());
+            std::string displayName = res->GetAlias();
+            if (displayName.empty()) displayName = "(No Alias)";
+
+            ImGui::PushID((int)res->GetId());
+            if (ImGui::Selectable(displayName.c_str(), isSelected))
+            {
+                onSelect(res.get());
+                changed = true;
+            }
+            if (isSelected) ImGui::SetItemDefaultFocus();
+            ImGui::PopID();
+        }
+        ImGui::EndCombo();
+    }
+
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(payloadType))
+        {
+            UINT id = *(const UINT*)payload->Data;
+            auto res = resourceSystem->GetById<T>(id);
+            if (res)
+            {
+                onSelect(res.get());
+                changed = true;
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    return changed;
 }

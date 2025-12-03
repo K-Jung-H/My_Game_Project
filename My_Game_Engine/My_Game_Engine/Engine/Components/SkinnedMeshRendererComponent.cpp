@@ -34,21 +34,44 @@ void SkinnedMeshRendererComponent::CacheAnimController()
 
 void SkinnedMeshRendererComponent::SetMesh(UINT id)
 {
-    MeshRendererComponent::SetMesh(id);
+    mDeferredMeshId = id;
+    mDeferredMeshUpdate = true;
+}
+
+void SkinnedMeshRendererComponent::Update()
+{
+    if (mDeferredMeshUpdate)
+    {
+        ApplyDeferredMeshChange();
+    }
+}
+
+void SkinnedMeshRendererComponent::ApplyDeferredMeshChange()
+{
+    GameEngine::Get().GetRenderer()->FlushCommandQueue();
+
+    MeshRendererComponent::SetMesh(mDeferredMeshId);
 
     if (auto mesh = GetMesh())
     {
         auto skinnedMesh = std::dynamic_pointer_cast<SkinnedMesh>(mesh);
         if (skinnedMesh)
         {
+            mHasSkinnedBuffer = false;
             CreatePreSkinnedOutputBuffers(skinnedMesh);
             mOriginalHotVBV = skinnedMesh->GetHotVBV();
         }
         else
+        {
             mHasSkinnedBuffer = false;
+        }
     }
     else
+    {
         mHasSkinnedBuffer = false;
+    }
+
+    mDeferredMeshUpdate = false;
 }
 
 void SkinnedMeshRendererComponent::CreatePreSkinnedOutputBuffers(std::shared_ptr<SkinnedMesh> skinnedMesh)

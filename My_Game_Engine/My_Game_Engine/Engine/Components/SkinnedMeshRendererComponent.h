@@ -21,8 +21,8 @@ public:
     Component_Type GetType() const override { return Type; }
 
     void Initialize();
-    virtual void SetMesh(UINT id);
-
+    virtual void SetMesh(UINT id) override;
+    virtual void Update() override;
 
     FrameSkinBuffer& GetFrameSkinBuffer(UINT frameIndex) { return mFrameSkinnedBuffers[frameIndex]; }
 
@@ -35,6 +35,8 @@ private:
     void CacheAnimController();
     void CreatePreSkinnedOutputBuffers(std::shared_ptr<SkinnedMesh> skinnedMesh);
 
+    void ApplyDeferredMeshChange();
+
 private:
     std::shared_ptr<AnimationControllerComponent> mCachedAnimController;
 
@@ -42,4 +44,7 @@ private:
     bool mHasSkinnedBuffer = false;
 
     D3D12_VERTEX_BUFFER_VIEW mOriginalHotVBV;
+
+    bool mDeferredMeshUpdate = false;
+    UINT mDeferredMeshId = Engine::INVALID_ID;
 };

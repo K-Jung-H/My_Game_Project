@@ -233,12 +233,18 @@ void Scene::Update_Scene(float dt)
 		if (animController)
 			animController->Update(dt);
 	}
+
+	for (const auto& rd : renderData_list)
+	{
+		if (auto mr = rd.meshRenderer.lock())
+		{
+			mr->Update();
+		}
+	}
 }
 
 void Scene::Update_Late()
 {
-
-
 	for (auto camera_ptr : camera_list)
 	{
 		if (auto cp = camera_ptr.lock())

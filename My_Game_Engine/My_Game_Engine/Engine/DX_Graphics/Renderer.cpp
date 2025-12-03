@@ -108,6 +108,14 @@ void DX12_Renderer::Cleanup()
     DestroyPerFrameBuffers();
 }
 
+void DX12_Renderer::FlushCommandQueue()
+{
+    for (UINT i = 0; i < FrameCount; ++i)
+    {
+        WaitForFrame(mFrameResources[i].FenceValue);
+    }
+}
+
 // =================================================================
 // DX12 Renderer - Resizing
 // =================================================================
