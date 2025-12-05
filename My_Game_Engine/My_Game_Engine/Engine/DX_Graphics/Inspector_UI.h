@@ -18,6 +18,7 @@ class Component;
 
 class Game_Resource;
 class Mesh;
+class SkinnedMesh;
 class Material;
 class Texture;
 class Model;
@@ -97,6 +98,7 @@ private:
     void FilterResources();
     const char* GetResourceTypeString(ResourceType type);
     void DrawSimpleTooltip(Game_Resource* res);
+    void OpenLoadResourceDialog();
 
     // Resource Detail Implementation (Overloads)
     void DrawDetailInfo(Mesh* mesh);

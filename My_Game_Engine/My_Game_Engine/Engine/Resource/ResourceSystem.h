@@ -55,6 +55,7 @@ public:
     template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
 
     const std::vector<std::shared_ptr<Mesh>>& GetMeshes() const { return mMeshes; }
+    const std::vector<std::shared_ptr<SkinnedMesh>>& GetSkinnedMeshes() const { return mSkinnedMeshes; }
     const std::vector<std::shared_ptr<Material>>& GetMaterials() const { return mMaterials; }
     const std::vector<std::shared_ptr<Texture>>& GetTextures() const { return mTextures; }
     const std::vector<std::shared_ptr<Model>>& GetModels() const { return mModels; }
@@ -84,6 +85,7 @@ private:
 
     // 타입별 캐시 (렌더링, 검색 가속)
     std::vector<std::shared_ptr<Mesh>>     mMeshes;
+    std::vector<std::shared_ptr<SkinnedMesh>>     mSkinnedMeshes;
     std::vector<std::shared_ptr<Material>> mMaterials;
     std::vector<std::shared_ptr<Texture>>  mTextures;
     std::vector<std::shared_ptr<Model>>    mModels;

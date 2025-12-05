@@ -15,6 +15,8 @@ public:
 	explicit ObjectManager(Scene* pOwnerScene) : m_pOwnerScene(pOwnerScene) {}
     ~ObjectManager();
 
+    void Update();
+
     Object* CreateObject(const std::string& name = "Object");
     Object* CreateObjectWithId(const std::string& name, UINT id);
     Object* CreateFromModel(const std::shared_ptr<Model>& model);
@@ -48,8 +50,10 @@ private:
     UINT m_NextID = 1;
 
     std::queue<UINT> m_FreeList;
+    std::vector<UINT> m_DeletionQueue;
     
     std::unordered_map<UINT, std::shared_ptr<Object>> m_ActiveObjects;
     std::unordered_map<std::string, Object*> m_NameToObjectMap;
     std::vector<Object*> m_pRootObjects;
+
 };

@@ -8,6 +8,22 @@ ObjectManager::~ObjectManager()
     Clear();
 }
 
+void ObjectManager::Update()
+{
+    if (m_DeletionQueue.empty()) 
+        return;
+
+    for (UINT id : m_DeletionQueue)
+    {
+        auto it = m_ActiveObjects.find(id);
+        if (it != m_ActiveObjects.end())
+        {
+            DestroyObjectRecursive(it->second.get());
+        }
+    }
+    m_DeletionQueue.clear();
+}
+
 Object* ObjectManager::CreateObjectInternal(const std::string& name, UINT desired_id)
 {
     UINT id = desired_id;
@@ -105,13 +121,11 @@ Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 
     return rootObject;
 }
+
 void ObjectManager::DestroyObject(UINT id) 
 {
-    auto it = m_ActiveObjects.find(id);
-    if (it != m_ActiveObjects.end()) 
-    {
-        DestroyObjectRecursive(it->second.get());
-    }
+    if (std::find(m_DeletionQueue.begin(), m_DeletionQueue.end(), id) == m_DeletionQueue.end())
+        m_DeletionQueue.push_back(id);
 }
 
 void ObjectManager::DestroyObjectRecursive(Object* pObject)

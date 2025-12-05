@@ -13,8 +13,8 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
 	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
 
-
-	CoInitialize(NULL);
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
+	//	CoInitialize(NULL);
 
 
 	mRenderer = std::make_unique<DX12_Renderer>();
@@ -333,6 +333,8 @@ INT_PTR CALLBACK FrameInputProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 	return (INT_PTR)FALSE;
 }
 
+// [GameEngine.cpp]
+
 std::string OpenFileDialog(const std::vector<std::pair<std::string, std::string>>& filters)
 {
 	std::string filterStr;
@@ -353,17 +355,20 @@ std::string OpenFileDialog(const std::vector<std::pair<std::string, std::string>
 	ofn.lpstrFilter = filterStr.c_str();
 	ofn.nFilterIndex = 1;
 
-	std::filesystem::path initDir = std::filesystem::absolute("Assets/Scenes");
+	std::filesystem::path initDir = std::filesystem::absolute("Assets");
 	std::string absDir = initDir.string();
 	ofn.lpstrInitialDir = absDir.c_str();
 
-	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR; 
 
+	std::string resultPath = "";
 	if (GetOpenFileNameA(&ofn))
-		return std::string(ofn.lpstrFile);
+	{
+		resultPath = std::string(ofn.lpstrFile);
+	}
 
 
-	return "";
+	return resultPath;
 }
 
 
@@ -387,7 +392,7 @@ std::string SaveFileDialog(const std::vector<std::pair<std::string, std::string>
 	ofn.lpstrFilter = filterStr.c_str();
 	ofn.nFilterIndex = 1;
 
-	std::filesystem::path initDir = std::filesystem::absolute("Assets/Scenes");
+	std::filesystem::path initDir = std::filesystem::absolute("Assets/");
 	std::string absDir = initDir.string();
 	ofn.lpstrInitialDir = absDir.c_str();
 

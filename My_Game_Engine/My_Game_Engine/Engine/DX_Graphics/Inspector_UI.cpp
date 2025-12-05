@@ -203,13 +203,33 @@ void UIManager::DrawResourceWindow()
 {
     if (ImGui::Begin("Resource Inspector"))
     {
+        {
+            float buttonSize = ImGui::GetFrameHeight();
+            float availWidth = ImGui::GetContentRegionAvail().x;
+
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + availWidth - buttonSize);
+
+            if (ImGui::Button("+", ImVec2(buttonSize, buttonSize)))
+            {
+                OpenLoadResourceDialog();
+            }
+        }
+
         static float listWidth = 300.0f;
 
         ImGui::BeginChild("ResourceList", ImVec2(listWidth, 0), true);
         {
             static int filterIdx = 0;
             const char* filters[] = { "All", "Mesh", "Material", "Texture", "Model", "Animation" };
-            ImGui::Combo("Filter", &filterIdx, filters, IM_ARRAYSIZE(filters));
+
+            ImGui::AlignTextToFramePadding();
+            ImGui::Text("Filter");
+            ImGui::SameLine();
+
+            float comboWidth = ImGui::GetContentRegionAvail().x;
+            ImGui::SetNextItemWidth(comboWidth);
+            ImGui::Combo("##Filter", &filterIdx, filters, IM_ARRAYSIZE(filters));
+
             ImGui::Separator();
 
             bool showAll = (filterIdx == 0);
@@ -502,12 +522,9 @@ void UIManager::DrawMeshRendererInspector(Component* comp)
 
     if (ImGui::CollapsingHeader("Mesh Renderer", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::Spacing();
-
-
         ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Mesh Source");
-        Mesh* currentMesh = mr->GetMesh().get();
 
+        Mesh* currentMesh = mr->GetMesh().get();
         const auto& meshList = rs->GetMeshes();
 
         DrawResourcePickUI<Mesh>(
@@ -520,6 +537,9 @@ void UIManager::DrawMeshRendererInspector(Component* comp)
                 else mr->SetMesh(Engine::INVALID_ID);
             }
         );
+
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(0.4f, 0.8f, 1.0f, 1.0f), "[Static]");
 
         if (currentMesh)
         {
@@ -540,7 +560,6 @@ void UIManager::DrawMeshRendererInspector(Component* comp)
                 ImGui::SameLine();
 
                 UINT currentMatID = mr->GetMaterial(i);
-
                 if (currentMatID == Engine::INVALID_ID && i < currentMesh->submeshes.size())
                 {
                     currentMatID = currentMesh->submeshes[i].materialId;
@@ -560,13 +579,82 @@ void UIManager::DrawMeshRendererInspector(Component* comp)
                     }
                 );
 
-                if (currentMat && ImGui::IsItemHovered())
+                if (currentMat)
                 {
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Alias: %s", currentMat->GetAlias().c_str());
-                    ImGui::Text("ID: %d", currentMat->GetId());
-                    ImGui::ColorButton("Preview", ImVec4(currentMat->albedoColor.x, currentMat->albedoColor.y, currentMat->albedoColor.z, 1.0f));
-                    ImGui::EndTooltip();
+                    ImGui::Indent(10.0f);
+                    ImGui::Spacing();
+
+                    ImGui::ColorEdit3("Albedo", &currentMat->albedoColor.x);
+                    ImGui::Spacing();
+
+                    auto DrawTextureSlot = [&](const char* mapName, UINT& texID, UINT& texSlot)
+                        {
+                            ImGui::PushID(mapName);
+
+                            ImGui::AlignTextToFramePadding();
+                            ImGui::Bullet();
+                            ImGui::Text("%-9s:", mapName);
+                            ImGui::SameLine();
+
+                            std::string displayStr = "None";
+                            bool hasTexture = (texID != Engine::INVALID_ID);
+
+                            if (hasTexture)
+                            {
+                                if (auto tex = rs->GetById<Texture>(texID))
+                                    displayStr = tex->GetAlias().empty() ? "Texture_" + std::to_string(texID) : tex->GetAlias();
+                                else
+                                    displayStr = "Missing (ID:" + std::to_string(texID) + ")";
+                            }
+
+                            if (!hasTexture) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+
+                            ImGui::Button(displayStr.c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 0));
+
+                            if (!hasTexture) ImGui::PopStyleColor();
+
+                            if (ImGui::BeginDragDropTarget())
+                            {
+                                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PAYLOAD_TEXTURE))
+                                {
+                                    UINT droppedID = *(const UINT*)payload->Data;
+                                    if (auto droppedTex = rs->GetById<Texture>(droppedID))
+                                    {
+                                        texID = droppedID;
+                                        texSlot = droppedTex->GetSlot();
+                                    }
+                                }
+                                ImGui::EndDragDropTarget();
+                            }
+
+                            if (ImGui::BeginPopupContextItem())
+                            {
+                                if (ImGui::MenuItem("Clear Texture"))
+                                {
+                                    texID = Engine::INVALID_ID;
+                                    texSlot = UINT_MAX;
+                                }
+                                ImGui::EndPopup();
+                            }
+
+                            if (hasTexture && ImGui::IsItemHovered())
+                            {
+                                ImGui::BeginTooltip();
+                                ImGui::Text("Asset: %s", displayStr.c_str());
+                                ImGui::TextDisabled("ID: %d | Slot: %d", texID, texSlot);
+                                ImGui::EndTooltip();
+                            }
+
+                            ImGui::PopID();
+                        };
+
+                    DrawTextureSlot("Diffuse", currentMat->diffuseTexId, currentMat->diffuseTexSlot);
+                    DrawTextureSlot("Normal", currentMat->normalTexId, currentMat->normalTexSlot);
+                    DrawTextureSlot("Roughness", currentMat->roughnessTexId, currentMat->roughnessTexSlot);
+                    DrawTextureSlot("Metallic", currentMat->metallicTexId, currentMat->metallicTexSlot);
+
+                    ImGui::Unindent(10.0f);
+                    ImGui::Spacing();
                 }
 
                 ImGui::PopID();
@@ -589,19 +677,22 @@ void UIManager::DrawSkinnedMeshRendererInspector(Component* comp)
         ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Mesh Source");
 
         Mesh* currentMesh = smr->GetMesh().get();
+        SkinnedMesh* currentSkinnedMesh = dynamic_cast<SkinnedMesh*>(currentMesh);
+        const auto& skinnedMeshList = rs->GetSkinnedMeshes();
 
-        const auto& meshList = rs->GetMeshes();
-
-        DrawResourcePickUI<Mesh>(
+        DrawResourcePickUI<SkinnedMesh>(
             "##MeshSelect",
-            currentMesh,
-            meshList,
+            currentSkinnedMesh,
+            skinnedMeshList,
             PAYLOAD_MESH,
-            [smr](Mesh* newMesh) {
+            [smr](SkinnedMesh* newMesh) {
                 if (newMesh) smr->SetMesh(newMesh->GetId());
                 else smr->SetMesh(Engine::INVALID_ID);
             }
         );
+
+        ImGui::SameLine();
+        ImGui::TextColored(ImVec4(1.0f, 0.5f, 1.0f, 1.0f), "[Skinned]");
 
         if (currentMesh)
         {
@@ -622,7 +713,6 @@ void UIManager::DrawSkinnedMeshRendererInspector(Component* comp)
                 ImGui::SameLine();
 
                 UINT currentMatID = smr->GetMaterial(i);
-
                 if (currentMatID == Engine::INVALID_ID && i < currentMesh->submeshes.size())
                 {
                     currentMatID = currentMesh->submeshes[i].materialId;
@@ -642,11 +732,82 @@ void UIManager::DrawSkinnedMeshRendererInspector(Component* comp)
                     }
                 );
 
-                if (currentMat && ImGui::IsItemHovered())
+                if (currentMat)
                 {
-                    ImGui::BeginTooltip();
-                    ImGui::Text("Alias: %s", currentMat->GetAlias().c_str());
-                    ImGui::EndTooltip();
+                    ImGui::Indent(10.0f);
+                    ImGui::Spacing();
+
+                    ImGui::ColorEdit3("Albedo", &currentMat->albedoColor.x);
+                    ImGui::Spacing();
+
+                    auto DrawTextureSlot = [&](const char* mapName, UINT& texID, UINT& texSlot)
+                        {
+                            ImGui::PushID(mapName);
+
+                            ImGui::AlignTextToFramePadding();
+                            ImGui::Bullet();
+                            ImGui::Text("%-9s:", mapName);
+                            ImGui::SameLine();
+
+                            std::string displayStr = "None";
+                            bool hasTexture = (texID != Engine::INVALID_ID);
+
+                            if (hasTexture)
+                            {
+                                if (auto tex = rs->GetById<Texture>(texID))
+                                    displayStr = tex->GetAlias().empty() ? "Texture_" + std::to_string(texID) : tex->GetAlias();
+                                else
+                                    displayStr = "Missing (ID:" + std::to_string(texID) + ")";
+                            }
+
+                            if (!hasTexture) ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.5f, 1.0f));
+
+                            ImGui::Button(displayStr.c_str(), ImVec2(ImGui::GetContentRegionAvail().x, 0));
+
+                            if (!hasTexture) ImGui::PopStyleColor();
+
+                            if (ImGui::BeginDragDropTarget())
+                            {
+                                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(PAYLOAD_TEXTURE))
+                                {
+                                    UINT droppedID = *(const UINT*)payload->Data;
+                                    if (auto droppedTex = rs->GetById<Texture>(droppedID))
+                                    {
+                                        texID = droppedID;
+                                        texSlot = droppedTex->GetSlot();
+                                    }
+                                }
+                                ImGui::EndDragDropTarget();
+                            }
+
+                            if (ImGui::BeginPopupContextItem())
+                            {
+                                if (ImGui::MenuItem("Clear Texture"))
+                                {
+                                    texID = Engine::INVALID_ID;
+                                    texSlot = UINT_MAX;
+                                }
+                                ImGui::EndPopup();
+                            }
+
+                            if (hasTexture && ImGui::IsItemHovered())
+                            {
+                                ImGui::BeginTooltip();
+                                ImGui::Text("Asset: %s", displayStr.c_str());
+                                ImGui::TextDisabled("ID: %d | Slot: %d", texID, texSlot);
+                                ImGui::EndTooltip();
+                            }
+
+                            ImGui::PopID();
+                        };
+
+                    DrawTextureSlot("Diffuse", currentMat->diffuseTexId, currentMat->diffuseTexSlot);
+                    DrawTextureSlot("Normal", currentMat->normalTexId, currentMat->normalTexSlot);
+                    DrawTextureSlot("Roughness", currentMat->roughnessTexId, currentMat->roughnessTexSlot);
+                    DrawTextureSlot("Metallic", currentMat->metallicTexId, currentMat->metallicTexSlot);
+
+                    ImGui::Unindent(10.0f);
+                    ImGui::Spacing();
                 }
 
                 ImGui::PopID();
@@ -1182,6 +1343,40 @@ void UIManager::DrawSimpleTooltip(Game_Resource* res)
 {
     ImGui::Text("Name: %s", res->GetAlias().c_str());
     ImGui::TextDisabled("Path: %s", res->GetPath().c_str());
+}
+
+void UIManager::OpenLoadResourceDialog()
+{
+    std::vector<std::pair<std::string, std::string>> fileFilters = {
+        {"All Supported (*.fbx;*.obj;*.png;*.jpg;*.json)", "*.fbx;*.obj;*.png;*.jpg;*.dds;*.tga;*.json"},
+        {"Models (*.fbx;*.obj)", "*.fbx;*.obj"},
+        {"Textures (*.png;*.jpg;*.dds)", "*.png;*.jpg;*.dds;*.tga"},
+        {"Materials (*.json)", "*.json"},
+        {"All Files", "*.*"}
+    };
+
+    std::string path = OpenFileDialog(fileFilters);
+
+    if (!path.empty())
+    {
+        std::string filename = std::filesystem::path(path).stem().string();
+
+        DX12_Renderer* renderer = GameEngine::Get().GetRenderer();
+        renderer->BeginUpload();
+
+        LoadResult result;
+        GameEngine::Get().GetResourceSystem()->Load(path, filename, result);
+
+
+        renderer->EndUpload();
+
+        if (result.modelId != Engine::INVALID_ID)
+            g_SelectedResID = result.modelId;
+        else if (!result.meshIds.empty())
+            g_SelectedResID = result.meshIds[0];
+        else if (!result.textureIds.empty())
+            g_SelectedResID = result.textureIds[0];
+    }
 }
 
 void UIManager::DrawDetailInfo(Mesh* mesh)

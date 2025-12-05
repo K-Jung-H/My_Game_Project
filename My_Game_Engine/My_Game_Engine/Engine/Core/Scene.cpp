@@ -56,7 +56,7 @@ void Scene::Build()
 	//--------------------------------------------------------------------------------
 	
 	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
-	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	const std::string path_1 = "Assets/CP_100_0012_02/CP_100_0012_02.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
 	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx";
 	const std::string animation_clip_path_1 = "Assets/Animation/Catwalk Walk.fbx";
@@ -226,6 +226,8 @@ void Scene::Update_Fixed(float dt)
 
 void Scene::Update_Scene(float dt)
 {
+	m_pObjectManager->Update();
+
 	m_pObjectManager->Update_Animate_All(dt);
 
 	for (auto animController : animation_controller_list)
@@ -259,7 +261,6 @@ void Scene::Update_Late()
 	}
 
 	m_pObjectManager->UpdateTransform_All();
-
 }
 
 void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
@@ -330,6 +331,13 @@ void Scene::UnregisterAllComponents(Object* pObject)
 		{
 			switch (type)
 			{
+			case Component_Type::AnimationController:
+			{
+				auto it = std::remove_if(animation_controller_list.begin(), animation_controller_list.end(),
+					[&](const std::shared_ptr<AnimationControllerComponent>& ac) {return ac == comp; });
+				animation_controller_list.erase(it, animation_controller_list.end());
+				break;
+			}
 			case Component_Type::Mesh_Renderer:
 			{
 				auto it = std::remove_if(renderData_list.begin(), renderData_list.end(),

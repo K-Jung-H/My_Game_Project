@@ -95,7 +95,21 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 
     switch (res->Get_Type())
     {
-    case ResourceType::Mesh:      mMeshes.push_back(std::dynamic_pointer_cast<Mesh>(res)); break;
+    case ResourceType::Mesh:
+    {
+        auto mesh = std::dynamic_pointer_cast<Mesh>(res);
+
+        if (mesh)
+        {
+            mMeshes.push_back(mesh);
+
+            auto skinnedmesh = std::dynamic_pointer_cast<SkinnedMesh>(res);
+
+            if (skinnedmesh)
+				mSkinnedMeshes.push_back(skinnedmesh);
+        }
+    }
+    break;
     case ResourceType::Material:  mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
     case ResourceType::Texture:   mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
     case ResourceType::Model:     mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
