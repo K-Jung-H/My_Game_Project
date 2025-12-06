@@ -10,6 +10,71 @@ AnimationControllerComponent::AnimationControllerComponent()
     mLayers.resize(1);
 }
 
+rapidjson::Value AnimationControllerComponent::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    rapidjson::Value v(rapidjson::kObjectType);
+
+    v.AddMember("type", "AnimationControllerComponent", alloc);
+    v.AddMember("IsPaused", mIsPaused, alloc);
+
+    std::string skelGUID = mModelSkeleton ? mModelSkeleton->GetGUID() : "";
+    v.AddMember("SkeletonGUID", rapidjson::Value(skelGUID.c_str(), alloc), alloc);
+
+    std::string avatarGUID = mModelAvatar ? mModelAvatar->GetGUID() : "";
+    v.AddMember("ModelAvatarGUID", rapidjson::Value(avatarGUID.c_str(), alloc), alloc);
+
+    rapidjson::Value layerArray(rapidjson::kArrayType);
+    for (const auto& layer : mLayers)
+    {
+        layerArray.PushBack(layer.ToJSON(alloc), alloc);
+    }
+    v.AddMember("Layers", layerArray, alloc);
+
+    return v;
+}
+
+void AnimationControllerComponent::FromJSON(const rapidjson::Value& val)
+{
+    auto resSystem = GameEngine::Get().GetResourceSystem();
+
+    if (val.HasMember("IsPaused")) mIsPaused = val["IsPaused"].GetBool();
+
+    if (val.HasMember("SkeletonGUID"))
+    {
+        std::string guid = val["SkeletonGUID"].GetString();
+        if (!guid.empty())
+        {
+            auto skel = resSystem->GetByGUID<Skeleton>(guid);
+            SetSkeleton(skel);
+        }
+    }
+
+    if (val.HasMember("ModelAvatarGUID"))
+    {
+        std::string guid = val["ModelAvatarGUID"].GetString();
+        if (!guid.empty())
+        {
+            auto avatar = resSystem->GetByGUID<Model_Avatar>(guid);
+            SetModelAvatar(avatar);
+        }
+    }
+
+    if (val.HasMember("Layers"))
+    {
+        const rapidjson::Value& layersVal = val["Layers"];
+        if (layersVal.IsArray())
+        {
+            mLayers.clear();
+            for (const auto& layerVal : layersVal.GetArray())
+            {
+                AnimationLayer layer;
+                layer.FromJSON(layerVal);
+                mLayers.push_back(layer);
+            }
+        }
+    }
+}
+
 void AnimationControllerComponent::CreateBoneMatrixBuffer()
 {
     if (!mModelSkeleton || mBoneMatrixBuffer) return;

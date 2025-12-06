@@ -9,6 +9,72 @@ SkinnedMeshRendererComponent::SkinnedMeshRendererComponent()
 {
 }
 
+rapidjson::Value SkinnedMeshRendererComponent::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    rapidjson::Value v(rapidjson::kObjectType);
+
+    v.AddMember("type", "SkinnedMeshRendererComponent", alloc);
+
+    auto mesh = GetMesh();
+    std::string meshGUID = mesh ? mesh->GetGUID() : "";
+    v.AddMember("MeshGUID", rapidjson::Value(meshGUID.c_str(), alloc), alloc);
+
+    if (mesh)
+    {
+        rapidjson::Value matArray(rapidjson::kArrayType);
+        UINT count = mesh->GetSubMeshCount();
+        for (UINT i = 0; i < count; ++i)
+        {
+            UINT matId = GetMaterial(i);
+            auto mat = GameEngine::Get().GetResourceSystem()->GetById<Material>(matId);
+            std::string matGUID = mat ? mat->GetGUID() : "";
+            matArray.PushBack(rapidjson::Value(matGUID.c_str(), alloc), alloc);
+        }
+        v.AddMember("Materials", matArray, alloc);
+    }
+
+    return v;
+}
+
+void SkinnedMeshRendererComponent::FromJSON(const rapidjson::Value& val)
+{
+    auto resSystem = GameEngine::Get().GetResourceSystem();
+
+    if (val.HasMember("MeshGUID"))
+    {
+        std::string guid = val["MeshGUID"].GetString();
+        if (!guid.empty())
+        {
+            auto mesh = resSystem->GetByGUID<Mesh>(guid);
+            if (mesh)
+            {
+                SetMesh(mesh->GetId());
+            }
+        }
+    }
+
+    if (val.HasMember("Materials"))
+    {
+        const auto& mats = val["Materials"];
+        if (mats.IsArray())
+        {
+            for (rapidjson::SizeType i = 0; i < mats.Size(); ++i)
+            {
+                std::string guid = mats[i].GetString();
+                if (!guid.empty())
+                {
+                    auto mat = resSystem->GetByGUID<Material>(guid);
+                    if (mat)
+                    {
+                        SetMaterial(i, mat->GetId());
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 void SkinnedMeshRendererComponent::Initialize()
 {
     CacheAnimController();

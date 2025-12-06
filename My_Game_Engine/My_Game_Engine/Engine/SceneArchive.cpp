@@ -27,14 +27,20 @@ std::shared_ptr<Scene> SceneArchive::Load(const std::string& file_name, SceneFil
 
 bool SceneArchive::SaveJSON(const std::shared_ptr<Scene>& scene, const std::string& file_name)
 {
-    using namespace rapidjson;
-
     Document doc;
     doc.SetObject();
     auto& alloc = doc.GetAllocator();
 
     doc.AddMember("scene_id", scene->GetId(), alloc);
     doc.AddMember("alias", Value(scene->GetAlias().c_str(), alloc), alloc);
+
+    if (auto activeCam = scene->GetActiveCamera())
+    {
+        if (auto owner = activeCam->GetOwner())
+        {
+            doc.AddMember("active_camera_id", owner->GetId(), alloc);
+        }
+    }
 
     Value objs(kArrayType);
     for (auto& pRootObj : scene->GetRootObjectList())
@@ -47,6 +53,12 @@ bool SceneArchive::SaveJSON(const std::shared_ptr<Scene>& scene, const std::stri
     StringBuffer buf;
     PrettyWriter<StringBuffer> writer(buf);
     doc.Accept(writer);
+
+    std::filesystem::path parentDir = std::filesystem::path(file_name).parent_path();
+    if (!parentDir.empty() && !std::filesystem::exists(parentDir))
+    {
+        std::filesystem::create_directories(parentDir);
+    }
 
     std::ofstream ofs(file_name, std::ios::trunc);
     if (!ofs.is_open())
@@ -86,8 +98,6 @@ Object* SceneArchive::LoadObjectRecursive(Scene* scene, const rapidjson::Value& 
 
 std::shared_ptr<Scene> SceneArchive::LoadJSON(const std::string& file_name)
 {
-    using namespace rapidjson;
-
     std::ifstream ifs(file_name);
     if (!ifs.is_open())
     {
@@ -114,6 +124,40 @@ std::shared_ptr<Scene> SceneArchive::LoadJSON(const std::string& file_name)
         for (auto& rootVal : doc["objects"].GetArray())
         {
             LoadObjectRecursive(scene.get(), rootVal);
+        }
+    }
+
+    if (doc.HasMember("active_camera_id"))
+    {
+        UINT activeCamObjID = doc["active_camera_id"].GetUint();
+
+        const auto& cameras = scene->GetCamera_list();
+        bool found = false;
+
+        for (const auto& weakCam : cameras)
+        {
+            if (auto cam = weakCam.lock())
+            {
+                if (auto owner = cam->GetOwner())
+                {
+                    if (owner->GetId() == activeCamObjID)
+                    {
+                        scene->SetActiveCamera(cam);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!found) OutputDebugStringA("[SceneArchive] Warning: Saved ActiveCamera not found.\n");
+    }
+    else
+    {
+        const auto& cameras = scene->GetCamera_list();
+        if (!cameras.empty())
+        {
+            scene->SetActiveCamera(cameras[0].lock());
         }
     }
 

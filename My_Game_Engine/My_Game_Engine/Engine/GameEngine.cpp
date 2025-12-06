@@ -275,10 +275,17 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 
 			if (!path.empty())
 			{
+				if (mRenderer) mRenderer->BeginUpload();
+
 				if (auto scene = SceneManager::Get().LoadScene(path))
 				{
 					SceneManager::Get().SetActiveScene(scene);
 					active_scene = scene;
+				}
+
+				if (mRenderer)
+				{
+					mRenderer->EndUpload();
 				}
 			}
 		}

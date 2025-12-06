@@ -1,16 +1,11 @@
 #include "Object.h"
 #include "GameEngine.h"
+#include "Managers/ComponentFactory.h"
 #include "Components/TransformComponent.h"
-#include "Components/CameraComponent.h"
 #include "Components/MeshRendererComponent.h"
-#include "Components/RigidbodyComponent.h"
-#include "Components/ColliderComponent.h"
-#include "Resource/Model.h"
-
 
 rapidjson::Value Object::ToJSON(rapidjson::Document::AllocatorType& alloc) const
 {
-    using namespace rapidjson;
     Value val(kObjectType);
 
     val.AddMember("id", object_ID, alloc);
@@ -51,11 +46,13 @@ void Object::FromJSON(const rapidjson::Value& val)
     {
         for (auto& compVal : val["components"].GetArray())
         {
-            std::string type = compVal["type"].GetString();
-            if (type == "CameraComponent") AddComponent<CameraComponent>()->FromJSON(compVal);
-            else if (type == "RigidbodyComponent") AddComponent<RigidbodyComponent>()->FromJSON(compVal);
-            else if (type == "MeshRendererComponent") AddComponent<MeshRendererComponent>()->FromJSON(compVal);
-            else if (type == "LightComponent") AddComponent<LightComponent>()->FromJSON(compVal);
+            if (!compVal.HasMember("type")) continue;
+            std::string typeStr = compVal["type"].GetString();
+
+            auto newComp = ComponentFactory::Instance().Create(typeStr, this);
+
+            if (newComp)
+                newComp->FromJSON(compVal);
         }
     }
 }

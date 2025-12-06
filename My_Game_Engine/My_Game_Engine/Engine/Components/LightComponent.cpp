@@ -171,7 +171,13 @@ void LightComponent::FromJSON(const rapidjson::Value& val)
     if (val.HasMember("OuterAngle"))          mOuterAngle = val["OuterAngle"].GetFloat();
     if (val.HasMember("VolumetricStrength"))  mVolumetricStrength = val["VolumetricStrength"].GetFloat();
     if (val.HasMember("CastsShadow"))         mCastsShadow = val["CastsShadow"].GetBool();
-    if (val.HasMember("LightMask"))           mLightMask = val["LightMask"].GetUint();
+    if (val.HasMember("LightMask"))
+    {
+        if (val["LightMask"].IsUint())
+            mLightMask = val["LightMask"].GetUint();
+        else if (val["LightMask"].IsInt())
+            mLightMask = static_cast<UINT>(val["LightMask"].GetInt());
+    }
 
     if (val.HasMember("ShadowMode"))
         mShadowMode = static_cast<ShadowMode>(val["ShadowMode"].GetUint());

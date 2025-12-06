@@ -14,11 +14,18 @@ struct FrameSkinBuffer
 class SkinnedMeshRendererComponent : public MeshRendererComponent
 {
 public:
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    virtual void FromJSON(const rapidjson::Value& val);
+
+public:
+    static constexpr Component_Type Type = Component_Type::Skinned_Mesh_Renderer;
+    Component_Type GetType() const override { return Type; }
+
+public:
     SkinnedMeshRendererComponent();
     virtual ~SkinnedMeshRendererComponent() = default;
 
-    static constexpr Component_Type Type = Component_Type::Skinned_Mesh_Renderer;
-    Component_Type GetType() const override { return Type; }
+
 
     void Initialize();
     virtual void SetMesh(UINT id) override;
