@@ -51,7 +51,21 @@ Entity-Component-System (ECS) 아키텍처 기반.
 		- 리스스 뷰에서 씬 뷰로 드래그 & 드랍 및 변경 적용 <- 구현 및 테스트 완료
 		- 오브젝트(+자식) 생성, 제거 기능 추가 <- 구현 및 테스트 완료
 		- 오브젝트 이름 변경 기능 추가 <- 구현 및 테스트 완료
-	- 외부 파일 Import, Export
+	- 외부 파일 Import <- 구현 및 테스트 완료
+
+
+### 2. Scene Save/Load 업데이트
+* 추가된 컴포넌트, 리소스들을 SceneData로 저장하는 기능 추가
+	- Scene Save 동작 <- 테스트 완료
+	- Scene Load 동작 <- 문제(1)
+
+문제(1)
+- Animation Controller Component Load 시, SkinnedMesh 가 변화하지 않고, Bind-Pose로 대기함
+	- AnimationController의 Skeleton 데이터 초기화 or SkinnedMesh Component 의 Skinning 버퍼 초기화 동작이 생략되어 있을 가능성 있음
+
+- 런타임에 Import 한 모델을 씬에 배치하고 Save 후, 프로그램 재실행 후 Scene Load 에서 Mesh 들이 연결 안되고, MeshComponent에는 None으로 선택되어 있음
+	- 런타임 시 import 한 meta 파일 및 guid 관리 방식 검토 필요
+
 
 ---
 
