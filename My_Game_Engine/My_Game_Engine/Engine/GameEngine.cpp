@@ -23,7 +23,9 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();
 
-	SceneManager::Get().CreateScene("wow");
+	auto default_scene = SceneManager::Get().CreateScene("wow");
+
+	SceneManager::Get().SetActiveScene(default_scene);
 
 	mRenderer->EndUpload();
 

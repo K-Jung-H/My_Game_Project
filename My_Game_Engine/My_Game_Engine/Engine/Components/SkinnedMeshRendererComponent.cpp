@@ -80,6 +80,11 @@ void SkinnedMeshRendererComponent::Initialize()
     CacheAnimController();
 }
 
+void SkinnedMeshRendererComponent::WakeUp()
+{
+    Initialize();
+}
+
 void SkinnedMeshRendererComponent::CacheAnimController()
 {
     Object* current = GetOwner();

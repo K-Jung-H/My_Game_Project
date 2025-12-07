@@ -4,6 +4,8 @@
 void SceneManager::SetActiveScene(const std::shared_ptr<Scene>& scene) 
 {
     mActiveScene = scene;
+	if(auto scene = mActiveScene.lock())
+        scene->WakeUp();
 }
 
 std::shared_ptr<Scene> SceneManager::GetActiveScene() const

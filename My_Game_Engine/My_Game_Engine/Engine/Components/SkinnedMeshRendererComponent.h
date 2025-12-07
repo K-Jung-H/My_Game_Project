@@ -25,9 +25,9 @@ public:
     SkinnedMeshRendererComponent();
     virtual ~SkinnedMeshRendererComponent() = default;
 
-
-
     void Initialize();
+    virtual void WakeUp();
+
     virtual void SetMesh(UINT id) override;
     virtual void Update() override;
 

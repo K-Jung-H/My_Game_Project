@@ -37,6 +37,8 @@ public:
     AnimationControllerComponent();
     virtual ~AnimationControllerComponent() = default;
 
+    virtual void WakeUp();
+
     void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
     std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 

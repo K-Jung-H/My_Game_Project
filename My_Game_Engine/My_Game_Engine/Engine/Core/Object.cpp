@@ -4,6 +4,92 @@
 #include "Components/TransformComponent.h"
 #include "Components/MeshRendererComponent.h"
 
+Object::Object(const std::string& name) : mName(name)
+{
+    transform = std::make_shared<TransformComponent>();
+    transform->SetOwner(this);
+    map_Components[TransformComponent::Type].push_back(transform);
+}
+
+Object::~Object()
+{
+
+}
+
+void Object::WakeUpRecursive()
+{
+    for (auto& [type, compVec] : map_Components)
+    {
+        for (auto& c : compVec)
+        {
+            if (c)
+                c->WakeUp();
+        }
+    }
+
+    for (auto& child : m_pChildren)
+    {
+        if (child)
+            child->WakeUpRecursive();
+    }
+}
+
+void Object::SetParent(Object* new_parent)
+{
+    if (m_pObjectManager)
+        m_pObjectManager->SetParent(this, new_parent);
+    else
+        throw std::logic_error("Object's ObjectManager is NULL");
+}
+
+void Object::SetChild(Object* new_child)
+{
+    if (m_pObjectManager)
+        m_pObjectManager->SetChild(this, new_child);
+    else
+        throw std::logic_error("Object's ObjectManager is NULL");
+}
+
+void Object::SetSibling(Object* new_sibling)
+{
+    if (m_pObjectManager)
+        m_pObjectManager->SetSibling(this, new_sibling);
+    else
+        throw std::logic_error("Object's ObjectManager is NULL");
+}
+
+void Object::Update_Animate(float dt)
+{
+}
+
+void Object::UpdateTransform_All()
+{
+    XMFLOAT4X4 identity;
+    XMStoreFloat4x4(&identity, XMMatrixIdentity());
+
+    Update_Transform(&identity, true);
+}
+
+void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty)
+{
+    const XMFLOAT4X4* worldForChildren = parentWorld;
+    bool myWorldDirty = parentWorldDirty;
+
+    auto transform = GetTransform();
+
+    if (transform)
+    {
+        myWorldDirty = transform->UpdateTransform(parentWorld, parentWorldDirty);
+        worldForChildren = &transform->GetWorldMatrix();
+    }
+
+    for (auto& child : m_pChildren)
+    {
+        if (!child) continue;
+        child->Update_Transform(worldForChildren, myWorldDirty);
+    }
+}
+
 rapidjson::Value Object::ToJSON(rapidjson::Document::AllocatorType& alloc) const
 {
     Value val(kObjectType);
@@ -26,7 +112,7 @@ rapidjson::Value Object::ToJSON(rapidjson::Document::AllocatorType& alloc) const
     for (auto& ch : m_pChildren)
     {
         if (ch)
-            childrenArr.PushBack(ch->ToJSON(alloc), alloc); 
+            childrenArr.PushBack(ch->ToJSON(alloc), alloc);
     }
 
     val.AddMember("children", childrenArr, alloc);
@@ -57,7 +143,6 @@ void Object::FromJSON(const rapidjson::Value& val)
     }
 }
 
-
 UINT Object::CountNodes(Object* root)
 {
     std::unordered_set<Object*> visited;
@@ -80,7 +165,6 @@ UINT Object::CountNodes(Object* root)
 
     return dfs(root);
 }
-
 
 void Object::DumpHierarchy(Object* root, const std::string& filename)
 {
@@ -126,73 +210,4 @@ void Object::DumpHierarchy(Object* root, const std::string& filename)
         };
 
     recurse(root, 0);
-}
-
-
-Object::Object(const std::string& name) : mName(name) 
-{
-    transform = std::make_shared<TransformComponent>();
-    transform->SetOwner(this);
-    map_Components[TransformComponent::Type].push_back(transform);
-}
-
-Object::~Object()
-{
-
-}
-
-void Object::SetParent(Object* new_parent)
-{
-    if (m_pObjectManager) 
-        m_pObjectManager->SetParent(this, new_parent);
-    else
-    	throw std::logic_error("Object's ObjectManager is NULL");
-}
-
-void Object::SetChild(Object* new_child) 
-{
-    if (m_pObjectManager) 
-        m_pObjectManager->SetChild(this, new_child); 
-    else
-        throw std::logic_error("Object's ObjectManager is NULL");
-}
-
-void Object::SetSibling(Object* new_sibling) 
-{
-    if (m_pObjectManager) 
-        m_pObjectManager->SetSibling(this, new_sibling);
-    else
-        throw std::logic_error("Object's ObjectManager is NULL");
-}
-
-void Object::Update_Animate(float dt)
-{
-}
-
-void Object::UpdateTransform_All()
-{
-    XMFLOAT4X4 identity;
-    XMStoreFloat4x4(&identity, XMMatrixIdentity());
-
-    Update_Transform(&identity, true);
-}
-
-void Object::Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty)
-{
-    const XMFLOAT4X4* worldForChildren = parentWorld;
-    bool myWorldDirty = parentWorldDirty;
-
-    auto transform = GetTransform();
-
-    if (transform) 
-    {
-        myWorldDirty = transform->UpdateTransform(parentWorld, parentWorldDirty);
-        worldForChildren = &transform->GetWorldMatrix();
-    }
-
-    for (auto& child : m_pChildren) 
-    {
-        if (!child) continue;
-        child->Update_Transform(worldForChildren, myWorldDirty);
-    }
 }

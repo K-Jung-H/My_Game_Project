@@ -25,13 +25,13 @@ public:
     Component() {}
 
     virtual ~Component() = default;
+    virtual Component_Type GetType() const = 0;
+
+    virtual void WakeUp() {};
+    virtual void Update() {};
 
     void SetOwner(Object* owner) { mOwner = owner; }
     Object* GetOwner() const { return mOwner; }
-
-    virtual Component_Type GetType() const = 0;
-
-    virtual void Update() {};
 
     void SetActive(bool active) { Active = active; }
     bool GetActive() { return Active; }

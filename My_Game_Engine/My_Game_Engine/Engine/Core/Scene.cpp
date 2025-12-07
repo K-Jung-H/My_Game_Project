@@ -102,12 +102,8 @@ void Scene::Build()
 
 		rb->SetUseGravity(false);
 
-		for (auto& renderer : skinnedRenderers)
-			renderer->Initialize();
-
 		animController->SetModelAvatar(model_0_avatar);
 		animController->SetSkeleton(model_0_skeleton);
-
 		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
 	}
 
@@ -125,12 +121,9 @@ void Scene::Build()
 
 			rb->SetUseGravity(false);
 
-			for (auto& renderer : skinnedRenderers)
-				renderer->Initialize();
 
 			animController->SetModelAvatar(model_1_avatar);
 			animController->SetSkeleton(model_1_skeleton);
-
 			animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
 		}
 	}
@@ -159,6 +152,14 @@ void Scene::Build()
 	}
 }
 
+void Scene::WakeUp()
+{
+	for (auto* pRootObj : GetRootObjectList())
+	{
+		if (pRootObj)
+			pRootObj->WakeUpRecursive();
+	}
+}
 
 void Scene::Update_Inputs(float dt)
 {

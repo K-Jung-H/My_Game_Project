@@ -62,8 +62,18 @@ Entity-Component-System (ECS) 아키텍처 기반.
 문제(1)
 - Animation Controller Component Load 시, SkinnedMesh 가 변화하지 않고, Bind-Pose로 대기함
 	- AnimationController의 Skeleton 데이터 초기화 or SkinnedMesh Component 의 Skinning 버퍼 초기화 동작이 생략되어 있을 가능성 있음
+		- 원인: 
+			- 일부 컴포넌트는 생성시 버퍼 생성과 같은 초기 준비 작업이 필요함.
+			- 기존 Scene Build 단계에서는 초기 준비 작업까지 미리 처리하지만, Scene Load 시, Build와 동작이 다름
+
+		- 해결 방법: 
+			- 컴포넌트에 각 컴포넌트 별 초기화 동작을 호출하는 WakeUp 라는 공용 함수를 추가
+			- Build 마무리 및 Load 마무리 단계에 Scene에 있는 모든 RootObject를 순회하며, 보유한 컴포넌트들의 WakeUp을 호출하는 로직 추가
+			-> 해결
+
 
 - 런타임에 Import 한 모델을 씬에 배치하고 Save 후, 프로그램 재실행 후 Scene Load 에서 Mesh 들이 연결 안되고, MeshComponent에는 None으로 선택되어 있음
+	- 프로그램 실행 시 Asset 폴더 내부에 있는 meta 및 guid 가 등록된 파일들을 모두 Load 하는 동작 필요
 	- 런타임 시 import 한 meta 파일 및 guid 관리 방식 검토 필요
 
 

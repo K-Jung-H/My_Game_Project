@@ -75,6 +75,14 @@ void AnimationControllerComponent::FromJSON(const rapidjson::Value& val)
     }
 }
 
+void AnimationControllerComponent::WakeUp()
+{
+    if (mModelSkeleton && !mBoneMatrixBuffer)
+        CreateBoneMatrixBuffer();
+
+    UpdateBoneMappingCache();
+}
+
 void AnimationControllerComponent::CreateBoneMatrixBuffer()
 {
     if (!mModelSkeleton || mBoneMatrixBuffer) return;
