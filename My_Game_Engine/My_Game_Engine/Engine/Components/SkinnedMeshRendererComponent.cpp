@@ -16,8 +16,12 @@ rapidjson::Value SkinnedMeshRendererComponent::ToJSON(rapidjson::Document::Alloc
     v.AddMember("type", "SkinnedMeshRendererComponent", alloc);
 
     auto mesh = GetMesh();
+
     std::string meshGUID = mesh ? mesh->GetGUID() : "";
+    std::string meshPath = mesh ? mesh->GetPathCopy() : "";
+
     v.AddMember("MeshGUID", rapidjson::Value(meshGUID.c_str(), alloc), alloc);
+    v.AddMember("MeshPath", rapidjson::Value(meshPath.c_str(), alloc), alloc);
 
     if (mesh)
     {
@@ -25,10 +29,19 @@ rapidjson::Value SkinnedMeshRendererComponent::ToJSON(rapidjson::Document::Alloc
         UINT count = mesh->GetSubMeshCount();
         for (UINT i = 0; i < count; ++i)
         {
+            rapidjson::Value entry(rapidjson::kObjectType);
+            entry.AddMember("index", i, alloc);
+
             UINT matId = GetMaterial(i);
             auto mat = GameEngine::Get().GetResourceSystem()->GetById<Material>(matId);
+
             std::string matGUID = mat ? mat->GetGUID() : "";
-            matArray.PushBack(rapidjson::Value(matGUID.c_str(), alloc), alloc);
+            std::string matPath = mat ? mat->GetPathCopy() : "";
+
+            entry.AddMember("MaterialGUID", rapidjson::Value(matGUID.c_str(), alloc), alloc);
+            entry.AddMember("MaterialPath", rapidjson::Value(matPath.c_str(), alloc), alloc);
+
+            matArray.PushBack(entry, alloc);
         }
         v.AddMember("Materials", matArray, alloc);
     }
@@ -38,37 +51,62 @@ rapidjson::Value SkinnedMeshRendererComponent::ToJSON(rapidjson::Document::Alloc
 
 void SkinnedMeshRendererComponent::FromJSON(const rapidjson::Value& val)
 {
-    auto resSystem = GameEngine::Get().GetResourceSystem();
+    ResourceSystem* resSystem = GameEngine::Get().GetResourceSystem();
+    const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
 
-    if (val.HasMember("MeshGUID"))
+    if (val.HasMember("MeshGUID") && val["MeshGUID"].IsString())
     {
-        std::string guid = val["MeshGUID"].GetString();
-        if (!guid.empty())
+        std::string meshGuid = val["MeshGUID"].GetString();
+        auto mesh = resSystem->GetByGUID<SkinnedMesh>(meshGuid);
+
+        if (!mesh && val.HasMember("MeshPath") && val["MeshPath"].IsString())
         {
-            auto mesh = resSystem->GetByGUID<Mesh>(guid);
-            if (mesh)
-            {
-                SetMesh(mesh->GetId());
-            }
+            std::string meshPath = val["MeshPath"].GetString();
+            LoadResult temp;
+            resSystem->Load(meshPath, "LoadedSkinnedMesh", temp);
+
+            mesh = resSystem->GetByGUID<SkinnedMesh>(meshGuid);
+        }
+
+        if (mesh)
+        {
+            SetMesh(mesh->GetId());
+        }
+        else if (!meshGuid.empty())
+        {
+            OutputDebugStringA(("[SkinnedMeshRendererComponent] Missing mesh GUID: " + meshGuid + "\n").c_str());
         }
     }
 
-    if (val.HasMember("Materials"))
+    if (val.HasMember("Materials") && val["Materials"].IsArray())
     {
-        const auto& mats = val["Materials"];
-        if (mats.IsArray())
+        const auto& mats = val["Materials"].GetArray();
+        for (rapidjson::SizeType i = 0; i < mats.Size(); ++i)
         {
-            for (rapidjson::SizeType i = 0; i < mats.Size(); ++i)
+            const auto& s = mats[i];
+
+            if (!s.IsObject() || !s.HasMember("MaterialGUID") || !s.HasMember("MaterialPath"))
+                continue;
+
+            std::string matGuid = s["MaterialGUID"].GetString();
+            if (matGuid.empty())
+                continue;
+
+            auto mat = resSystem->GetByGUID<Material>(matGuid);
+
+            if (!mat && s.HasMember("MaterialPath") && s["MaterialPath"].IsString())
             {
-                std::string guid = mats[i].GetString();
-                if (!guid.empty())
-                {
-                    auto mat = resSystem->GetByGUID<Material>(guid);
-                    if (mat)
-                    {
-                        SetMaterial(i, mat->GetId());
-                    }
-                }
+                std::string matPath = s["MaterialPath"].GetString();
+                LoadResult temp;
+                resSystem->Load(matPath, "LoadedMat", temp);
+                mat = resSystem->GetByGUID<Material>(matGuid);
+            }
+
+            if (mat)
+                SetMaterial(i, mat->GetId());
+            else
+            {
+                OutputDebugStringA(("[SkinnedMeshRendererComponent] Missing material GUID: " + matGuid + "\n").c_str());
             }
         }
     }

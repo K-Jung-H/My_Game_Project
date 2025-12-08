@@ -1314,7 +1314,7 @@ void UIManager::FilterResources()
         if (!search.empty())
         {
             bool matchAlias = entry.alias.find(search) != std::string::npos;
-            bool matchPath = entry.path.find(search) != std::string::npos;
+            bool matchPath = entry.metaData->path.find(search) != std::string::npos;
             if (!matchAlias && !matchPath)
                 continue;
         }

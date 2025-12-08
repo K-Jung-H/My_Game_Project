@@ -55,7 +55,7 @@ void AnimationLayer::FromJSON(const rapidjson::Value& val)
         std::string guid = val["CurrentClipGUID"].GetString();
         if (!guid.empty())
         {
-            mCurrentState.clip = resSystem->GetByGUID<AnimationClip>(guid);
+            mCurrentState.clip = resSystem->GetOrLoad<AnimationClip>(guid, "");
         }
     }
 

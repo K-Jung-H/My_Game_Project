@@ -28,15 +28,19 @@ inline std::string MakeSubresourcePath(const std::string& containerPath, const c
     return containerPath + "#" + kind + ":" + nameOrIndex;
 }
 
+struct ResourceMetaEntry
+{
+    std::string guid;
+    std::string path;
+};
+
 struct ResourceEntry
 {
     UINT id = 0;
-    std::string guid;
-    std::string path;
-    std::string alias;
+    std::string alias; 
+    const ResourceMetaEntry* metaData = nullptr;
     std::shared_ptr<Game_Resource> resource;
 };
-
 
 class ResourceSystem
 {
@@ -53,6 +57,7 @@ public:
     template<typename T> std::shared_ptr<T> GetByAlias(const std::string& alias) const;
     template<typename T> std::vector<std::shared_ptr<T>> GetAllResources();
     template<typename T> std::shared_ptr<T> LoadOrReuse(const std::string& path, const std::string& alias, const RendererContext& ctx, std::function<std::shared_ptr<T>()> createCallback);
+    template<typename T> std::shared_ptr<T> GetOrLoad(const std::string& guid, const std::string& path);
 
     const std::vector<std::shared_ptr<Mesh>>& GetMeshes() const { return mMeshes; }
     const std::vector<std::shared_ptr<SkinnedMesh>>& GetSkinnedMeshes() const { return mSkinnedMeshes; }
@@ -65,6 +70,7 @@ public:
     const std::vector<std::shared_ptr<class AvatarMask>>& GetAvatarMasks() const { return mAvatarMasks; }
 
     const std::unordered_map<UINT, ResourceEntry>& GetResourceMap() const { return mResources; }
+
     // Meta
     std::string GetOrCreateGUID(const std::string& path);
     void LoadAllMeta(const std::string& assetRoot);
@@ -95,8 +101,9 @@ private:
     std::vector<std::shared_ptr<AvatarMask>> mAvatarMasks;
 
     // GUID Ä³½Ì (meta scan)
-    std::unordered_map<std::string, std::string> mPathToGUID;
-
+    std::deque<ResourceMetaEntry> mAllMetaData;
+    std::unordered_map<std::string, ResourceMetaEntry*> mGuidToMeta;
+    std::unordered_map<std::string, ResourceMetaEntry*> mPathToMeta;
 
     UINT mNextResourceID = 1;
 };
@@ -137,13 +144,64 @@ template<typename T>
 std::vector<std::shared_ptr<T>> ResourceSystem::GetAllResources()
 {
     std::vector<std::shared_ptr<T>> result;
-    for (auto& [id, entry] : mResources)
+
+    if constexpr (std::is_same_v<T, Mesh>)
     {
-        if (auto casted = std::dynamic_pointer_cast<T>(entry.resource)) 
+        result.reserve(mMeshes.size());
+        for (const auto& res : mMeshes) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, SkinnedMesh>)
+    {
+        result.reserve(mSkinnedMeshes.size());
+        for (const auto& res : mSkinnedMeshes) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, Material>)
+    {
+        result.reserve(mMaterials.size());
+        for (const auto& res : mMaterials) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, Texture>)
+    {
+        result.reserve(mTextures.size());
+        for (const auto& res : mTextures) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, Model>)
+    {
+        result.reserve(mModels.size());
+        for (const auto& res : mModels) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, Skeleton>)
+    {
+        result.reserve(mSkeletons.size());
+        for (const auto& res : mSkeletons) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, Model_Avatar>)
+    {
+        result.reserve(mAvatars.size());
+        for (const auto& res : mAvatars) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, AnimationClip>)
+    {
+        result.reserve(mAnimationClips.size());
+        for (const auto& res : mAnimationClips) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, AvatarMask>)
+    {
+        result.reserve(mAvatarMasks.size());
+        for (const auto& res : mAvatarMasks) result.push_back(res);
+    }
+    else
+    {
+        result.reserve(mResources.size());
+        for (const auto& [id, entry] : mResources)
         {
-            result.push_back(std::dynamic_pointer_cast<T>(entry.resource));
+            if (auto casted = std::dynamic_pointer_cast<T>(entry.resource))
+            {
+                result.push_back(casted);
+            }
         }
     }
+
     return result;
 }
 
@@ -155,15 +213,12 @@ std::shared_ptr<T> ResourceSystem::LoadOrReuse(
     std::function<std::shared_ptr<T>()> createCallback
 )
 {
-    if (auto cached = GetByPath<T>(path))
-    {
-        return cached;
-    }
+    if (auto cached = GetByPath<T>(path)) return cached;
 
     std::shared_ptr<T> resource;
-    bool existing = std::filesystem::exists(path);
+    bool isNew = false;
 
-    if (existing)
+    if (std::filesystem::exists(path))
     {
         resource = std::make_shared<T>();
         if (!resource->LoadFromFile(path, ctx))
@@ -181,12 +236,16 @@ std::shared_ptr<T> ResourceSystem::LoadOrReuse(
         if (!resource)
         {
             OutputDebugStringA(("[ResourceSystem] Create failed: " + path + "\n").c_str());
-                return nullptr;
+            return nullptr;
         }
+        isNew = true;
+    }
 
-        resource->SetPath(path);
-        resource->SetAlias(alias);
+    resource->SetPath(path);
+    resource->SetAlias(alias);
 
+    if (isNew)
+    {
         if (!resource->IsTemporary())
         {
             if (!resource->SaveToFile(path))
@@ -200,9 +259,58 @@ std::shared_ptr<T> ResourceSystem::LoadOrReuse(
         }
     }
 
-    resource->SetAlias(alias);
-    resource->SetPath(path);
     RegisterResource(resource);
 
     return resource;
+}
+
+template<typename T>
+std::shared_ptr<T> ResourceSystem::GetOrLoad(const std::string& guid, const std::string& path)
+{
+    if (!guid.empty())
+    {
+        if (auto res = GetByGUID<T>(guid))
+            return res;
+    }
+
+    std::string loadPath = path;
+
+    if (loadPath.empty() && !guid.empty())
+    {
+        if (auto it = mGuidToMeta.find(guid); it != mGuidToMeta.end())
+        {
+            loadPath = it->second->path;
+        }
+    }
+
+    if (!loadPath.empty())
+    {
+        if (auto res = GetByPath<T>(loadPath))
+            return res;
+
+        if (std::filesystem::exists(loadPath))
+        {
+            LoadResult result;
+            std::string file_name = ExtractFileName(loadPath);
+            Load(loadPath, file_name, result);
+
+            UINT targetId = Engine::INVALID_ID;
+
+            if constexpr (std::is_same_v<T, Model>)              targetId = result.modelId;
+            else if constexpr (std::is_same_v<T, Skeleton>)      targetId = result.skeletonId;
+            else if constexpr (std::is_same_v<T, Model_Avatar>)  targetId = result.avatarId;
+            else if constexpr (std::is_same_v<T, AvatarMask>)    targetId = result.maskID;
+            else if constexpr (std::is_same_v<T, Mesh>) { if (!result.meshIds.empty()) targetId = result.meshIds[0]; }
+            else if constexpr (std::is_same_v<T, Material>) { if (!result.materialIds.empty()) targetId = result.materialIds[0]; }
+            else if constexpr (std::is_same_v<T, Texture>) { if (!result.textureIds.empty()) targetId = result.textureIds[0]; }
+            else if constexpr (std::is_same_v<T, AnimationClip>) { if (!result.clipIds.empty()) targetId = result.clipIds[0]; }
+
+            if (targetId != Engine::INVALID_ID)
+            {
+                return GetById<T>(targetId);
+            }
+        }
+    }
+
+    return nullptr;
 }

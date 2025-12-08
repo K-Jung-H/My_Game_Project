@@ -5,7 +5,7 @@
 #include "DX_Graphics/ResourceUtils.h"
 
 AnimationControllerComponent::AnimationControllerComponent()
-    : Component()
+    : SynchronizedComponent()
 {
     mLayers.resize(1);
 }
@@ -39,24 +39,20 @@ void AnimationControllerComponent::FromJSON(const rapidjson::Value& val)
 
     if (val.HasMember("IsPaused")) mIsPaused = val["IsPaused"].GetBool();
 
-    if (val.HasMember("SkeletonGUID"))
+    std::string skelGUID = val.HasMember("SkeletonGUID") ? val["SkeletonGUID"].GetString() : "";
+    std::string skelPath = val.HasMember("SkeletonPath") ? val["SkeletonPath"].GetString() : "";
+
+    if (auto skel = resSystem->GetOrLoad<Skeleton>(skelGUID, skelPath))
     {
-        std::string guid = val["SkeletonGUID"].GetString();
-        if (!guid.empty())
-        {
-            auto skel = resSystem->GetByGUID<Skeleton>(guid);
-            SetSkeleton(skel);
-        }
+        SetSkeleton(skel);
     }
 
-    if (val.HasMember("ModelAvatarGUID"))
+    std::string avatarGUID = val.HasMember("ModelAvatarGUID") ? val["ModelAvatarGUID"].GetString() : "";
+    std::string avatarPath = val.HasMember("ModelAvatarPath") ? val["ModelAvatarPath"].GetString() : "";
+
+    if (auto avatar = resSystem->GetOrLoad<Model_Avatar>(avatarGUID, avatarPath))
     {
-        std::string guid = val["ModelAvatarGUID"].GetString();
-        if (!guid.empty())
-        {
-            auto avatar = resSystem->GetByGUID<Model_Avatar>(guid);
-            SetModelAvatar(avatar);
-        }
+        SetModelAvatar(avatar);
     }
 
     if (val.HasMember("Layers"))
@@ -123,6 +119,8 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
 
 void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
 {
+    std::lock_guard<std::mutex> lock(componentMutex);
+
     if (mModelSkeleton == skeleton) return;
 
     mModelSkeleton = skeleton;
@@ -152,6 +150,8 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
 
 void AnimationControllerComponent::SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar)
 {
+    std::lock_guard<std::mutex> lock(componentMutex);
+
     mModelAvatar = model_avatar;
     UpdateBoneMappingCache();
 }
@@ -364,6 +364,8 @@ float AnimationControllerComponent::GetLayerDuration(int layerIndex) const
 
 void AnimationControllerComponent::Update(float deltaTime)
 {
+    std::lock_guard<std::mutex> lock(componentMutex);
+
     if (!IsReady()) return;
 
     std::shared_ptr<TransformComponent> transform = mTransform.lock();

@@ -279,6 +279,22 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         meta.sub_resources.push_back(s);
     }
 
+    {
+        SubResourceMeta s{};
+        s.name = modelAvatar->GetAlias();
+        s.type = "MODEL_AVATAR";
+        s.guid = modelAvatar->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    {
+        SubResourceMeta s{};
+        s.name = skeletonRes->GetAlias();
+        s.type = "SKELETON";
+        s.guid = skeletonRes->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
     MetaIO::SaveFbxMeta(meta);
 
     if (model)

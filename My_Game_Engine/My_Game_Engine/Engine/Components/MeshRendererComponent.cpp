@@ -13,7 +13,9 @@ rapidjson::Value MeshRendererComponent::ToJSON(rapidjson::Document::AllocatorTyp
         return v;
 
     std::string mesh_guid = mesh->GetGUID();
+    std::string mesh_path = mesh->GetPathCopy();
     v.AddMember("mesh_guid", Value(mesh_guid.c_str(), alloc), alloc);
+    v.AddMember("mesh_path", Value(mesh_path.c_str(), alloc), alloc);
 
     Value subArr(kArrayType);
     for (size_t i = 0; i < mesh->submeshes.size(); ++i)
@@ -22,16 +24,19 @@ rapidjson::Value MeshRendererComponent::ToJSON(rapidjson::Document::AllocatorTyp
         entry.AddMember("index", static_cast<uint32_t>(i), alloc);
 
         UINT matId = (i < materialOverrides.size() && materialOverrides[i] != Engine::INVALID_ID)
-            ? materialOverrides[i] : mesh->submeshes[i].materialId;;
+            ? materialOverrides[i] : mesh->submeshes[i].materialId;
 
         if (auto mat = rsm->GetById<Material>(matId))
         {
             std::string mat_guid = mat->GetGUID();
+            std::string mat_path = mat->GetPathCopy();
             entry.AddMember("material_guid", Value(mat_guid.c_str(), alloc), alloc);
+            entry.AddMember("material_path", Value(mat_path.c_str(), alloc), alloc);
         }
         else
         {
             entry.AddMember("material_guid", "", alloc);
+            entry.AddMember("material_path", "", alloc);
         }
 
         subArr.PushBack(entry, alloc);
@@ -46,13 +51,11 @@ void MeshRendererComponent::FromJSON(const rapidjson::Value& val)
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
 
-    // --- Mesh 복원 ---
     if (val.HasMember("mesh_guid") && val["mesh_guid"].IsString())
     {
         std::string meshGuid = val["mesh_guid"].GetString();
         auto mesh = rs->GetByGUID<Mesh>(meshGuid);
 
-        // GUID로 못 찾았을 경우, Path 기반 fallback
         if (!mesh && val.HasMember("mesh_path") && val["mesh_path"].IsString())
         {
             std::string meshPath = val["mesh_path"].GetString();
@@ -72,7 +75,6 @@ void MeshRendererComponent::FromJSON(const rapidjson::Value& val)
         }
     }
 
-    // --- Submesh별 Material 복원 ---
     if (val.HasMember("submeshes") && val["submeshes"].IsArray())
     {
         const auto& subs = val["submeshes"].GetArray();
@@ -91,7 +93,6 @@ void MeshRendererComponent::FromJSON(const rapidjson::Value& val)
             std::string matGuid = s["material_guid"].GetString();
             auto mat = rs->GetByGUID<Material>(matGuid);
 
-            // fallback: GUID로 못 찾으면 Path 기반 재로드
             if (!mat && s.HasMember("material_path") && s["material_path"].IsString())
             {
                 std::string matPath = s["material_path"].GetString();

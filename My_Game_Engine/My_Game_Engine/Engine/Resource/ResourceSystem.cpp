@@ -8,7 +8,8 @@
 void ResourceSystem::Initialize(const std::string& assetRoot)
 {
     LoadAllMeta(assetRoot);
-    std::cout << "[ResourceSystem] Meta cache loaded: " << mPathToGUID.size() << " entries.\n";
+    std::string output = "[ResourceSystem] Meta cache loaded: " + std::to_string(mAllMetaData.size()) + " entries.\n";
+	OutputDebugStringA(output.c_str());
 }
 
 void ResourceSystem::LoadAllMeta(const std::string& assetRoot)
@@ -31,7 +32,14 @@ void ResourceSystem::LoadAllMeta(const std::string& assetRoot)
             {
                 std::string filePath = doc["path"].GetString();
                 std::string guid = doc["guid"].GetString();
-                mPathToGUID[filePath] = guid;
+
+                ResourceMetaEntry& entry = mAllMetaData.emplace_back();
+                entry.path = filePath;
+                entry.guid = guid;
+
+                ResourceMetaEntry* entryPtr = &entry;
+                mPathToMeta[filePath] = entryPtr;
+                mGuidToMeta[guid] = entryPtr;
             }
         }
     }
@@ -39,11 +47,21 @@ void ResourceSystem::LoadAllMeta(const std::string& assetRoot)
 
 std::string ResourceSystem::GetOrCreateGUID(const std::string& path)
 {
-    if (auto it = mPathToGUID.find(path); it != mPathToGUID.end())
-        return it->second;
+    if (auto it = mPathToMeta.find(path); it != mPathToMeta.end())
+    {
+        return it->second->guid;
+    }
 
-    std::string guid = MetaIO::CreateGUID();
-    mPathToGUID[path] = guid;
+    std::string guid = MetaIO::CreateGUID(path, "");
+
+    ResourceMetaEntry& entry = mAllMetaData.emplace_back();
+    entry.path = path;
+    entry.guid = guid;
+
+    ResourceMetaEntry* entryPtr = &entry;
+    mPathToMeta[path] = entryPtr;
+    mGuidToMeta[guid] = entryPtr;
+
     return guid;
 }
 
@@ -74,53 +92,76 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
         }
     }
 
+    std::string resourcePath = res->GetPath();
+    std::string resourceGUID = res->GetGUID();
+
+    if (resourceGUID.empty())
+    {
+        resourceGUID = MetaIO::CreateGUID(resourcePath, res->GetAlias());
+        res->SetGUID(resourceGUID);
+    }
+
+    ResourceMetaEntry* metaPtr = nullptr;
+    auto metaIt = mGuidToMeta.find(resourceGUID);
+
+    if (metaIt != mGuidToMeta.end())
+    {
+        metaPtr = metaIt->second;
+    }
+    else
+    {
+        ResourceMetaEntry& newMeta = mAllMetaData.emplace_back();
+        newMeta.guid = resourceGUID;
+        newMeta.path = resourcePath;
+
+        metaPtr = &newMeta;
+
+        mGuidToMeta[resourceGUID] = metaPtr;
+        mPathToMeta[resourcePath] = metaPtr;
+    }
+
     ResourceEntry entry;
     entry.id = mNextResourceID++;
-    entry.path = res->GetPath();
     entry.alias = res->GetAlias();
+    entry.metaData = metaPtr;
     entry.resource = res;
 
-    if (res->GetGUID().empty())
-        entry.guid = MetaIO::CreateGUID(entry.path, entry.alias);
-    else
-        entry.guid = res->GetGUID();
-
     res->SetId(entry.id);
-    res->SetGUID(entry.guid);
 
     mResources[entry.id] = entry;
-    mGUIDToId[entry.guid] = entry.id;
-    mPathToId[entry.path] = entry.id;
-    if (!entry.alias.empty()) mAliasToId[entry.alias] = entry.id;
+    mGUIDToId[resourceGUID] = entry.id;
+    mPathToId[resourcePath] = entry.id;
+
+    if (!entry.alias.empty())
+    {
+        mAliasToId[entry.alias] = entry.id;
+    }
 
     switch (res->Get_Type())
     {
     case ResourceType::Mesh:
     {
         auto mesh = std::dynamic_pointer_cast<Mesh>(res);
-
         if (mesh)
         {
             mMeshes.push_back(mesh);
-
             auto skinnedmesh = std::dynamic_pointer_cast<SkinnedMesh>(res);
-
             if (skinnedmesh)
-				mSkinnedMeshes.push_back(skinnedmesh);
+                mSkinnedMeshes.push_back(skinnedmesh);
         }
     }
     break;
-    case ResourceType::Material:  mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
-    case ResourceType::Texture:   mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
-    case ResourceType::Model:     mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
-    case ResourceType::Skeleton:  mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
-    case ResourceType::ModelAvatar: mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
+    case ResourceType::Material:      mMaterials.push_back(std::dynamic_pointer_cast<Material>(res)); break;
+    case ResourceType::Texture:       mTextures.push_back(std::dynamic_pointer_cast<Texture>(res)); break;
+    case ResourceType::Model:         mModels.push_back(std::dynamic_pointer_cast<Model>(res)); break;
+    case ResourceType::Skeleton:      mSkeletons.push_back(std::dynamic_pointer_cast<Skeleton>(res)); break;
+    case ResourceType::ModelAvatar:   mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
     case ResourceType::AnimationClip: mAnimationClips.push_back(std::dynamic_pointer_cast<AnimationClip>(res)); break;
-    case ResourceType::AvatarMask: mAvatarMasks.push_back(std::dynamic_pointer_cast<AvatarMask>(res)); break;
+    case ResourceType::AvatarMask:    mAvatarMasks.push_back(std::dynamic_pointer_cast<AvatarMask>(res)); break;
     default: break;
     }
 
-    if (res->GetPath().find('#') == std::string::npos)
+    if (resourcePath.find('#') == std::string::npos)
     {
         MetaIO::SaveSimpleMeta(res);
     }
@@ -129,13 +170,14 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
     const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
-    FileCategory category = DetectFileCategory(path);
+    std::string normalized_path = NormalizeFilePath(path);
+    FileCategory category = DetectFileCategory(normalized_path);
 
     if (auto it = mPathToId.find(path); it != mPathToId.end())
     {
         if (auto res = GetById<Game_Resource>(it->second))
         {
-            OutputDebugStringA(("[ResourceSystem] Cached resource hit: " + path + "\n").c_str());
+            OutputDebugStringA(("[ResourceSystem] Cached resource hit: " + normalized_path + "\n").c_str());
 
             switch (res->Get_Type())
             {
@@ -154,33 +196,33 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     case FileCategory::FBX:
     {
         ModelLoader_FBX fbxLoader;
-        if (fbxLoader.Load(path, alias, result))
+        if (fbxLoader.Load(normalized_path, alias, result))
         {
-            OutputDebugStringA(("[FBX SDK] Loaded model: " + path + "\n").c_str());
+            OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
             return;
         }
 
         ModelLoader_Assimp assimpLoader;
-        if (assimpLoader.Load(path, alias, result))
+        if (assimpLoader.Load(normalized_path, alias, result))
         {
-            OutputDebugStringA(("[Assimp] Loaded FBX: " + path + "\n").c_str());
+            OutputDebugStringA(("[Assimp] Loaded FBX: " + normalized_path + "\n").c_str());
             return;
         }
 
-        OutputDebugStringA(("[ResourceSystem] Failed to load FBX file: " + path + "\n").c_str());
+        OutputDebugStringA(("[ResourceSystem] Failed to load FBX file: " + normalized_path + "\n").c_str());
         break;
     }
 
     case FileCategory::ComplexModel:
     {
         ModelLoader_Assimp assimpLoader;
-        if (assimpLoader.Load(path, alias, result))
+        if (assimpLoader.Load(normalized_path, alias, result))
         {
-            OutputDebugStringA(("[Assimp] Loaded model: " + path + "\n").c_str());
+            OutputDebugStringA(("[Assimp] Loaded model: " + normalized_path + "\n").c_str());
             return;
         }
 
-        OutputDebugStringA(("[ResourceSystem] Failed to load complex model: " + path + "\n").c_str());
+        OutputDebugStringA(("[ResourceSystem] Failed to load complex model: " + normalized_path + "\n").c_str());
         break;
     }
 
@@ -189,7 +231,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     // ----------------------------------------------
     case FileCategory::Material:
     {
-        auto mat = LoadOrReuse<Material>(path, std::string(alias), ctx, 
+        auto mat = LoadOrReuse<Material>(normalized_path, std::string(alias), ctx,
             [&]() -> std::shared_ptr<Material> {
                 return std::make_shared<Material>();
             }
@@ -208,7 +250,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     case FileCategory::Texture:
     {
         auto tex = std::make_shared<Texture>();
-        if (tex->LoadFromFile(path, ctx))
+        if (tex->LoadFromFile(normalized_path, ctx))
         {
             tex->SetAlias(std::string(alias));
             RegisterResource(tex);
@@ -216,14 +258,50 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         }
         else
         {
-            OutputDebugStringA(("[ResourceSystem] Texture load failed: " + path + "\n").c_str());
+            OutputDebugStringA(("[ResourceSystem] Texture load failed: " + normalized_path + "\n").c_str());
         }
         break;
     }
     
+    case FileCategory::Clip:
+    {
+        auto clip = LoadOrReuse<AnimationClip>(normalized_path, std::string(alias), ctx,
+            [&]() -> std::shared_ptr<AnimationClip> {
+                return std::make_shared<AnimationClip>();
+            }
+        );
+        if (clip)
+            result.clipIds.push_back(clip->GetId());
+        break;
+    }
+
+    case FileCategory::Skeleton:
+    {
+        auto skel = LoadOrReuse<Skeleton>(normalized_path, std::string(alias), ctx,
+            [&]() -> std::shared_ptr<Skeleton> {
+                return std::make_shared<Skeleton>();
+            }
+        );
+        if (skel)
+            result.skeletonId = skel->GetId();
+        break;
+	}
+
+    case FileCategory::Model_Avatar:
+    {
+        auto avatar = LoadOrReuse<Model_Avatar>(normalized_path, std::string(alias), ctx,
+            [&]() -> std::shared_ptr<Model_Avatar> {
+                return std::make_shared<Model_Avatar>();
+            }
+        );
+        if (avatar)
+            result.avatarId = avatar->GetId();
+        break;
+	}
+
     case FileCategory::AvatarMask:
     {
-        auto mask = LoadOrReuse<AvatarMask>(path, std::string(alias), ctx,
+        auto mask = LoadOrReuse<AvatarMask>(normalized_path, std::string(alias), ctx,
             [&]() -> std::shared_ptr<AvatarMask> {
                 return std::make_shared<AvatarMask>();
             }
@@ -236,7 +314,7 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     }
 
     default:
-        OutputDebugStringA(("[ResourceSystem] Unknown resource type: " + path + "\n").c_str());
+        OutputDebugStringA(("[ResourceSystem] Unknown resource type: " + normalized_path + "\n").c_str());
         break;
     }
 }
@@ -253,8 +331,8 @@ void ResourceSystem::PrintSummary() const
 
     for (auto& [id, entry] : mResources)
     {
-        std::cout << "  [" << id << "] " << entry.path
-            << " | GUID: " << entry.guid
+        std::cout << "  [" << id << "] " << entry.metaData->path
+            << " | GUID: " << entry.metaData->guid
             << " | Alias: " << entry.alias << "\n";
     }
 }

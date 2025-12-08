@@ -23,7 +23,7 @@ struct BoneMatrixData
     XMFLOAT4X4 transform;
 };
 
-class AnimationControllerComponent : public Component
+class AnimationControllerComponent : public SynchronizedComponent
 {
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;

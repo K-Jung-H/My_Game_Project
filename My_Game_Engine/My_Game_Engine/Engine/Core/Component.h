@@ -40,3 +40,13 @@ protected:
     Object* mOwner;
     bool Active = true;
 };
+
+class SynchronizedComponent : public Component
+{
+protected:
+    std::mutex componentMutex;
+};
+
+class DataComponent : public Component
+{
+};

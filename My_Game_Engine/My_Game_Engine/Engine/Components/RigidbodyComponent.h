@@ -2,7 +2,7 @@
 #include "Core/Component.h"
 
 
-class RigidbodyComponent : public Component
+class RigidbodyComponent : public SynchronizedComponent
 {
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;

@@ -9,13 +9,11 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	mTimer = std::make_unique<GameTimer>();
 	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
 	m_ResourceSystem = std::make_unique<ResourceSystem>();
-	m_ResourceSystem->Initialize("Assets");
+	m_ResourceSystem->Initialize("Assets/");
 	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
 	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
 
 	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
-	//	CoInitialize(NULL);
-
 
 	mRenderer = std::make_unique<DX12_Renderer>();
 	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
