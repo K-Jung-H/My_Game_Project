@@ -75,7 +75,16 @@ Entity-Component-System (ECS) 아키텍처 기반.
 - 런타임에 Import 한 모델을 씬에 배치하고 Save 후, 프로그램 재실행 후 Scene Load 에서 Mesh 들이 연결 안되고, MeshComponent에는 None으로 선택되어 있음
 	- 프로그램 실행 시 Asset 폴더 내부에 있는 meta 및 guid 가 등록된 파일들을 모두 Load 하는 동작 필요
 	- 런타임 시 import 한 meta 파일 및 guid 관리 방식 검토 필요
+		- 문제 해결 진행중:
+			- SkinnedMeshComponent에 대한 처리 개선
+			- GUID 기반 Load 및 Path 관리 강화
+			- 뮤텍스를 사용하는 컴포넌트 타입 분리
 
+		- 새로운 문제점:
+			- 현재 Scene Load 시, AnimationController Component에 Avatar, Skeleton 이 Load 및 Setter 호출이 확인됬지만, Scene_Load 완료 시, Empty로 전환되고 있음
+
+- 문제 해결 진행 중:
+		
 
 ---
 
