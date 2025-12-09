@@ -60,28 +60,20 @@ Entity-Component-System (ECS) 아키텍처 기반.
 	- Scene Load 동작 <- 문제(1)
 
 문제(1)
-- Animation Controller Component Load 시, SkinnedMesh 가 변화하지 않고, Bind-Pose로 대기함
-	- AnimationController의 Skeleton 데이터 초기화 or SkinnedMesh Component 의 Skinning 버퍼 초기화 동작이 생략되어 있을 가능성 있음
-		- 원인: 
-			- 일부 컴포넌트는 생성시 버퍼 생성과 같은 초기 준비 작업이 필요함.
-			- 기존 Scene Build 단계에서는 초기 준비 작업까지 미리 처리하지만, Scene Load 시, Build와 동작이 다름
+- 현재 Scene Load 시, AnimationController Component에 Avatar, Skeleton 이 Load 및 Setter 호출이 확인됬지만, Scene_Load 완료 시, Empty로 전환되고 있음
+	- 원인:
+		- Skeleton, Avatar 및 fbx 파일의 GUID 재생성 문제로 인한 Load 실패
+			- SkinnedMeshComponent에서 SkinnedMesh를 Load 하는 과정에서 fbx 파일인 경우, 해당 파일을 전부 Load 함. // 현 구조 상 부분적 Load 기능 없음
+			- fbx 의 리소스를 전부 Load 하면서 Skeleton, Avatar의 재생성 호출로 인한 GUID 재할당 문제 발생
+	
+	- 해결 방법:
+		- Load 과정에서 리소스의 path 할당 시, 서브 리소스의 경우
+			- 저장 및 불러올 때 사용하는 경로는 물리적 주소로 처리
+			- GUID를 생성하고 저장할 때 사용하는 경로는 가공한 주소로 처리
 
-		- 해결 방법: 
-			- 컴포넌트에 각 컴포넌트 별 초기화 동작을 호출하는 WakeUp 라는 공용 함수를 추가
-			- Build 마무리 및 Load 마무리 단계에 Scene에 있는 모든 RootObject를 순회하며, 보유한 컴포넌트들의 WakeUp을 호출하는 로직 추가
-			-> 해결
+		-> GUID, Meta 파일의 매핑 동작 정상. 문제 해결됨.
 
-
-- 런타임에 Import 한 모델을 씬에 배치하고 Save 후, 프로그램 재실행 후 Scene Load 에서 Mesh 들이 연결 안되고, MeshComponent에는 None으로 선택되어 있음
-	- 프로그램 실행 시 Asset 폴더 내부에 있는 meta 및 guid 가 등록된 파일들을 모두 Load 하는 동작 필요
-	- 런타임 시 import 한 meta 파일 및 guid 관리 방식 검토 필요
-		- 문제 해결 진행중:
-			- SkinnedMeshComponent에 대한 처리 개선
-			- GUID 기반 Load 및 Path 관리 강화
-			- 뮤텍스를 사용하는 컴포넌트 타입 분리
-
-		- 새로운 문제점:
-			- 현재 Scene Load 시, AnimationController Component에 Avatar, Skeleton 이 Load 및 Setter 호출이 확인됬지만, Scene_Load 완료 시, Empty로 전환되고 있음
+-> 현재 FBX_SDK에서 구현 및 테스트 완료. 같은 방식으로 Assimp 방식도 수정 필요
 
 - 문제 해결 진행 중:
 		
