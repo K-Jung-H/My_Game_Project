@@ -19,14 +19,17 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     RendererContext ctx = GameEngine::Get().Get_UploadContext();
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
 
+    std::string physicalPath = GetPhysicalFilePath(path);
+
     FbxManager* fbxManager = FbxManager::Create();
     FbxIOSettings* ios = FbxIOSettings::Create(fbxManager, IOSROOT);
     fbxManager->SetIOSettings(ios);
 
     FbxImporter* importer = FbxImporter::Create(fbxManager, "");
-    if (!importer->Initialize(path.c_str(), -1, fbxManager->GetIOSettings()))
+
+    if (!importer->Initialize(physicalPath.c_str(), -1, fbxManager->GetIOSettings()))
     {
-        OutputDebugStringA(("[FBX SDK] Failed to load: " + path + "\n").c_str());
+        OutputDebugStringA(("[FBX SDK] Failed to load: " + physicalPath + "\n").c_str());
         importer->Destroy();
         fbxManager->Destroy();
         return false;
@@ -47,7 +50,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         if (mesh->GetControlPointsCount() > 0 && mesh->GetPolygonCount() > 0)
         {
             hasMeshes = true;
-            break; 
+            break;
         }
     }
 
@@ -64,8 +67,9 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     if (hasMeshes)
     {
         model = std::make_shared<Model>();
-        model->SetAlias(std::filesystem::path(path).stem().string());
-        model->SetPath(path);
+
+        model->SetAlias(ExtractFileName(physicalPath));
+        model->SetPath(physicalPath);
         rs->RegisterResource(model);
         result.modelId = model->GetId();
     }
@@ -79,7 +83,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
 
         if (matCount > 0)
         {
-            std::filesystem::path matDir = std::filesystem::path(path).parent_path() / "Materials";
+            std::filesystem::path matDir = std::filesystem::path(physicalPath).parent_path() / "Materials";
             std::filesystem::create_directories(matDir);
 
             for (int i = 0; i < matCount; i++)
@@ -103,7 +107,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                     [&]() -> std::shared_ptr<Material> {
                         auto newMat = std::make_shared<Material>();
                         newMat->FromFbxSDK(fbxMat);
-                        auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, path, newMat);
+                        auto texIds = TextureLoader::LoadFromFbx(ctx, fbxMat, physicalPath, newMat);
                         result.textureIds.insert(result.textureIds.end(), texIds.begin(), texIds.end());
                         return newMat;
                     }
@@ -134,8 +138,8 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     {
         bool isTemporary = !hasMeshes;
 
-        std::string skelAlias = hasMeshes ? model->GetAlias() : std::filesystem::path(path).stem().string();
-        std::string skelPath = path + ".skel";
+        std::string skelAlias = hasMeshes ? model->GetAlias() : ExtractFileName(physicalPath);
+        std::string skelPath = physicalPath + ".skel";
 
         skeletonRes = rs->LoadOrReuse<Skeleton>(skelPath, skelAlias + "_Skeleton", ctx,
             [&]() -> std::shared_ptr<Skeleton> {
@@ -149,7 +153,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
         {
             if (!isTemporary) result.skeletonId = skeletonRes->GetId();
 
-            std::string avatarPath = path + ".avatar";
+            std::string avatarPath = physicalPath + ".avatar";
             modelAvatar = rs->LoadOrReuse<Model_Avatar>(avatarPath, skelAlias + "_Avatar", ctx,
                 [&]() -> std::shared_ptr<Model_Avatar> {
                     auto avatar = std::make_shared<Model_Avatar>();
@@ -161,13 +165,13 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
                 }
             );
 
-            if (modelAvatar && !isTemporary) 
+            if (modelAvatar && !isTemporary)
                 result.avatarId = modelAvatar->GetId();
 
             if (model)
             {
                 model->SetSkeleton(skeletonRes);
-                if (modelAvatar) 
+                if (modelAvatar)
                     model->SetAvatarID(modelAvatar->GetId());
             }
         }
@@ -178,14 +182,15 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     }
 
     std::vector<std::shared_ptr<Mesh>> loadedMeshes;
+
     if (hasMeshes && scene->GetRootNode())
-        model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, path, loadedMeshes));
+        model->SetRoot(ProcessNode(ctx, scene->GetRootNode(), matMap, physicalPath, loadedMeshes));
 
     std::vector<std::shared_ptr<AnimationClip>> loadedClips;
     if (hasAnims && modelAvatar)
     {
-        std::string fbxFileName = std::filesystem::path(path).stem().string();
-        std::filesystem::path clipDir = std::filesystem::path(path).parent_path() / "AnimationClip" / fbxFileName;
+        std::string fbxFileName = ExtractFileName(physicalPath);
+        std::filesystem::path clipDir = std::filesystem::path(physicalPath).parent_path() / "AnimationClip" / fbxFileName;
         std::filesystem::create_directories(clipDir);
 
         for (int i = 0; i < animStackCount; i++)
@@ -235,9 +240,9 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     }
     else
     {
-        meta.guid = rs->GetOrCreateGUID(path);
+        meta.guid = rs->GetOrCreateGUID(physicalPath);
     }
-    meta.path = path;
+    meta.path = physicalPath;
 
     for (auto& mesh : loadedMeshes)
     {
@@ -298,7 +303,7 @@ bool ModelLoader_FBX::Load(const std::string& path, std::string_view alias, Load
     MetaIO::SaveFbxMeta(meta);
 
     if (model)
-    { 
+    {
         model->SetMeshCount((UINT)result.meshIds.size());
         model->SetMaterialCount((UINT)result.materialIds.size());
         model->SetTextureCount((UINT)result.textureIds.size());

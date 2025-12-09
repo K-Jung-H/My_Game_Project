@@ -28,6 +28,18 @@ static std::string ExtractFileName(const std::string& path)
     return std::filesystem::path(base_path).stem().string();
 }
 
+static std::string GetPhysicalFilePath(const std::string& path)
+{
+    std::string base_path = path;
+    size_t hash_pos = path.find('#');
+    if (hash_pos != std::string::npos)
+    {
+        base_path = path.substr(0, hash_pos);
+    }
+
+    return std::filesystem::path(base_path).lexically_normal().string();
+}
+
 static std::string NormalizeFilePath(const std::string& path)
 {
     std::string base_path = path;

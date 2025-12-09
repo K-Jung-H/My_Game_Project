@@ -46,6 +46,11 @@ void AnimationControllerComponent::FromJSON(const rapidjson::Value& val)
     {
         SetSkeleton(skel);
     }
+    else
+    {
+        std::string msg = "[AnimationController] Failed to load Skeleton. GUID: " + skelGUID + ", Path: " + skelPath + "\n";
+        OutputDebugStringA(msg.c_str());
+    }
 
     std::string avatarGUID = val.HasMember("ModelAvatarGUID") ? val["ModelAvatarGUID"].GetString() : "";
     std::string avatarPath = val.HasMember("ModelAvatarPath") ? val["ModelAvatarPath"].GetString() : "";
@@ -53,6 +58,11 @@ void AnimationControllerComponent::FromJSON(const rapidjson::Value& val)
     if (auto avatar = resSystem->GetOrLoad<Model_Avatar>(avatarGUID, avatarPath))
     {
         SetModelAvatar(avatar);
+    }
+    else
+    {
+        std::string msg = "[AnimationController] Failed to load Model_Avatar. GUID: " + avatarGUID + ", Path: " + avatarPath + "\n";
+        OutputDebugStringA(msg.c_str());
     }
 
     if (val.HasMember("Layers"))
@@ -123,13 +133,7 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
 
     if (mModelSkeleton == skeleton) return;
 
-    mModelSkeleton = skeleton;
-
-    if (mModelSkeleton && !mBoneMatrixBuffer)
-    {
-        CreateBoneMatrixBuffer();
-    }
-    else if (!mModelSkeleton)
+    if (mBoneMatrixBuffer)
     {
         if (mMappedBoneBuffer)
         {
@@ -140,11 +144,21 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
         if (mBoneMatrixSRVSlot != UINT_MAX)
         {
             const RendererContext ctx = GameEngine::Get().Get_UploadContext();
-            mBoneMatrixBuffer.Reset();
-            ctx.resourceHeap->FreeDeferred(HeapRegion::SRV_Static, mBoneMatrixSRVSlot);
+            if (ctx.resourceHeap)
+                ctx.resourceHeap->FreeDeferred(HeapRegion::SRV_Static, mBoneMatrixSRVSlot);
+
             mBoneMatrixSRVSlot = UINT_MAX;
         }
+        mBoneMatrixBuffer.Reset();
     }
+
+    mModelSkeleton = skeleton;
+
+    if (mModelSkeleton)
+    {
+        CreateBoneMatrixBuffer();
+    }
+
     UpdateBoneMappingCache();
 }
 

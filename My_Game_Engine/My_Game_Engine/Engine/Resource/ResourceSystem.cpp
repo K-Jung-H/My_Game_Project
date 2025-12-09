@@ -97,7 +97,16 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 
     if (resourceGUID.empty())
     {
-        resourceGUID = MetaIO::CreateGUID(resourcePath, res->GetAlias());
+        auto it = mPathToMeta.find(resourcePath);
+        if (it != mPathToMeta.end())
+        {
+            resourceGUID = it->second->guid;
+        }
+        else
+        {
+            resourceGUID = MetaIO::CreateGUID(resourcePath, res->GetAlias());
+        }
+
         res->SetGUID(resourceGUID);
     }
 

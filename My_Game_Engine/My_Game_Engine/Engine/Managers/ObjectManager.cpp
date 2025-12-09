@@ -79,7 +79,8 @@ Object* ObjectManager::CreateObjectWithId(const std::string& name, UINT id)
 
 Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 {
-    if (!model || !model->GetRoot()) return nullptr;
+    if (!model || !model->GetRoot()) 
+        return nullptr;
 
     std::function<Object* (const std::shared_ptr<Model::Node>&, Object*)> createNodeRecursive;
 
