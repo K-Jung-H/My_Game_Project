@@ -44,14 +44,15 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals |
         aiProcess_LimitBoneWeights |
-        aiProcess_ValidateDataStructure |
+//        aiProcess_ValidateDataStructure |
         aiProcess_MakeLeftHanded |
         aiProcess_FlipWindingOrder
     );
 
     if (!scene)
     {
-        OutputDebugStringA(("[Assimp] Failed to load: " + path + "\n").c_str());
+        std::string errorMsg = importer.GetErrorString();
+        OutputDebugStringA(("[Assimp] Failed to load: " + path + "\nReason: " + errorMsg + "\n").c_str());
         return false;
     }
 
@@ -384,8 +385,16 @@ std::shared_ptr<Mesh> ModelLoader_Assimp::CreateMeshFromNode(
     }
 
     newMesh->SetAABB();
-    newMesh->SetAlias(mesh->mName.C_Str());
-    newMesh->SetGUID(MetaIO::CreateGUID(path, mesh->mName.C_Str()));
+
+    std::string originalName = mesh->mName.C_Str();
+    if (originalName.empty())
+    {
+        originalName = "Mesh_" + std::to_string(meshIndex);
+    }
+    newMesh->SetAlias(originalName);
+
+    std::string uniqueGUIDInput = originalName + "_" + std::to_string(meshIndex);
+    newMesh->SetGUID(MetaIO::CreateGUID(path, uniqueGUIDInput));
 
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     rs->RegisterResource(newMesh);

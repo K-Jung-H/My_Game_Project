@@ -54,7 +54,7 @@ void Scene::Build()
 	}
 	
 	//--------------------------------------------------------------------------------
-	
+	/*
 	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_02/CP_100_0012_02.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
@@ -137,7 +137,7 @@ void Scene::Build()
 	lowerMask->SetAlias("Mask_LowerBody");
 	lowerMask->SetWeight("Hips", 1.0f);
 	lowerMask->SetWeight("Spine", 0.0f);
-	rsm->RegisterResource(lowerMask);
+	rsm->RegisterResource(lowerMask);*/
 
 
 	//bool is_debugging = false;

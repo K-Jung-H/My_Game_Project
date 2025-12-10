@@ -482,6 +482,8 @@ void UIManager::DrawComponentInspector(Component* comp)
 {
     if (!comp) return;
 
+    ImGui::PushID(comp);
+
     if (auto smr = dynamic_cast<SkinnedMeshRendererComponent*>(comp))
     {
         DrawSkinnedMeshRendererInspector(smr);
@@ -513,6 +515,8 @@ void UIManager::DrawComponentInspector(Component* comp)
             ImGui::Text("No inspector available.");
         }
     }
+
+	ImGui::PopID();
 }
 
 void UIManager::DrawMeshRendererInspector(Component* comp)

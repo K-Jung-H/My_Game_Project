@@ -24,22 +24,39 @@ void ResourceSystem::LoadAllMeta(const std::string& assetRoot)
                 continue;
 
             std::string json((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
-            Document doc;
+            rapidjson::Document doc;
+
             if (doc.Parse(json.c_str()).HasParseError())
                 continue;
 
             if (doc.HasMember("path") && doc.HasMember("guid"))
             {
                 std::string filePath = doc["path"].GetString();
-                std::string guid = doc["guid"].GetString();
+                std::string rootGuid = doc["guid"].GetString();
 
                 ResourceMetaEntry& entry = mAllMetaData.emplace_back();
                 entry.path = filePath;
-                entry.guid = guid;
+                entry.guid = rootGuid;
 
                 ResourceMetaEntry* entryPtr = &entry;
+
                 mPathToMeta[filePath] = entryPtr;
-                mGuidToMeta[guid] = entryPtr;
+                mGuidToMeta[rootGuid] = entryPtr;
+
+                if (doc.HasMember("sub_resources") && doc["sub_resources"].IsArray())
+                {
+                    const auto& subArray = doc["sub_resources"].GetArray();
+                    for (rapidjson::SizeType i = 0; i < subArray.Size(); ++i)
+                    {
+                        const auto& subItem = subArray[i];
+                        if (subItem.IsObject() && subItem.HasMember("guid") && subItem["guid"].IsString())
+                        {
+                            std::string subGuid = subItem["guid"].GetString();
+
+                            mGuidToMeta[subGuid] = entryPtr;
+                        }
+                    }
+                }
             }
         }
     }
@@ -204,12 +221,12 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
     {
     case FileCategory::FBX:
     {
-        ModelLoader_FBX fbxLoader;
-        if (fbxLoader.Load(normalized_path, alias, result))
-        {
-            OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
-            return;
-        }
+        //ModelLoader_FBX fbxLoader;
+        //if (fbxLoader.Load(normalized_path, alias, result))
+        //{
+        //    OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
+        //    return;
+        //}
 
         ModelLoader_Assimp assimpLoader;
         if (assimpLoader.Load(normalized_path, alias, result))
