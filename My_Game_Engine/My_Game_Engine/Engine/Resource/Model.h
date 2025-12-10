@@ -31,19 +31,29 @@ public:
     std::shared_ptr<Node> GetRoot() const { return root; }
     void SetRoot(const std::shared_ptr<Node>& node) { root = node; }
 
-    const std::vector<std::shared_ptr<Mesh>>& GetAllMeshes() const { return meshes; }
-    void AddMesh(const std::shared_ptr<Mesh>& mesh) { meshes.push_back(mesh); }
-
     std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }
 	void SetSkeleton(std::shared_ptr<Skeleton> s) { mModelSkeleton = s; }
 
     void SetAvatarID(UINT id) { mAvatarID = id; }
     UINT GetAvatarID() const { return mAvatarID; }
 
+    UINT GetMeshCount() const { return mMeshCount; }
+    void SetMeshCount(UINT count) { mMeshCount = count; }
+
+
+    UINT GetMaterialCount() const { return mMaterialCount; }
+    void SetMaterialCount(UINT count) { mMaterialCount = count; }
+
+    UINT GetTextureCount() const { return mTextureCount; }
+    void SetTextureCount(UINT count) { mTextureCount = count; }
+
 private:
     std::shared_ptr<Node> root;
-    std::vector<std::shared_ptr<Mesh>> meshes;       // 전체 Mesh 목록
 
     std::shared_ptr<Skeleton> mModelSkeleton;
     UINT mAvatarID = Engine::INVALID_ID;
+
+	UINT mMeshCount = 0;
+    UINT mMaterialCount = 0;
+    UINT mTextureCount = 0;
 };

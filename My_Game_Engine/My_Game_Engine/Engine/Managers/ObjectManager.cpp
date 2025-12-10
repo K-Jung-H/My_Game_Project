@@ -8,6 +8,22 @@ ObjectManager::~ObjectManager()
     Clear();
 }
 
+void ObjectManager::Update()
+{
+    if (m_DeletionQueue.empty()) 
+        return;
+
+    for (UINT id : m_DeletionQueue)
+    {
+        auto it = m_ActiveObjects.find(id);
+        if (it != m_ActiveObjects.end())
+        {
+            DestroyObjectRecursive(it->second.get());
+        }
+    }
+    m_DeletionQueue.clear();
+}
+
 Object* ObjectManager::CreateObjectInternal(const std::string& name, UINT desired_id)
 {
     UINT id = desired_id;
@@ -63,7 +79,8 @@ Object* ObjectManager::CreateObjectWithId(const std::string& name, UINT id)
 
 Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 {
-    if (!model || !model->GetRoot()) return nullptr;
+    if (!model || !model->GetRoot()) 
+        return nullptr;
 
     std::function<Object* (const std::shared_ptr<Model::Node>&, Object*)> createNodeRecursive;
 
@@ -105,39 +122,43 @@ Object* ObjectManager::CreateFromModel(const std::shared_ptr<Model>& model)
 
     return rootObject;
 }
+
 void ObjectManager::DestroyObject(UINT id) 
 {
-    auto it = m_ActiveObjects.find(id);
-    if (it != m_ActiveObjects.end()) 
-    {
-        DestroyObjectRecursive(it->second.get());
-    }
+    if (std::find(m_DeletionQueue.begin(), m_DeletionQueue.end(), id) == m_DeletionQueue.end())
+        m_DeletionQueue.push_back(id);
 }
 
-void ObjectManager::DestroyObjectRecursive(Object* pObject) 
+void ObjectManager::DestroyObjectRecursive(Object* pObject)
 {
     if (!pObject) return;
 
     auto childrenCopy = pObject->GetChildren();
-    for (Object* pChild : childrenCopy) 
+    for (Object* pChild : childrenCopy)
     {
         DestroyObjectRecursive(pChild);
     }
 
-    if (auto pParent = pObject->GetParent()) 
+    if (auto pParent = pObject->GetParent())
     {
-        auto children = pParent->m_pChildren;
+        auto& children = pParent->m_pChildren;
         children.erase(std::remove(children.begin(), children.end(), pObject), children.end());
     }
-    else 
+    else
     {
         m_pRootObjects.erase(std::remove(m_pRootObjects.begin(), m_pRootObjects.end(), pObject), m_pRootObjects.end());
     }
 
     m_pOwnerScene->UnregisterAllComponents(pObject);
 
+
+    auto it = m_NameToObjectMap.find(pObject->GetName());
+    if (it != m_NameToObjectMap.end() && it->second == pObject)
+    {
+        m_NameToObjectMap.erase(it);
+    }
+
     UINT id = pObject->GetId();
-    m_NameToObjectMap.erase(pObject->GetName());
     m_ActiveObjects.erase(id);
     ReleaseId(id);
 }
@@ -199,12 +220,36 @@ void ObjectManager::ReleaseId(UINT id)
     m_FreeList.push(id);
 }
 
-void ObjectManager::SetObjectName(Object* pObject, const std::string& newName) 
+void ObjectManager::SetObjectName(Object* pObject, const std::string& newName)
 {
     if (!pObject) return;
-    m_NameToObjectMap.erase(pObject->GetName());
-    pObject->SetName(newName);
-    m_NameToObjectMap[newName] = pObject;
+    if (pObject->GetName() == newName) return;
+
+    std::string validName = newName;
+    if (validName.empty())
+    {
+        validName = "Object";
+    }
+
+    if (m_NameToObjectMap.find(validName) != m_NameToObjectMap.end())
+    {
+        std::string uniqueName = validName;
+        int counter = 1;
+        while (m_NameToObjectMap.find(uniqueName) != m_NameToObjectMap.end())
+        {
+            uniqueName = validName + "_" + std::to_string(counter++);
+        }
+        validName = uniqueName;
+    }
+
+    auto oldIt = m_NameToObjectMap.find(pObject->GetName());
+    if (oldIt != m_NameToObjectMap.end() && oldIt->second == pObject)
+    {
+        m_NameToObjectMap.erase(oldIt);
+    }
+
+    pObject->SetName(validName);
+    m_NameToObjectMap[validName] = pObject;
 }
 
 void ObjectManager::SetParent(Object* pChild, Object* pNewParent) 

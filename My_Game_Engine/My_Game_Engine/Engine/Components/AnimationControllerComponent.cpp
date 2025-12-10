@@ -5,9 +5,88 @@
 #include "DX_Graphics/ResourceUtils.h"
 
 AnimationControllerComponent::AnimationControllerComponent()
-    : Component()
+    : SynchronizedComponent()
 {
     mLayers.resize(1);
+}
+
+rapidjson::Value AnimationControllerComponent::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    rapidjson::Value v(rapidjson::kObjectType);
+
+    v.AddMember("type", "AnimationControllerComponent", alloc);
+    v.AddMember("IsPaused", mIsPaused, alloc);
+
+    std::string skelGUID = mModelSkeleton ? mModelSkeleton->GetGUID() : "";
+    v.AddMember("SkeletonGUID", rapidjson::Value(skelGUID.c_str(), alloc), alloc);
+
+    std::string avatarGUID = mModelAvatar ? mModelAvatar->GetGUID() : "";
+    v.AddMember("ModelAvatarGUID", rapidjson::Value(avatarGUID.c_str(), alloc), alloc);
+
+    rapidjson::Value layerArray(rapidjson::kArrayType);
+    for (const auto& layer : mLayers)
+    {
+        layerArray.PushBack(layer.ToJSON(alloc), alloc);
+    }
+    v.AddMember("Layers", layerArray, alloc);
+
+    return v;
+}
+
+void AnimationControllerComponent::FromJSON(const rapidjson::Value& val)
+{
+    auto resSystem = GameEngine::Get().GetResourceSystem();
+
+    if (val.HasMember("IsPaused")) mIsPaused = val["IsPaused"].GetBool();
+
+    std::string skelGUID = val.HasMember("SkeletonGUID") ? val["SkeletonGUID"].GetString() : "";
+    std::string skelPath = val.HasMember("SkeletonPath") ? val["SkeletonPath"].GetString() : "";
+
+    if (auto skel = resSystem->GetOrLoad<Skeleton>(skelGUID, skelPath))
+    {
+        SetSkeleton(skel);
+    }
+    else
+    {
+        std::string msg = "[AnimationController] Failed to load Skeleton. GUID: " + skelGUID + ", Path: " + skelPath + "\n";
+        OutputDebugStringA(msg.c_str());
+    }
+
+    std::string avatarGUID = val.HasMember("ModelAvatarGUID") ? val["ModelAvatarGUID"].GetString() : "";
+    std::string avatarPath = val.HasMember("ModelAvatarPath") ? val["ModelAvatarPath"].GetString() : "";
+
+    if (auto avatar = resSystem->GetOrLoad<Model_Avatar>(avatarGUID, avatarPath))
+    {
+        SetModelAvatar(avatar);
+    }
+    else
+    {
+        std::string msg = "[AnimationController] Failed to load Model_Avatar. GUID: " + avatarGUID + ", Path: " + avatarPath + "\n";
+        OutputDebugStringA(msg.c_str());
+    }
+
+    if (val.HasMember("Layers"))
+    {
+        const rapidjson::Value& layersVal = val["Layers"];
+        if (layersVal.IsArray())
+        {
+            mLayers.clear();
+            for (const auto& layerVal : layersVal.GetArray())
+            {
+                AnimationLayer layer;
+                layer.FromJSON(layerVal);
+                mLayers.push_back(layer);
+            }
+        }
+    }
+}
+
+void AnimationControllerComponent::WakeUp()
+{
+    if (mModelSkeleton && !mBoneMatrixBuffer)
+        CreateBoneMatrixBuffer();
+
+    UpdateBoneMappingCache();
 }
 
 void AnimationControllerComponent::CreateBoneMatrixBuffer()
@@ -50,15 +129,11 @@ void AnimationControllerComponent::CreateBoneMatrixBuffer()
 
 void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleton)
 {
+    std::lock_guard<std::mutex> lock(componentMutex);
+
     if (mModelSkeleton == skeleton) return;
 
-    mModelSkeleton = skeleton;
-
-    if (mModelSkeleton && !mBoneMatrixBuffer)
-    {
-        CreateBoneMatrixBuffer();
-    }
-    else if (!mModelSkeleton)
+    if (mBoneMatrixBuffer)
     {
         if (mMappedBoneBuffer)
         {
@@ -69,16 +144,28 @@ void AnimationControllerComponent::SetSkeleton(std::shared_ptr<Skeleton> skeleto
         if (mBoneMatrixSRVSlot != UINT_MAX)
         {
             const RendererContext ctx = GameEngine::Get().Get_UploadContext();
-            mBoneMatrixBuffer.Reset();
-            ctx.resourceHeap->FreeDeferred(HeapRegion::SRV_Static, mBoneMatrixSRVSlot);
+            if (ctx.resourceHeap)
+                ctx.resourceHeap->FreeDeferred(HeapRegion::SRV_Static, mBoneMatrixSRVSlot);
+
             mBoneMatrixSRVSlot = UINT_MAX;
         }
+        mBoneMatrixBuffer.Reset();
     }
+
+    mModelSkeleton = skeleton;
+
+    if (mModelSkeleton)
+    {
+        CreateBoneMatrixBuffer();
+    }
+
     UpdateBoneMappingCache();
 }
 
 void AnimationControllerComponent::SetModelAvatar(std::shared_ptr<Model_Avatar> model_avatar)
 {
+    std::lock_guard<std::mutex> lock(componentMutex);
+
     mModelAvatar = model_avatar;
     UpdateBoneMappingCache();
 }
@@ -291,6 +378,8 @@ float AnimationControllerComponent::GetLayerDuration(int layerIndex) const
 
 void AnimationControllerComponent::Update(float deltaTime)
 {
+    std::lock_guard<std::mutex> lock(componentMutex);
+
     if (!IsReady()) return;
 
     std::shared_ptr<TransformComponent> transform = mTransform.lock();

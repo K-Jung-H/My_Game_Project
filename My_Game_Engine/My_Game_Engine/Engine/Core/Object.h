@@ -8,29 +8,34 @@ class Object : public std::enable_shared_from_this<Object>
 {
     friend class ObjectManager;
 
-public:
-    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
-    virtual void FromJSON(const rapidjson::Value& val);
-
-public:
-    static UINT CountNodes(Object* root);
-    static void DumpHierarchy(Object* root, const std::string& filename);
-
 private:
     explicit Object(const std::string& name);
-
 
 public:
     Object() = delete;
     ~Object();
 
+public:
+    void WakeUpRecursive();
+
+public:
     void SetId(UINT new_id) { object_ID = new_id; }
     void SetName(std::string new_name) { mName = new_name; }
 
     const UINT GetId() { return object_ID; }
-    const std::string GetName() { return mName; } 
+    const std::string GetName() { return mName; }
 
     std::shared_ptr<TransformComponent> GetTransform() { return transform; }
+
+public:
+    Object* GetParent() { return m_pParent; }
+    const std::vector<Object*>& GetChildren() const { return m_pChildren; }
+
+    void SetParent(Object* parent);
+    void SetChild(Object* child);
+    void SetSibling(Object* new_sibling);
+
+public:
     const std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>>& GetAllComponents() const { return map_Components; }
 
     template<typename T, typename... Args>
@@ -48,20 +53,18 @@ public:
     template<typename T>
     std::vector<std::shared_ptr<T>> GetComponentsInChildren();
 
-
-    Object* GetParent() { return m_pParent; }
-    const std::vector<Object*>& GetChildren() const { return m_pChildren; }
-
-	void SetParent(Object* parent);
-	void SetChild(Object* child);
-    void SetSibling(Object* new_sibling);
-
-
-
+public:
     void Update_Animate(float dt);
-
     void UpdateTransform_All();
     void Update_Transform(const XMFLOAT4X4* parentWorld, bool parentWorldDirty);
+
+public:
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    virtual void FromJSON(const rapidjson::Value& val);
+
+public:
+    static UINT CountNodes(Object* root);
+    static void DumpHierarchy(Object* root, const std::string& filename);
 
 
 private:
@@ -70,7 +73,6 @@ private:
 
     std::shared_ptr<TransformComponent> transform;
     std::unordered_map<Component_Type, std::vector<std::shared_ptr<Component>>> map_Components;
-
 
     Object* m_pParent = nullptr;
     std::vector<Object*> m_pChildren;
@@ -102,17 +104,17 @@ void Object::RemoveComponent()
 {
     Component_Type type = T::Type;
     auto it = map_Components.find(type);
-    if (it != map_Components.end()) 
+    if (it != map_Components.end())
     {
         auto& vec = it->second;
-        auto vec_it = std::find_if(vec.begin(), vec.end(), [](const auto& p) 
+        auto vec_it = std::find_if(vec.begin(), vec.end(), [](const auto& p)
             {
-            return dynamic_cast<T*>(p.get()) != nullptr;
+                return dynamic_cast<T*>(p.get()) != nullptr;
             });
 
-        if (vec_it != vec.end()) 
+        if (vec_it != vec.end())
         {
-            if (m_pObjectManager) 
+            if (m_pObjectManager)
             {
                 m_pObjectManager->UnregisterComponent(*vec_it);
             }
@@ -126,7 +128,7 @@ std::shared_ptr<T> Object::GetComponent()
 {
     Component_Type type = T::Type;
     auto it = map_Components.find(type);
-    if (it != map_Components.end() && !it->second.empty()) 
+    if (it != map_Components.end() && !it->second.empty())
     {
         return std::dynamic_pointer_cast<T>(it->second.front());
     }
@@ -139,12 +141,12 @@ std::vector<std::shared_ptr<T>> Object::GetComponents()
     std::vector<std::shared_ptr<T>> result;
     Component_Type type = T::Type;
     auto it = map_Components.find(type);
-    if (it != map_Components.end()) 
+    if (it != map_Components.end())
     {
         result.reserve(it->second.size());
-        for (auto& comp : it->second) 
+        for (auto& comp : it->second)
         {
-            if (auto casted = std::dynamic_pointer_cast<T>(comp)) 
+            if (auto casted = std::dynamic_pointer_cast<T>(comp))
             {
                 result.push_back(casted);
             }

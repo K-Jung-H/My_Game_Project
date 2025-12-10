@@ -43,6 +43,7 @@ public:
     void OnProcessingInputMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
     LRESULT CALLBACK OnProcessingWindowMessage(HWND m_hWnd, UINT nMessageID, WPARAM wParam, LPARAM lParam);
 
+    DX12_Renderer* GetRenderer() const { return mRenderer.get(); }
     GameTimer* GetTimer() { return mTimer.get(); }
     PhysicsSystem* GetPhysicsSystem() { return m_PhysicsSystem.get(); }
     ResourceSystem* GetResourceSystem() { return m_ResourceSystem.get(); }

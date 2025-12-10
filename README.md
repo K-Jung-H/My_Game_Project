@@ -39,24 +39,27 @@ Entity-Component-System (ECS) 아키텍처 기반.
         * 다중 선택(Quad Selection) 및 곡선(Bezier)/직선 링크 시각화.
     * 애니메이션 레이어 실시간 제어 및 블렌딩 상태 시각화.
 
----
+### GUI & Resource File Importer
 
-## Currently In Progress & Issues
+* **Resource Management & Pipeline:**
+    * **Assimp Integration:** FBX/OBJ 등 외부 모델 포맷 지원, Mesh/Skeleton/Animation 데이터 추출 및 변환 파이프라인.
+    * **Robust GUID Generation:** Assimp 노드 이름 중복("Scene", "Mesh" 등)으로 인한 충돌 방지를 위해 `Name + Index` 조합의 고유 식별자 생성 알고리즘 적용.
+    * **Recursive Meta-data System:**
+        * JSON 기반 `.meta` 파일을 생성하여 원본 에셋과 엔진 내부 에셋 간의 영속성(Persistence) 보장.
+        * `sub_resources` 배열 순회를 통해 단일 파일 내 포함된 다수의 Mesh, Material, Animation Clip 리소스를 개별 GUID로 식별 및 로드.
 
-현재 개발 단계 진행 상황.
-### 1. Root Motion
-* 애니메이션의 루트 본(Hips) 이동 데이터를 추출하여 실제 GameObject의 월드 좌표 이동으로 변환하는 로직 구현 예정.
-- 사용하던 애니메이션들에서 문제 발생
-	- Mixamo로 추출하는 애니메이션의 경우, 루트 모션이 없음
-	- Unity로 애니메이션을 추출 시도
-		- FBX_EXPORTER: 모델과 애니메이션 파일의 리타게팅 구조가 FBX 파잃에 저장 안됨 
-		- Clip을 Bake 하는 Script 작성: 루트 모션이 추출 안됨. 
-	
-	- Blender 를 사용하여 Mixamo에서 루트 모션을 생성하여 적용
-		- Blender 숙련도 부족
+* **Inspector & Editor Interface (ImGui):**
+    * **Component-based Inspection:**
+        * `SkinnedMeshRenderer`, `AnimationController` 등 컴포넌트 타입별 전용 UI 제공.
+        * **Multi-SubMesh Support:** 복수의 서브 메시(Sub-mesh)로 구성된 모델의 슬롯별 재질(Material) 할당 및 시각화 인터페이스.
+    * **Material Workflow:**
+        * PBR 속성(Albedo, Roughness, Metallic) 실시간 제어.
+        * 텍스처 슬롯에 대한 **Drag & Drop** 지원, Hover 시 썸네일 미리보기(Texture Preview) 기능.
+    * **UI Architecture Stability:**
+        * **ID Stack Management:** 동일 컴포넌트 다중 부착 또는 동일 이름의 위젯 렌더링 시 발생하는 ID 충돌(Conflict) 방지를 위해, 컴포넌트 포인터 기반(`PushID(ptr)`)의 엄격한 ID Scope 관리 구현.
+        * **Resource Picker:** 에셋 타입별 자동 필터링, 검색 기능이 포함된 콤보박스 및 Drag & Drop 페이로드 시스템 연동.
+    * **Docking System:** Viewport, Hierarchy, Inspector, Resource Browser 등 패널의 자유로운 배치 및 도킹 지원.
 
--> 루트 모션에 계획된 것보다 너무 많은 시간 할애함. 
--> 애니메이션은 구조 정리 후, 다른 것부터 처리하기.
 
 ---
 

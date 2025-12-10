@@ -1,7 +1,8 @@
 #include "GameEngine.h"
 #include "Model.h"
 
-Model::Model() : Game_Resource()
+Model::Model()
+    : Game_Resource(ResourceType::Model)
 {
 
 }

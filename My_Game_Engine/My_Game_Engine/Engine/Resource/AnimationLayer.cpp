@@ -1,9 +1,73 @@
 #include "AnimationLayer.h"
-
+#include "GameEngine.h"
 
 AnimationLayer::AnimationLayer()
 {
 }
+
+rapidjson::Value AnimationLayer::ToJSON(rapidjson::Document::AllocatorType& alloc) const
+{
+    rapidjson::Value v(rapidjson::kObjectType);
+
+    v.AddMember("Name", rapidjson::Value(mName.c_str(), alloc), alloc);
+    v.AddMember("Weight", mLayerWeight, alloc);
+    v.AddMember("BlendMode", static_cast<int>(mBlendMode), alloc);
+    v.AddMember("EnableRootMotion", mEnableRootMotion, alloc);
+
+    std::string maskGUID = mMask ? mMask->GetGUID() : "";
+    v.AddMember("MaskGUID", rapidjson::Value(maskGUID.c_str(), alloc), alloc);
+
+    std::string clipGUID = mCurrentState.clip ? mCurrentState.clip->GetGUID() : "";
+    v.AddMember("CurrentClipGUID", rapidjson::Value(clipGUID.c_str(), alloc), alloc);
+
+    v.AddMember("Time", mCurrentState.currentTime, alloc);
+    v.AddMember("Speed", mCurrentState.speed, alloc);
+    v.AddMember("PlaybackMode", static_cast<int>(mCurrentState.mode), alloc);
+    v.AddMember("IsReverse", mCurrentState.isReverse, alloc);
+
+    return v;
+}
+
+void AnimationLayer::FromJSON(const rapidjson::Value& val)
+{
+    auto resSystem = GameEngine::Get().GetResourceSystem();
+
+    if (val.HasMember("Name")) mName = val["Name"].GetString();
+    if (val.HasMember("Weight")) mLayerWeight = val["Weight"].GetFloat();
+    if (val.HasMember("BlendMode")) mBlendMode = static_cast<LayerBlendMode>(val["BlendMode"].GetInt());
+    if (val.HasMember("EnableRootMotion")) mEnableRootMotion = val["EnableRootMotion"].GetBool();
+
+    if (val.HasMember("MaskGUID"))
+    {
+        std::string guid = val["MaskGUID"].GetString();
+        if (!guid.empty())
+        {
+            mMask = resSystem->GetByGUID<AvatarMask>(guid);
+        }
+    }
+
+    mIsTransitioning = false;
+    mTransitionTime = 0.0f;
+    mTransitionDuration = 0.0f;
+
+    if (val.HasMember("CurrentClipGUID"))
+    {
+        std::string guid = val["CurrentClipGUID"].GetString();
+        if (!guid.empty())
+        {
+            mCurrentState.clip = resSystem->GetOrLoad<AnimationClip>(guid, "");
+        }
+    }
+
+    if (val.HasMember("Time")) mCurrentState.currentTime = val["Time"].GetFloat();
+    if (val.HasMember("Speed")) mCurrentState.speed = val["Speed"].GetFloat();
+    if (val.HasMember("PlaybackMode")) mCurrentState.mode = static_cast<PlaybackMode>(val["PlaybackMode"].GetInt());
+    if (val.HasMember("IsReverse")) mCurrentState.isReverse = val["IsReverse"].GetBool();
+
+    mCurrentState.isValid = (mCurrentState.clip != nullptr);
+    mPrevState = AnimationState();
+}
+
 
 void AnimationLayer::SetNormalizedTime(float ratio)
 {

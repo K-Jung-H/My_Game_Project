@@ -4,6 +4,8 @@
 void SceneManager::SetActiveScene(const std::shared_ptr<Scene>& scene) 
 {
     mActiveScene = scene;
+	if(auto scene = mActiveScene.lock())
+        scene->WakeUp();
 }
 
 std::shared_ptr<Scene> SceneManager::GetActiveScene() const
@@ -64,19 +66,44 @@ void SceneManager::SaveScene(std::shared_ptr<Scene> target_scene, std::string fi
     if (!target_scene)
         return;
 
-    std::filesystem::path sceneDir = EnsureSceneDirectory();
+    std::filesystem::path json_path;
+    std::filesystem::path bin_path;
 
-    std::string baseName = file_name.empty() ? target_scene->alias : file_name;
+    if (!file_name.empty())
+    {
+        std::filesystem::path inputPath(file_name);
 
-    baseName = std::filesystem::path(baseName).filename().string();
+        if (inputPath.is_absolute() || inputPath.has_parent_path())
+        {
+            json_path = inputPath;
+        }
+        else
+        {
+            json_path = EnsureSceneDirectory() / inputPath;
+        }
+    }
+    else
+    {
+        std::filesystem::path sceneDir = EnsureSceneDirectory();
+        std::string name = target_scene->GetAlias();
+        if (name.empty()) name = "Untitled_Scene";
 
-    std::filesystem::path json_path = sceneDir / baseName;
-    std::filesystem::path bin_path = sceneDir / baseName;
+        json_path = sceneDir / std::filesystem::path(name).filename();
+    }
 
-    if (!HasExtension(json_path.string(), ".json"))
+    if (!json_path.has_extension() || json_path.extension() != ".json")
+    {
         json_path.replace_extension(".json");
-    if (!HasExtension(bin_path.string(), ".bin"))
-        bin_path.replace_extension(".bin");
+    }
+
+    bin_path = json_path;
+    bin_path.replace_extension(".bin");
+
+    std::filesystem::path parentDir = json_path.parent_path();
+    if (!parentDir.empty() && !std::filesystem::exists(parentDir))
+    {
+        std::filesystem::create_directories(parentDir);
+    }
 
     SceneArchive archive;
     archive.Save(target_scene, json_path.string(), SceneFileFormat::JSON);

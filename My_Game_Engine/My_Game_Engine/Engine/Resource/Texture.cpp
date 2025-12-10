@@ -30,8 +30,11 @@ bool Texture::LoadFromFile(std::string path, const RendererContext& ctx)
 
     if (!mTexture) return false;
 
-    mSlot = ctx.resourceHeap->Allocate(HeapRegion::SRV_Static);
+    texture_width = mTexture->GetDesc().Width;
+    texture_height = mTexture->GetDesc().Height;
 
+    mSlot = ctx.resourceHeap->Allocate(HeapRegion::SRV_Static);
+    
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.Format = mTexture->GetDesc().Format;

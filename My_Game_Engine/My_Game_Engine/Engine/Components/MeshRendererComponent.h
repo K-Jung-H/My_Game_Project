@@ -3,7 +3,7 @@
 
 class Mesh;
 
-class MeshRendererComponent : public Component
+class MeshRendererComponent : public SynchronizedComponent
 {
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;

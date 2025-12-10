@@ -94,9 +94,14 @@ bool MetaIO::SaveSimpleMeta(const std::shared_ptr<Game_Resource>& res)
     std::string typeStr;
     switch (res->Get_Type())
     {
-    case ResourceType::Mesh: typeStr = "Mesh"; break;
-    case ResourceType::Material: typeStr = "Material"; break;
-    case ResourceType::Texture: typeStr = "Texture"; break;
+    case ResourceType::Mesh: typeStr = "MESH"; break;
+    case ResourceType::Material: typeStr = "MATERIAL"; break;
+    case ResourceType::Texture: typeStr = "TEXTURE"; break;
+	case ResourceType::AnimationClip: typeStr = "ANIMATION_CLIP"; break;
+	case ResourceType::Skeleton: typeStr = "SKELETON"; break;
+	case ResourceType::ModelAvatar: typeStr = "MODEL_AVATAR"; break;
+	case ResourceType::AvatarMask: typeStr = "AVATAR_MASK"; break;
+	case ResourceType::Model:
     default: typeStr = "etc"; break;
     }
     doc.AddMember("type", Value(typeStr.c_str(), alloc), alloc);

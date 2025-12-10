@@ -6,46 +6,24 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	m_hInstance = hInstance;
 	m_hWnd = hMainWnd;
 
+	mTimer = std::make_unique<GameTimer>();
+	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
+	m_ResourceSystem = std::make_unique<ResourceSystem>();
+	m_ResourceSystem->Initialize("Assets/");
+	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
+	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
 
-	CoInitialize(NULL);
-
+	HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 
 	mRenderer = std::make_unique<DX12_Renderer>();
 	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
 
-	// ImGui ÃÊ±âÈ­
-	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-	io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
-	io.ConfigFlags |= ImGuiDockNodeFlags_PassthruCentralNode;
-
-	ImGui::StyleColorsDark();
-
-	ImGuiStyle& style = ImGui::GetStyle();
-	if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
-	{
-		style.WindowRounding = 0.0f;
-		style.Colors[ImGuiCol_WindowBg].w = 1.0f;
-	}
-
-	ImGui_ImplWin32_Init(hMainWnd);
-
-	ImGui_ImplDX12_InitInfo init_info = mRenderer->GetImGuiInitInfo();
-	ImGui_ImplDX12_Init(&init_info);
-
-	mTimer = std::make_unique<GameTimer>();
-	m_PhysicsSystem = std::make_unique<PhysicsSystem>();
-	m_ResourceSystem = std::make_unique<ResourceSystem>();
-	m_ResourceSystem->Initialize("Assets");
-	m_AvatarSystem = std::make_unique<AvatarDefinitionManager>();
-	m_AvatarSystem->Initialize("Assets/AvatarDefinition");
-
 	mRenderer->BeginUpload();
 	auto ctx = mRenderer->Get_UploadContext();
 
-	SceneManager::Get().CreateScene("wow");
+	auto default_scene = SceneManager::Get().CreateScene("wow");
+
+	SceneManager::Get().SetActiveScene(default_scene);
 
 	mRenderer->EndUpload();
 
@@ -154,15 +132,8 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 		else if (wParam == SIZE_MAXIMIZED || wParam == SIZE_RESTORED)
 		{
 			if (mRenderer && Is_Initialized)
-				mRenderer->OnResize(newWidth, newHeight);
-
-			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				if (auto cam = scene->GetActiveCamera())
-				{
-					cam->SetViewport({ 0, 0 }, { newWidth, newHeight });
-					cam->SetScissorRect({ 0, 0 }, { newWidth, newHeight });
-				}
+				mRenderer->ResizeSwapChain(newWidth, newHeight);
 			}
 		}
 		else
@@ -174,23 +145,15 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 	}
 	break;
 
-
 	case WM_EXITSIZEMOVE:
 	{
 		if (mResizeRequested)
 		{
 			if (mRenderer && Is_Initialized)
-				mRenderer->OnResize(mPendingWidth, mPendingHeight);
-			mResizeRequested = false;
-
-			if (auto scene = SceneManager::Get().GetActiveScene())
 			{
-				if (auto cam = scene->GetActiveCamera())
-				{
-					cam->SetViewport({ 0, 0 }, { mPendingWidth, mPendingHeight });
-					cam->SetScissorRect({ 0, 0 }, { mPendingWidth, mPendingHeight });
-				}
+				mRenderer->ResizeSwapChain(mPendingWidth, mPendingHeight);
 			}
+			mResizeRequested = false;
 		}
 	}
 	break;
@@ -312,10 +275,17 @@ LRESULT CALLBACK GameEngine::OnProcessingWindowMessage(HWND m_hWnd, UINT nMessag
 
 			if (!path.empty())
 			{
+				if (mRenderer) mRenderer->BeginUpload();
+
 				if (auto scene = SceneManager::Get().LoadScene(path))
 				{
 					SceneManager::Get().SetActiveScene(scene);
 					active_scene = scene;
+				}
+
+				if (mRenderer)
+				{
+					mRenderer->EndUpload();
 				}
 			}
 		}
@@ -370,6 +340,8 @@ INT_PTR CALLBACK FrameInputProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM l
 	return (INT_PTR)FALSE;
 }
 
+// [GameEngine.cpp]
+
 std::string OpenFileDialog(const std::vector<std::pair<std::string, std::string>>& filters)
 {
 	std::string filterStr;
@@ -390,17 +362,20 @@ std::string OpenFileDialog(const std::vector<std::pair<std::string, std::string>
 	ofn.lpstrFilter = filterStr.c_str();
 	ofn.nFilterIndex = 1;
 
-	std::filesystem::path initDir = std::filesystem::absolute("Assets/Scenes");
+	std::filesystem::path initDir = std::filesystem::absolute("Assets");
 	std::string absDir = initDir.string();
 	ofn.lpstrInitialDir = absDir.c_str();
 
-	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+	ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR; 
 
+	std::string resultPath = "";
 	if (GetOpenFileNameA(&ofn))
-		return std::string(ofn.lpstrFile);
+	{
+		resultPath = std::string(ofn.lpstrFile);
+	}
 
 
-	return "";
+	return resultPath;
 }
 
 
@@ -424,7 +399,7 @@ std::string SaveFileDialog(const std::vector<std::pair<std::string, std::string>
 	ofn.lpstrFilter = filterStr.c_str();
 	ofn.nFilterIndex = 1;
 
-	std::filesystem::path initDir = std::filesystem::absolute("Assets/Scenes");
+	std::filesystem::path initDir = std::filesystem::absolute("Assets/");
 	std::string absDir = initDir.string();
 	ofn.lpstrInitialDir = absDir.c_str();
 

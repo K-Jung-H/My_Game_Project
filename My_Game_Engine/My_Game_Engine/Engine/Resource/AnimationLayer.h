@@ -12,6 +12,10 @@ struct LayerBoneCache
 class AnimationLayer
 {
 public:
+    rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    void FromJSON(const rapidjson::Value& val);
+
+public:
     AnimationLayer();
     ~AnimationLayer() = default;
 

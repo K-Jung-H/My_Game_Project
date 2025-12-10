@@ -14,15 +14,22 @@ struct FrameSkinBuffer
 class SkinnedMeshRendererComponent : public MeshRendererComponent
 {
 public:
-    SkinnedMeshRendererComponent();
-    virtual ~SkinnedMeshRendererComponent() = default;
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    virtual void FromJSON(const rapidjson::Value& val);
 
+public:
     static constexpr Component_Type Type = Component_Type::Skinned_Mesh_Renderer;
     Component_Type GetType() const override { return Type; }
 
-    void Initialize();
-    virtual void SetMesh(UINT id);
+public:
+    SkinnedMeshRendererComponent();
+    virtual ~SkinnedMeshRendererComponent() = default;
 
+    void Initialize();
+    virtual void WakeUp();
+
+    virtual void SetMesh(UINT id) override;
+    virtual void Update() override;
 
     FrameSkinBuffer& GetFrameSkinBuffer(UINT frameIndex) { return mFrameSkinnedBuffers[frameIndex]; }
 
@@ -35,6 +42,8 @@ private:
     void CacheAnimController();
     void CreatePreSkinnedOutputBuffers(std::shared_ptr<SkinnedMesh> skinnedMesh);
 
+    void ApplyDeferredMeshChange();
+
 private:
     std::shared_ptr<AnimationControllerComponent> mCachedAnimController;
 
@@ -42,4 +51,7 @@ private:
     bool mHasSkinnedBuffer = false;
 
     D3D12_VERTEX_BUFFER_VIEW mOriginalHotVBV;
+
+    bool mDeferredMeshUpdate = false;
+    UINT mDeferredMeshId = Engine::INVALID_ID;
 };

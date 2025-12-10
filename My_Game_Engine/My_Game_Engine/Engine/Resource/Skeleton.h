@@ -36,8 +36,11 @@ public:
     UINT GetBoneCount() const;
 
     const std::string& GetBoneName(int index) const;
+	const std::vector<std::string>& GetBoneNames() const { return mNames; }
+
     int GetBoneIndex(const std::string& name) const;
     int GetRootBoneIndex() const;
+
 private:
     void BuildNameToIndex();
 

@@ -23,8 +23,12 @@ struct BoneMatrixData
     XMFLOAT4X4 transform;
 };
 
-class AnimationControllerComponent : public Component
+class AnimationControllerComponent : public SynchronizedComponent
 {
+public:
+    virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
+    virtual void FromJSON(const rapidjson::Value& val);
+
 public:
     static constexpr Component_Type Type = Component_Type::AnimationController;
     Component_Type GetType() const override { return Type; }
@@ -32,6 +36,8 @@ public:
 public:
     AnimationControllerComponent();
     virtual ~AnimationControllerComponent() = default;
+
+    virtual void WakeUp();
 
     void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
     std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }

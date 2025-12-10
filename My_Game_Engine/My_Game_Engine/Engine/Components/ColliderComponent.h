@@ -1,7 +1,7 @@
 #pragma once
 #include "Core/Component.h"
 
-class ColliderComponent : public Component 
+class ColliderComponent : public DataComponent
 {
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;

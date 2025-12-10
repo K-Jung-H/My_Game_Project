@@ -67,6 +67,10 @@ public:
     UINT GetIndexCount() const { return static_cast<UINT>(indices.size()); }
     UINT GetMaterialID() const { return submeshes.empty() ? Engine::INVALID_ID : submeshes[0].materialId; }
     const BoundingBox& GetLocalAABB() const { return mLocalAABB; }
+    
+    UINT GetVertexCount() const { return static_cast<UINT>(positions.size()); }
+	UINT GetSubMeshCount() const { return static_cast<UINT>(submeshes.size()); }
+
 protected:
     void BuildInterleavedBuffers();
     void UploadIndexBuffer();
@@ -150,7 +154,6 @@ public:
     UINT GetHotInputSRV() const { return HotInputSRV; }
     UINT GetSkinDataSRV() const { return SkinDataSRV; }
 
-    UINT GetVertexCount() const { return static_cast<UINT>(positions.size()); }
     UINT GetHotStride() const { return mHotLayout.stride; }
 
     std::shared_ptr<Skeleton> GetSkeleton() const { return mModelSkeleton; }

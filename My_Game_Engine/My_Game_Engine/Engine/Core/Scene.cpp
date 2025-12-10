@@ -56,12 +56,12 @@ void Scene::Build()
 	//--------------------------------------------------------------------------------
 	
 	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
-	const std::string path_1 = "Assets/CP_100_0012_07/CP_100_0012_07.fbx";
+	const std::string path_1 = "Assets/CP_100_0012_02/CP_100_0012_02.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
 	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx";
 	const std::string animation_clip_path_1 = "Assets/Animation/Catwalk Walk.fbx";
 	const std::string animation_clip_path_2 = "Assets/Animation/Ymca Dance.fbx";
- 	//	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
+	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	LoadResult animation_result_0;
 	rsm->Load(animation_clip_path_0, "Test_10", animation_result_0);
@@ -102,12 +102,8 @@ void Scene::Build()
 
 		rb->SetUseGravity(false);
 
-		for (auto& renderer : skinnedRenderers)
-			renderer->Initialize();
-
 		animController->SetModelAvatar(model_0_avatar);
 		animController->SetSkeleton(model_0_skeleton);
-
 		animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
 	}
 
@@ -125,12 +121,9 @@ void Scene::Build()
 
 			rb->SetUseGravity(false);
 
-			for (auto& renderer : skinnedRenderers)
-				renderer->Initialize();
 
 			animController->SetModelAvatar(model_1_avatar);
 			animController->SetSkeleton(model_1_skeleton);
-
 			animController->Play(0, clip_0, 1.0f, PlaybackMode::Loop, 1.0f);
 		}
 	}
@@ -147,18 +140,26 @@ void Scene::Build()
 	rsm->RegisterResource(lowerMask);
 
 
-	bool is_debugging = false;
-	if (is_debugging)
-	{
-		std::shared_ptr<Model> model_ptr;
-		Object* test_obj = NULL;
-		UINT model_node_num = Model::CountNodes(model_ptr);
-		UINT node_num = Object::CountNodes(test_obj);
-		Model::loadAndExport(path_0, "test_assimp_export.txt");
-		Object::DumpHierarchy(test_obj, "test_model_tree.txt");
-	}
+	//bool is_debugging = false;
+	//if (is_debugging)
+	//{
+	//	std::shared_ptr<Model> model_ptr;
+	//	Object* test_obj = NULL;
+	//	UINT model_node_num = Model::CountNodes(model_ptr);
+	//	UINT node_num = Object::CountNodes(test_obj);
+	//	Model::loadAndExport(path_0, "test_assimp_export.txt");
+	//	Object::DumpHierarchy(test_obj, "test_model_tree.txt");
+	//}
 }
 
+void Scene::WakeUp()
+{
+	for (auto* pRootObj : GetRootObjectList())
+	{
+		if (pRootObj)
+			pRootObj->WakeUpRecursive();
+	}
+}
 
 void Scene::Update_Inputs(float dt)
 {
@@ -226,6 +227,8 @@ void Scene::Update_Fixed(float dt)
 
 void Scene::Update_Scene(float dt)
 {
+	m_pObjectManager->Update();
+
 	m_pObjectManager->Update_Animate_All(dt);
 
 	for (auto animController : animation_controller_list)
@@ -233,12 +236,18 @@ void Scene::Update_Scene(float dt)
 		if (animController)
 			animController->Update(dt);
 	}
+
+	for (const auto& rd : renderData_list)
+	{
+		if (auto mr = rd.meshRenderer.lock())
+		{
+			mr->Update();
+		}
+	}
 }
 
 void Scene::Update_Late()
 {
-
-
 	for (auto camera_ptr : camera_list)
 	{
 		if (auto cp = camera_ptr.lock())
@@ -253,7 +262,6 @@ void Scene::Update_Late()
 	}
 
 	m_pObjectManager->UpdateTransform_All();
-
 }
 
 void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
@@ -324,6 +332,13 @@ void Scene::UnregisterAllComponents(Object* pObject)
 		{
 			switch (type)
 			{
+			case Component_Type::AnimationController:
+			{
+				auto it = std::remove_if(animation_controller_list.begin(), animation_controller_list.end(),
+					[&](const std::shared_ptr<AnimationControllerComponent>& ac) {return ac == comp; });
+				animation_controller_list.erase(it, animation_controller_list.end());
+				break;
+			}
 			case Component_Type::Mesh_Renderer:
 			{
 				auto it = std::remove_if(renderData_list.begin(), renderData_list.end(),

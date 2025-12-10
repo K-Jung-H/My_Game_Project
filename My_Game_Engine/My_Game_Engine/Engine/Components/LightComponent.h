@@ -68,7 +68,7 @@ class CameraComponent;
 class Object;
 
 
-class LightComponent : public Component
+class LightComponent : public DataComponent
 {
     static constexpr UINT FrameCount = Engine::Frame_Render_Buffer_Count;
 

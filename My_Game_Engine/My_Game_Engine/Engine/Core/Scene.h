@@ -48,7 +48,7 @@ protected:
     void SetAlias(std::string a) { alias = a; }
 
     virtual void Build();
-
+    void WakeUp();
 
 private:
     UINT scene_id;

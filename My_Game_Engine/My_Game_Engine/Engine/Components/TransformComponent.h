@@ -1,7 +1,7 @@
 #pragma once
 #include "Core/Component.h"
 
-class TransformComponent : public Component
+class TransformComponent : public SynchronizedComponent
 {
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;

@@ -44,14 +44,15 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals |
         aiProcess_LimitBoneWeights |
-        aiProcess_ValidateDataStructure |
+//        aiProcess_ValidateDataStructure |
         aiProcess_MakeLeftHanded |
         aiProcess_FlipWindingOrder
     );
 
     if (!scene)
     {
-        OutputDebugStringA(("[Assimp] Failed to load: " + path + "\n").c_str());
+        std::string errorMsg = importer.GetErrorString();
+        OutputDebugStringA(("[Assimp] Failed to load: " + path + "\nReason: " + errorMsg + "\n").c_str());
         return false;
     }
 
@@ -101,6 +102,16 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             if (mat)
             {
                 materialIDs.push_back(mat->GetId());
+
+                if (mat->diffuseTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->diffuseTexId);
+                if (mat->normalTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->normalTexId);
+                if (mat->roughnessTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->roughnessTexId);
+                if (mat->metallicTexId != Engine::INVALID_ID)
+                    result.textureIds.push_back(mat->metallicTexId);
+
                 result.materialIds.push_back(mat->GetId());
             }
             else
@@ -168,10 +179,6 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         if (model)
         {
             model->SetRoot(rootNode);
-            for (const auto& mesh : loadedMeshes)
-            {
-                model->AddMesh(mesh);
-            }
         }
     }
 
@@ -217,6 +224,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
             {
                 skinned->Skinning_Skeleton_Bones(skeletonRes);
             }
+			result.meshIds.push_back(mesh->GetId());
         }
     }
 
@@ -233,6 +241,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = mesh->GetGUID();
         meta.sub_resources.push_back(s);
     }
+
     for (UINT matId : materialIDs)
     {
         auto mat = rs->GetById<Material>(matId);
@@ -243,6 +252,8 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = mat->GetGUID();
         meta.sub_resources.push_back(s);
     }
+
+
     for (auto& texId : result.textureIds)
     {
         auto tex = rs->GetById<Texture>(texId);
@@ -253,6 +264,7 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         s.guid = tex->GetGUID();
         meta.sub_resources.push_back(s);
     }
+
     for (auto& clip : loadedClips)
     {
         SubResourceMeta s{};
@@ -262,7 +274,31 @@ bool ModelLoader_Assimp::Load(const std::string& path, std::string_view alias, L
         meta.sub_resources.push_back(s);
     }
 
+    {
+        SubResourceMeta s{};
+        s.name = modelAvatar->GetAlias();
+        s.type = "MODEL_AVATAR";
+        s.guid = modelAvatar->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+    {
+        SubResourceMeta s{};
+        s.name = skeletonRes->GetAlias();
+        s.type = "SKELETON";
+        s.guid = skeletonRes->GetGUID();
+        meta.sub_resources.push_back(s);
+    }
+
+
     MetaIO::SaveFbxMeta(meta);
+
+    if (model)
+    {
+        model->SetMeshCount((UINT)result.meshIds.size());
+        model->SetMaterialCount((UINT)result.materialIds.size());
+        model->SetTextureCount((UINT)result.textureIds.size());
+    }
 
     return true;
 }
@@ -349,8 +385,16 @@ std::shared_ptr<Mesh> ModelLoader_Assimp::CreateMeshFromNode(
     }
 
     newMesh->SetAABB();
-    newMesh->SetAlias(mesh->mName.C_Str());
-    newMesh->SetGUID(MetaIO::CreateGUID(path, mesh->mName.C_Str()));
+
+    std::string originalName = mesh->mName.C_Str();
+    if (originalName.empty())
+    {
+        originalName = "Mesh_" + std::to_string(meshIndex);
+    }
+    newMesh->SetAlias(originalName);
+
+    std::string uniqueGUIDInput = originalName + "_" + std::to_string(meshIndex);
+    newMesh->SetGUID(MetaIO::CreateGUID(path, uniqueGUIDInput));
 
     ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
     rs->RegisterResource(newMesh);

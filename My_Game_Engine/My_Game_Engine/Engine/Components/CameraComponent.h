@@ -37,7 +37,7 @@ constexpr UINT CLUSTER_Y = 9;
 constexpr UINT CLUSTER_Z = 24;
 constexpr UINT TOTAL_CLUSTER_COUNT = CLUSTER_X * CLUSTER_Y * CLUSTER_Z;
 
-class CameraComponent : public Component 
+class CameraComponent : public DataComponent
 {
 public:
     virtual rapidjson::Value ToJSON(rapidjson::Document::AllocatorType& alloc) const;
