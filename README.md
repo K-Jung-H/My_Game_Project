@@ -60,6 +60,23 @@ Entity-Component-System (ECS) 아키텍처 기반.
         * **Resource Picker:** 에셋 타입별 자동 필터링, 검색 기능이 포함된 콤보박스 및 Drag & Drop 페이로드 시스템 연동.
     * **Docking System:** Viewport, Hierarchy, Inspector, Resource Browser 등 패널의 자유로운 배치 및 도킹 지원.
 
+### Terrain System
+* **QuadTree-based LOD (Level of Detail):**
+    * **Space Partitioning:** 쿼드트리(QuadTree)를 활용한 공간 분할 및 거리 기반 LOD 레벨 결정.
+    * **Optimized Culling:** 카메라 좌표를 로컬 공간(Local Space)으로 변환하여 연산 부하를 최소화한 절두체 컬링(Frustum Culling) 구현.
+* **GPU-Driven Tessellation:**
+    * **Hardware Tessellation:** Hull & Domain Shader를 사용하여 런타임에 지형 지오메트리 동적 생성.
+    * **Instanced Rendering:** 1x1 단위 패치(Unit Quad Patch)와 인스턴싱을 활용하여 드로우 콜(Draw Call) 획기적 감소.
+* **Dual Height Data Management:**
+    * **GPU:** Displacement Mapping을 위한 고속 텍스처 샘플링.
+    * **CPU:** 물리 충돌 및 로직 처리를 위해 정밀도가 보장된 `float` 기반 높이 데이터 베이킹(Baking).
+
+---
+
+## Currently In Progress & Issues
+
+현재 개발 단계 진행 상황.
+- Terrain System 구조 설계 진행 중
 
 ---
 
