@@ -39,44 +39,27 @@ Entity-Component-System (ECS) 아키텍처 기반.
         * 다중 선택(Quad Selection) 및 곡선(Bezier)/직선 링크 시각화.
     * 애니메이션 레이어 실시간 제어 및 블렌딩 상태 시각화.
 
----
+### GUI & Resource File Importer
 
-## Currently In Progress & Issues
+* **Resource Management & Pipeline:**
+    * **Assimp Integration:** FBX/OBJ 등 외부 모델 포맷 지원, Mesh/Skeleton/Animation 데이터 추출 및 변환 파이프라인.
+    * **Robust GUID Generation:** Assimp 노드 이름 중복("Scene", "Mesh" 등)으로 인한 충돌 방지를 위해 `Name + Index` 조합의 고유 식별자 생성 알고리즘 적용.
+    * **Recursive Meta-data System:**
+        * JSON 기반 `.meta` 파일을 생성하여 원본 에셋과 엔진 내부 에셋 간의 영속성(Persistence) 보장.
+        * `sub_resources` 배열 순회를 통해 단일 파일 내 포함된 다수의 Mesh, Material, Animation Clip 리소스를 개별 GUID로 식별 및 로드.
 
-현재 개발 단계 진행 상황.
-### 1. ResourceSystem GUI 구현
-* ResourceSystem 에서 관리하는 리소스들의 컨트롤러 역할
-	- 속성 정보 확인 // 리소스 타입에 따른 디테일 추가하기 <- 구현 및 테스트 완료
-	- 씬 뷰와 상호작용 
-		- 리스스 뷰에서 씬 뷰로 드래그 & 드랍 및 변경 적용 <- 구현 및 테스트 완료
-		- 오브젝트(+자식) 생성, 제거 기능 추가 <- 구현 및 테스트 완료
-		- 오브젝트 이름 변경 기능 추가 <- 구현 및 테스트 완료
-	- 외부 파일 Import <- 구현 및 테스트 완료
+* **Inspector & Editor Interface (ImGui):**
+    * **Component-based Inspection:**
+        * `SkinnedMeshRenderer`, `AnimationController` 등 컴포넌트 타입별 전용 UI 제공.
+        * **Multi-SubMesh Support:** 복수의 서브 메시(Sub-mesh)로 구성된 모델의 슬롯별 재질(Material) 할당 및 시각화 인터페이스.
+    * **Material Workflow:**
+        * PBR 속성(Albedo, Roughness, Metallic) 실시간 제어.
+        * 텍스처 슬롯에 대한 **Drag & Drop** 지원, Hover 시 썸네일 미리보기(Texture Preview) 기능.
+    * **UI Architecture Stability:**
+        * **ID Stack Management:** 동일 컴포넌트 다중 부착 또는 동일 이름의 위젯 렌더링 시 발생하는 ID 충돌(Conflict) 방지를 위해, 컴포넌트 포인터 기반(`PushID(ptr)`)의 엄격한 ID Scope 관리 구현.
+        * **Resource Picker:** 에셋 타입별 자동 필터링, 검색 기능이 포함된 콤보박스 및 Drag & Drop 페이로드 시스템 연동.
+    * **Docking System:** Viewport, Hierarchy, Inspector, Resource Browser 등 패널의 자유로운 배치 및 도킹 지원.
 
-
-### 2. Scene Save/Load 업데이트
-* 추가된 컴포넌트, 리소스들을 SceneData로 저장하는 기능 추가
-	- Scene Save 동작 <- 테스트 완료
-	- Scene Load 동작 <- 문제(1)
-
-문제(1)
-- 현재 Scene Load 시, AnimationController Component에 Avatar, Skeleton 이 Load 및 Setter 호출이 확인됬지만, Scene_Load 완료 시, Empty로 전환되고 있음
-	- 원인:
-		- Skeleton, Avatar 및 fbx 파일의 GUID 재생성 문제로 인한 Load 실패
-			- SkinnedMeshComponent에서 SkinnedMesh를 Load 하는 과정에서 fbx 파일인 경우, 해당 파일을 전부 Load 함. // 현 구조 상 부분적 Load 기능 없음
-			- fbx 의 리소스를 전부 Load 하면서 Skeleton, Avatar의 재생성 호출로 인한 GUID 재할당 문제 발생
-	
-	- 해결 방법:
-		- Load 과정에서 리소스의 path 할당 시, 서브 리소스의 경우
-			- 저장 및 불러올 때 사용하는 경로는 물리적 주소로 처리
-			- GUID를 생성하고 저장할 때 사용하는 경로는 가공한 주소로 처리
-
-		-> GUID, Meta 파일의 매핑 동작 정상. 문제 해결됨.
-
--> 현재 FBX_SDK에서 구현 및 테스트 완료. 같은 방식으로 Assimp 방식도 수정 필요
-
-- 문제 해결 진행 중:
-		
 
 ---
 

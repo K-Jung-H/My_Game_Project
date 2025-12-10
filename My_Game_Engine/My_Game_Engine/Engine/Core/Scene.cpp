@@ -54,14 +54,14 @@ void Scene::Build()
 	}
 	
 	//--------------------------------------------------------------------------------
-	/*
+	
 	const std::string path_0 = "Assets/CP_100_0002_63/CP_100_0002_63.fbx";
 	const std::string path_1 = "Assets/CP_100_0012_02/CP_100_0012_02.fbx";
 	const std::string path_2 = "Assets/Model/Anya.fbx";
 	const std::string animation_clip_path_0 = "Assets/Animation/Running.fbx";
 	const std::string animation_clip_path_1 = "Assets/Animation/Catwalk Walk.fbx";
 	const std::string animation_clip_path_2 = "Assets/Animation/Ymca Dance.fbx";
- 		const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
+	const std::string path = "Assets/Scream Tail/pm1086_00_00_lod2.obj";
 
 	LoadResult animation_result_0;
 	rsm->Load(animation_clip_path_0, "Test_10", animation_result_0);
@@ -137,7 +137,7 @@ void Scene::Build()
 	lowerMask->SetAlias("Mask_LowerBody");
 	lowerMask->SetWeight("Hips", 1.0f);
 	lowerMask->SetWeight("Spine", 0.0f);
-	rsm->RegisterResource(lowerMask);*/
+	rsm->RegisterResource(lowerMask);
 
 
 	//bool is_debugging = false;
