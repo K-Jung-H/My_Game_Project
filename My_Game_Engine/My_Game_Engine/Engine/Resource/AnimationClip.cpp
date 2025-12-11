@@ -161,7 +161,7 @@ XMFLOAT3 AnimationTrack::SamplePosition(float time) const
         return itPrev->value;
 
     float t = (time - itPrev->time) / keyTimeDiff;
-    return Vector3::Lerp(itPrev->value, itNext->value, t);
+    return Math::Lerp(itPrev->value, itNext->value, t);
 }
 
 XMFLOAT4 AnimationTrack::SampleRotation(float time) const
@@ -203,7 +203,7 @@ XMFLOAT3 AnimationTrack::SampleScale(float time) const
         return itPrev->value;
 
     float t = (time - itPrev->time) / keyTimeDiff;
-    return Vector3::Lerp(itPrev->value, itNext->value, t);
+    return Math::Lerp(itPrev->value, itNext->value, t);
 }
 
 XMMATRIX AnimationTrack::Sample(float time) const

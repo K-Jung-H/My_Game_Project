@@ -9,6 +9,7 @@ public:
 	virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
 	virtual bool SaveToFile(const std::string& outputPath) const { return false; }
 
+	void SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx);
 	ID3D12Resource* GetResource() const { return mTexture.Get(); }
 
 	UINT GetWidth() { return texture_width; }

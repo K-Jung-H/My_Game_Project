@@ -9,6 +9,7 @@ enum Component_Type
 	Skinned_Mesh_Renderer,
     AnimationController,
     Camera,
+    Terrain,
     Collider,
     Rigidbody,
     Light,

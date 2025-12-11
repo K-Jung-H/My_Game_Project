@@ -143,6 +143,11 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateTextureCubeArray(const RendererConte
 	return CreateTextureResource(ctx, nullptr, 0, width, height, numCubes * 6, 1, flags, format, D3D12_HEAP_TYPE_DEFAULT, initialState, dummyUpload);
 }
 
+ComPtr<ID3D12Resource> ResourceUtils::CreateTextureFromMemory(const RendererContext& ctx, const void* pData, UINT width, UINT height, DXGI_FORMAT format, UINT pixelByteSize, ComPtr<ID3D12Resource>& uploadBuffer)
+{
+    UINT64 rowPitch = static_cast<UINT64>(width) * pixelByteSize;
+    return CreateTextureResource(ctx, (void*)pData, rowPitch, width, height, 1, 1, D3D12_RESOURCE_FLAG_NONE, format, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, uploadBuffer);
+}
 
 
 ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx, void* pData, UINT64 nBytes, D3D12_RESOURCE_DIMENSION dimension, UINT width, UINT height, UINT depthOrArraySize, UINT mipLevels,

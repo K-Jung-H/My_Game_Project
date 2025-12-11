@@ -106,6 +106,7 @@ enum class ResourceType
     Skeleton,
     AnimationClip,
     AvatarMask,
+    TerrainData,
     etc,
 };
 

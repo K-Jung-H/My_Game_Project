@@ -122,6 +122,17 @@ private:
     void GeneratePlane(float width, float height);
 };
 
+class TerrainPatchMesh : public Mesh
+{
+public:
+    TerrainPatchMesh();
+    virtual ~TerrainPatchMesh() = default;
+
+    virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const override;
+
+private:
+    void GeneratePatch();
+};
 
 struct GPU_SkinData
 {

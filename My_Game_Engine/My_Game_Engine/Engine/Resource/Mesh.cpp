@@ -397,6 +397,89 @@ void Plane_Mesh::GeneratePlane(float width, float height)
     submeshes.push_back(s);
 }
 
+TerrainPatchMesh::TerrainPatchMesh()
+{
+    GeneratePatch();
+    BuildInterleavedBuffers(); 
+    SetAABB();
+}
+
+void TerrainPatchMesh::GeneratePatch()
+{
+    positions.clear();
+    normals.clear();
+    tangents.clear();
+    uvs.clear();
+    uv1s.clear();
+    colors.clear();
+    indices.clear();
+    submeshes.clear();
+
+    positions = {
+        { 0.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 0.0f, 0.0f, 1.0f },
+        { 1.0f, 0.0f, 1.0f }
+    };
+
+    normals = {
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f },
+        { 0.0f, 1.0f, 0.0f }
+    };
+
+    tangents = {
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f },
+        { 1.0f, 0.0f, 0.0f }
+    };
+
+    uvs = {
+        { 0.0f, 0.0f },
+        { 1.0f, 0.0f },
+        { 0.0f, 1.0f },
+        { 1.0f, 1.0f }
+    };
+
+    uv1s = uvs;
+    colors.resize(4, XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    indices = { 0, 1, 2, 3 };
+
+    Submesh s = {};
+    s.indexCount = (UINT)indices.size();
+    s.startIndexLocation = 0;
+    s.baseVertexLocation = 0;
+    s.materialId = Engine::INVALID_ID;
+    submeshes.push_back(s);
+}
+
+void TerrainPatchMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
+{
+    D3D12_VERTEX_BUFFER_VIEW views[2] = {};
+    UINT count = 0;
+
+    const D3D12_VERTEX_BUFFER_VIEW& hotView = GetHotVBV();
+    const D3D12_VERTEX_BUFFER_VIEW& coldView = GetColdVBV();
+
+    if (hotView.BufferLocation && hotView.SizeInBytes)
+        views[count++] = hotView;
+
+    if (coldView.BufferLocation && coldView.SizeInBytes)
+        views[count++] = coldView;
+
+    if (count > 0)
+        cmdList->IASetVertexBuffers(0, count, views);
+
+    const D3D12_INDEX_BUFFER_VIEW& ibView = GetIBV();
+    if (ibView.BufferLocation && ibView.SizeInBytes)
+        cmdList->IASetIndexBuffer(&ibView);
+
+    cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST);
+}
+
 void SkinnedMesh::FromAssimp(const aiMesh* mesh)
 {
     Mesh::FromAssimp(mesh);
