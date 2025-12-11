@@ -76,8 +76,15 @@ Entity-Component-System (ECS) 아키텍처 기반.
 ## Currently In Progress & Issues
 
 현재 개발 단계 진행 상황.
-- Terrain System 구조 설계 진행 중
+- Terrain System 구현중
+	- TerrainResource: 지형맵 리소스
+		- TerrainHeightField: HeightMap CPU 데이터
+		- TerrainQuadTree: 트리 기반 공간 관리
+			- TerrainNode: 트리 노드
 
+	- TerrainComponent: TerrainResource 관리
+	- TerrainPatchMesh: 패치 단위 인스턴싱 - 테셀레이션
+			
 ---
 
 ## Getting Started
