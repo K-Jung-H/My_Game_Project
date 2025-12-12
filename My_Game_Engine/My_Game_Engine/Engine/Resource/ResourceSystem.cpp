@@ -195,7 +195,6 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 
 void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
-    const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
     std::string normalized_path = NormalizeFilePath(path);
     FileCategory category = DetectFileCategory(normalized_path);
 
@@ -215,18 +214,23 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
             return;
         }
     }
+    const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
+    auto renderer = GameEngine::Get().GetRenderer();
+    bool bManagedByExternal = renderer->IsUploadOpen(); 
 
+    if (!bManagedByExternal)
+        renderer->BeginUpload();
 
     switch (category)
     {
     case FileCategory::FBX:
     {
-        //ModelLoader_FBX fbxLoader;
-        //if (fbxLoader.Load(normalized_path, alias, result))
-        //{
-        //    OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
-        //    return;
-        //}
+        ModelLoader_FBX fbxLoader;
+        if (fbxLoader.Load(normalized_path, alias, result))
+        {
+            OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
+            return;
+        }
 
         ModelLoader_Assimp assimpLoader;
         if (assimpLoader.Load(normalized_path, alias, result))
@@ -339,10 +343,26 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         break;
     }
 
+	case FileCategory::RawData:
+    {
+        auto terrain = LoadOrReuse<TerrainResource>(normalized_path, std::string(alias), ctx,
+            [&]() -> std::shared_ptr<TerrainResource> {
+                return std::make_shared<TerrainResource>();
+            }
+		);
+
+        if (terrain)
+			result.terrainID = terrain->GetId();
+        break;
+    }
+
     default:
         OutputDebugStringA(("[ResourceSystem] Unknown resource type: " + normalized_path + "\n").c_str());
         break;
     }
+
+    if (!bManagedByExternal)
+		renderer->EndUpload();
 }
 
 

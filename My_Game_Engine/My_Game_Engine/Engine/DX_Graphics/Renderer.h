@@ -211,6 +211,7 @@ public:
     RendererContext Get_UploadContext() const;
     void BeginUpload();
     void EndUpload();
+    bool IsUploadOpen() const { return !mUploadClosed; }
 
     bool test_value = false;
 

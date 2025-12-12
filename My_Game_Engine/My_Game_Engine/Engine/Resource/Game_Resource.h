@@ -11,6 +11,7 @@ enum class FileCategory
     Texture,
     Material,
     AvatarMask,
+	RawData,
     Unknown
 };
 
@@ -74,6 +75,10 @@ static FileCategory DetectFileCategory(const std::string& path)
     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" ||
         ext == ".tga" || ext == ".bmp" || ext == ".dds" || ext == ".hdr")
         return FileCategory::Texture;
+
+
+    if (ext == ".raw")
+        return FileCategory::RawData;
 
     if (ext == ".mat")
         return FileCategory::Material;

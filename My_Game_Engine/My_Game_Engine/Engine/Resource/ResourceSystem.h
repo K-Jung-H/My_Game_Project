@@ -9,6 +9,7 @@
 #include "AnimationClip.h"
 #include "AvatarMask.h"
 #include "MetaIO.h"
+#include "TerrainResource.h"
 
 struct LoadResult
 {
@@ -21,6 +22,7 @@ struct LoadResult
 	UINT skeletonId = Engine::INVALID_ID;
 	UINT avatarId = Engine::INVALID_ID;
 	UINT maskID = Engine::INVALID_ID;
+	UINT terrainID = Engine::INVALID_ID;
 };
 
 inline std::string MakeSubresourcePath(const std::string& containerPath, const char* kind, const std::string& nameOrIndex)
@@ -68,7 +70,7 @@ public:
     const std::vector<std::shared_ptr<Model_Avatar>>& GetAvatars() const { return mAvatars; }
     const std::vector<std::shared_ptr<AnimationClip>>& GetAnimationClips() const { return mAnimationClips; }
     const std::vector<std::shared_ptr<class AvatarMask>>& GetAvatarMasks() const { return mAvatarMasks; }
-
+    const std::vector<std::shared_ptr<TerrainResource>>& GetTerrains() const { return mTerrains; }
     const std::unordered_map<UINT, ResourceEntry>& GetResourceMap() const { return mResources; }
 
     // Meta
@@ -99,6 +101,7 @@ private:
     std::vector<std::shared_ptr<Model_Avatar>> mAvatars;
     std::vector<std::shared_ptr<AnimationClip>> mAnimationClips;
     std::vector<std::shared_ptr<AvatarMask>> mAvatarMasks;
+    std::vector < std::shared_ptr<TerrainResource>> mTerrains;
 
     // GUID Ä³½Ì (meta scan)
     std::deque<ResourceMetaEntry> mAllMetaData;
@@ -189,6 +192,11 @@ std::vector<std::shared_ptr<T>> ResourceSystem::GetAllResources()
     {
         result.reserve(mAvatarMasks.size());
         for (const auto& res : mAvatarMasks) result.push_back(res);
+    }
+    else if constexpr (std::is_same_v<T, TerrainResource>)
+    {
+        result.reserve(mTerrains.size());
+        for (const auto& res : mTerrains) result.push_back(res);
     }
     else
     {

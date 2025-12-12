@@ -2,6 +2,7 @@
 #include "GameEngine.h"
 #include "Object.h"
 #include "Components/RigidbodyComponent.h"
+#include "Components/TerrainComponent.h"
 
 Scene::Scene() 
 { 
@@ -41,16 +42,35 @@ void Scene::Build()
 	//	auto light_component = sub_light_obj->AddComponent<LightComponent>();
 	//	light_component->SetTransform(sub_light_obj->GetTransform());
 	//}
-	{
-		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
-		plane_mesh->SetAlias("Plane_Mesh");
-		rsm->RegisterResource(plane_mesh);
-		UINT plane_id = plane_mesh->GetId();
 
-		Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
-		plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
-		auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
-		mesh_component->SetMesh(plane_id);
+	//{
+	//	std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
+	//	plane_mesh->SetAlias("Plane_Mesh");
+	//	rsm->RegisterResource(plane_mesh);
+	//	UINT plane_id = plane_mesh->GetId();
+
+	//	Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
+	//	plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
+	//	auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
+	//	mesh_component->SetMesh(plane_id);
+	//}
+
+	{
+		//Create Terrain Test
+		LoadResult terrain_result;
+		rsm->Load("Assets/Terrain/HeightMap.raw", "Terrain", terrain_result);
+
+		// load test
+		auto terrain_resource = rsm->GetById<TerrainResource>(terrain_result.terrainID);
+
+
+		Object* terrain_obj = m_pObjectManager->CreateObject("Main_Terrain");
+
+		auto terrain_component = terrain_obj->AddComponent<TerrainComponent>();
+		terrain_component->SetTransform(terrain_obj->GetTransform());
+
+		terrain_component->SetTerrain(terrain_result.terrainID);
+		terrain_component->SetTerrain_Size(1000, 1000, 500);
 	}
 	
 	//--------------------------------------------------------------------------------

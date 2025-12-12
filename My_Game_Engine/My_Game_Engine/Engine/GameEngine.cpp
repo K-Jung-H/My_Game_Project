@@ -19,7 +19,6 @@ void GameEngine::OnCreate(HINSTANCE hInstance, HWND hMainWnd)
 	mRenderer->Initialize(hMainWnd, SCREEN_WIDTH, SCREEN_HEIGHT);
 
 	mRenderer->BeginUpload();
-	auto ctx = mRenderer->Get_UploadContext();
 
 	auto default_scene = SceneManager::Get().CreateScene("wow");
 

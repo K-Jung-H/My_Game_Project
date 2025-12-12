@@ -57,7 +57,7 @@ void Texture::SetResource(ComPtr<ID3D12Resource> new_resource, const RendererCon
     texture_width = static_cast<UINT>(desc.Width);
     texture_height = desc.Height;
 
-    if (mSlot == UINT(-1)) 
+    if (mSlot == Engine::INVALID_ID) 
     {
         mSlot = ctx.resourceHeap->Allocate(HeapRegion::SRV_Static);
     }
@@ -72,4 +72,5 @@ void Texture::SetResource(ComPtr<ID3D12Resource> new_resource, const RendererCon
     ctx.device->CreateShaderResourceView(mTexture.Get(), &srvDesc, cpuHandle);
 
     mGpuHandle = ctx.resourceHeap->GetGpuHandle(mSlot);
+
 }

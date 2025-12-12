@@ -1,7 +1,8 @@
 #pragma once
 #include "Core/Component.h"
 #include "Terrain/TerrainQuadTree.h"
-#include "Terrain/TerrainHeightField.h"
+#include "Resource/TerrainResource.h"
+
 
 class Mesh;
 class Texture;
@@ -22,32 +23,43 @@ public:
     TerrainComponent();
     virtual ~TerrainComponent();
 
-    void Initialize(std::string heightMapPath, float width, float depth, float maxHeight);
+    void SetTransform(std::weak_ptr<TransformComponent> tf);
 
-    void SetTransform(std::weak_ptr<TransformComponent> tf) { mTransform = tf; }
-    std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
+    void SetTerrain(UINT TerrainResourceID);
+
+    void SetTerrain_Size(float width, float depth, float maxHeight);
+    void SetTerrain_Width(float width);
+    void SetTerrain_Depth(float depth);
+    void SetTerrain_MaxHeight(float maxHeight);
+    void SetTerrain_TreeDepth(int depth);
+
+
+    void SetMaterialID(UINT id) { mMaterialID = id; }
 
     virtual void Update() override;
+
     void UpdateLOD(const XMFLOAT3& cameraPos);
+
 
     const std::vector<TerrainInstanceData>& GetDrawList() const;
     std::shared_ptr<Mesh> GetMesh() const { return mPatchMesh; }
-    std::shared_ptr<Texture> GetHeightMap() const { return mHeightMap; }
-    std::shared_ptr<Material> GetMaterial() const { return mMaterial; }
-
+    UINT GetHeightMapID() const { return mTerrainRes ? mTerrainRes->GetHeightMapID() : Engine::INVALID_ID; }
+    UINT GetMaterialID() const { return mMaterialID; }
     float GetHeight(XMFLOAT3 worldPos);
 
 private:
     std::weak_ptr<TransformComponent> mTransform;
 
-    std::shared_ptr<Texture> mHeightMap;
-    std::shared_ptr<Mesh> mPatchMesh;
-    std::shared_ptr<Material> mMaterial;
-
     std::unique_ptr<TerrainQuadTree> mQuadTree;
-    std::unique_ptr<TerrainHeightField> mHeightField;
+    std::shared_ptr<TerrainResource> mTerrainRes;
+    UINT mTerrainResID = Engine::INVALID_ID;
+    UINT mMaterialID = Engine::INVALID_ID;
 
-    float mWidth = 0.0f;
-    float mDepth = 0.0f;
-    float mMaxHeight = 0.0f;
+    std::shared_ptr<Mesh> mPatchMesh;
+
+    float mWidth = 1000.0f;
+    float mDepth = 1000.0f;
+    float mMaxHeight = 100.0f;
+
+    int mTreeDepth = 5;
 };

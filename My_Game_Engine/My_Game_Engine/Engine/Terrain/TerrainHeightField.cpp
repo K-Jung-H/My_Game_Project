@@ -9,35 +9,33 @@ TerrainHeightField::~TerrainHeightField()
 {
 }
 
-void TerrainHeightField::BuildFromRawData(const std::vector<uint16_t>& rawData, UINT width, UINT height, float realWidth, float realDepth, float maxHeight)
+void TerrainHeightField::BuildFromRawData(const std::vector<uint16_t>& rawData, UINT resolution)
 {
-    mRealWidth = realWidth;
-    mRealDepth = realDepth;
-    mMaxHeight = maxHeight;
-    mWidthCount = width;
-    mHeightCount = height;
+    mWidthCount = resolution;
+    mHeightCount = resolution;
 
-    size_t totalPixels = rawData.size();
-    if (totalPixels != static_cast<size_t>(mWidthCount * mHeightCount))
+    size_t requiredPixels = static_cast<size_t>(mWidthCount * mHeightCount);
+
+    if (rawData.size() < requiredPixels)
         return;
 
-    mHeightData.resize(totalPixels);
+
+    mHeightData.resize(requiredPixels);
     float invMax = 1.0f / 65535.0f;
 
-    for (size_t i = 0; i < totalPixels; ++i)
-    {
-        float normalized = rawData[i] * invMax;
-        mHeightData[i] = normalized * mMaxHeight;
-    }
+    for (size_t i = 0; i < requiredPixels; ++i)
+        mHeightData[i] = rawData[i] * invMax;
+
 }
 
-float TerrainHeightField::GetHeight(float localX, float localZ) const
-{
-    if (localX < 0 || localX > mRealWidth || localZ < 0 || localZ > mRealDepth)
-        return -FLT_MAX;
 
-    float gridX = (localX / mRealWidth) * (mWidthCount - 1);
-    float gridZ = (localZ / mRealDepth) * (mHeightCount - 1);
+float TerrainHeightField::GetHeight(float u, float v) const
+{
+    if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f)
+        return 0.0f;
+
+    float gridX = u * (mWidthCount - 1);
+    float gridZ = v * (mHeightCount - 1);
 
     int x = (int)gridX;
     int z = (int)gridZ;
