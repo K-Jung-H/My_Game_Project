@@ -1,6 +1,7 @@
 #include "TerrainComponent.h"
 #include "Core/Object.h"
 #include "Components/TransformComponent.h"
+#include "Components/CameraComponent.h"
 #include "GameEngine.h"
 #include "Resource/ResourceSystem.h"
 
@@ -91,15 +92,15 @@ void TerrainComponent::Update()
     }
 }
 
-void TerrainComponent::UpdateLOD(const DirectX::XMFLOAT3& cameraPos)
+void TerrainComponent::UpdateLOD(CameraComponent* camera)
 {
-    if (!mQuadTree) return;
+    if (!mQuadTree || !camera) return;
 
-    std::shared_ptr<TransformComponent> tr = mTransform.lock();
-    if (!tr) return;
+    if (mTransform.expired()) return;
 
-    XMMATRIX worldMat = XMLoadFloat4x4(&tr->GetWorldMatrix());
-    mQuadTree->Update(cameraPos, worldMat);
+    XMMATRIX worldMat = XMLoadFloat4x4(&mTransform.lock()->GetWorldMatrix());
+
+    mQuadTree->Update(camera, worldMat);
 }
 
 const std::vector<TerrainInstanceData>& TerrainComponent::GetDrawList() const

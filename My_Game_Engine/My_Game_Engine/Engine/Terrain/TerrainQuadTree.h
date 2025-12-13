@@ -1,6 +1,8 @@
 #pragma once
 #include "TerrainCommon.h"
 
+class CameraComponent;
+
 struct TerrainNode
 {
     BoundingBox LocalAABB;
@@ -12,9 +14,7 @@ struct TerrainNode
 
     bool IsLeaf() const { return Children[0] == nullptr; }
 
-    TerrainNode(float x, float z, float size, int depth)
-        : X(x), Z(z), Size(size), Depth(depth) {
-    }
+    TerrainNode(float x, float z, float size, int depth, float maxHeight);
 };
 
 class TerrainQuadTree
@@ -23,22 +23,18 @@ public:
     TerrainQuadTree();
     ~TerrainQuadTree();
 
-    void Initialize(float mapWidth, float mapDepth, float maxHeight, int maxDepth);
-    void Update(XMFLOAT3 cameraWorldPos, const XMMATRIX& terrainWorldMatrix);
+    void Initialize(float width, float depth, float maxHeight, int maxDepth);
+    void Update(CameraComponent* camera, DirectX::FXMMATRIX terrainWorldMatrix);
 
     const std::vector<TerrainInstanceData>& GetDrawList() const { return mDrawList; }
 
 private:
-    void BuildRecursive(TerrainNode* node);
-    void CullAndSelectLOD(TerrainNode* node, XMFLOAT3 cameraLocalPos);
+    void BuildTree(TerrainNode* node, float maxHeight, int maxDepth);
+    void UpdateNode(TerrainNode* node, const DirectX::BoundingFrustum& frustum, const DirectX::XMFLOAT3& camPos, DirectX::FXMMATRIX terrainWorldMatrix);
 
 private:
-    std::unique_ptr<TerrainNode> mRoot;
+    std::unique_ptr<TerrainNode> mRootNode;
     std::vector<TerrainInstanceData> mDrawList;
 
-    float mWidth = 0.0f;
-    float mDepth = 0.0f;
     float mMaxHeight = 0.0f;
-    int   mMaxDepth = 0;
-    float mLODDistanceRatio = 2.0f;
 };

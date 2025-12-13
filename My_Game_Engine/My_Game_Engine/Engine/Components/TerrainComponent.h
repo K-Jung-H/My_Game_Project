@@ -8,6 +8,7 @@ class Mesh;
 class Texture;
 class Material;
 class TransformComponent;
+class CameraComponent;
 
 class TerrainComponent : public Component
 {
@@ -38,8 +39,7 @@ public:
 
     virtual void Update() override;
 
-    void UpdateLOD(const XMFLOAT3& cameraPos);
-
+    void UpdateLOD(CameraComponent* camera);
 
     const std::vector<TerrainInstanceData>& GetDrawList() const;
     std::shared_ptr<Mesh> GetMesh() const { return mPatchMesh; }

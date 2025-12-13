@@ -3,8 +3,8 @@
 
 struct TerrainInstanceData
 {
-    XMFLOAT3 LocalOffset;
-    float             Scale;
-    XMFLOAT2 UVOffset;
-    XMFLOAT2 UVScale;
+    XMFLOAT2 InstancePos;
+
+    float Scale;
+    float LOD;
 };

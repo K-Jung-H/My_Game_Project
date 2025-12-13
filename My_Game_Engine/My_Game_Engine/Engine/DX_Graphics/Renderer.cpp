@@ -224,6 +224,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
 
     std::shared_ptr<CameraComponent> mainCam = render_scene->GetActiveCamera();
     std::vector<RenderData> renderData_list = render_scene->GetRenderable();
+	std::vector<TerrainComponent*> terrainData_list = render_scene->GetTerrains();
     std::vector<LightComponent*> light_comp_list = render_scene->GetLightList();
 
     if (!mainCam) return;
@@ -248,6 +249,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     CullObjectsForRender(mainCam);
 
     SkinningPass();
+    GeometryTerrainPass(mainCam, terrainData_list);
     GeometryPass(mainCam);
 
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -691,6 +693,29 @@ bool DX12_Renderer::Create_Shader()
     };
     pso_manager.RegisterShader("Geometry", RootSignature_Type::Default, geometry_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 
+    // Geometry_Terrain Shader
+    ShaderSetting geometry_terrain_ss;
+    geometry_terrain_ss.vs.file = L"Shaders/Geometry_Terrain_Shader.hlsl";
+    geometry_terrain_ss.vs.entry = "Default_VS";
+    geometry_terrain_ss.vs.target = "vs_5_1";
+    geometry_terrain_ss.ps.file = L"Shaders/Geometry_Terrain_Shader.hlsl";
+    geometry_terrain_ss.ps.entry = "Default_PS";
+    geometry_terrain_ss.ps.target = "ps_5_1";
+
+    PipelinePreset geometry_terrain_pp;
+    geometry_terrain_pp.inputlayout = InputLayoutPreset::Default;
+    geometry_terrain_pp.rasterizer = RasterizerPreset::Default;
+    geometry_terrain_pp.blend = BlendPreset::AlphaBlend;
+    geometry_terrain_pp.depth = DepthPreset::Default;
+    geometry_terrain_pp.RenderTarget = RenderTargetPreset::MRT;
+
+    std::vector<VariantConfig> geometry_terrain_configs = {
+        { ShaderVariant::Default, geometry_terrain_ss, geometry_terrain_pp },
+        { ShaderVariant::Shadow, geometry_terrain_ss, geometry_terrain_pp }
+    };
+    pso_manager.RegisterShader("Geometry_Terrain", RootSignature_Type::Default, geometry_terrain_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+
+
     // Skinning Shader
     ShaderSetting skinning_ss;
     skinning_ss.cs.file = L"Shaders/Skinning_Shader.hlsl";
@@ -1006,6 +1031,23 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
     Render_Objects(mCommandList, RootParameter_Default::ObjectCBV, mVisibleItems);
 }
+
+void DX12_Renderer::GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera, const std::vector<TerrainComponent*>& terrains)
+{
+    FrameResource& fr = mFrameResources[mFrameIndex];
+
+    ID3D12RootSignature* default_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Default);
+    mCommandList->SetGraphicsRootSignature(default_rootsignature);
+    PSO_Manager::Instance().BindShader(mCommandList, "Geometry_Terrain", ShaderVariant::Default);
+
+    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Default::SceneCBV);
+    render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
+
+    for (const auto& terrainComponent : terrains)
+    {
+    }
+}
+
 
 void DX12_Renderer::LightPass(std::shared_ptr<CameraComponent> render_camera)
 {

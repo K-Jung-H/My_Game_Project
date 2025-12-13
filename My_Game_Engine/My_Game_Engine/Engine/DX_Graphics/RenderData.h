@@ -3,6 +3,7 @@
 #include "Components/CameraComponent.h"
 #include "Components/SkinnedMeshRendererComponent.h"
 #include "Components/TransformComponent.h"
+#include "Terrain/TerrainCommon.h"
 #include "Resource/Mesh.h"
 
 

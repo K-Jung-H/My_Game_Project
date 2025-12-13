@@ -280,6 +280,7 @@ private:
     // Render Passes
     void SkinningPass();
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
+    void GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera, const std::vector<TerrainComponent*>& terrains);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
     void ShadowPass();
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);

@@ -1,8 +1,18 @@
 #include "TerrainQuadTree.h"
+#include "Components/CameraComponent.h"
 #include "DXMathUtils.h"
 
+TerrainNode::TerrainNode(float x, float z, float size, int depth, float maxHeight)
+    : X(x), Z(z), Size(size), Depth(depth)
+{
+    float halfSize = size * 0.5f;
+    float halfHeight = maxHeight * 0.5f;
+
+    LocalAABB.Center = XMFLOAT3(x + halfSize, halfHeight, z + halfSize);
+    LocalAABB.Extents = XMFLOAT3(halfSize, halfHeight, halfSize);
+}
+
 TerrainQuadTree::TerrainQuadTree()
-    : mWidth(0), mDepth(0), mMaxHeight(0), mMaxDepth(0)
 {
 }
 
@@ -10,92 +20,76 @@ TerrainQuadTree::~TerrainQuadTree()
 {
 }
 
-void TerrainQuadTree::Initialize(float mapWidth, float mapDepth, float maxHeight, int maxDepth)
+void TerrainQuadTree::Initialize(float width, float depth, float maxHeight, int maxDepth)
 {
-    mWidth = mapWidth;
-    mDepth = mapDepth;
     mMaxHeight = maxHeight;
-    mMaxDepth = maxDepth;
 
-    float maxSize = std::max(mWidth, mDepth);
-    float centerX = mWidth * 0.5f;
-    float centerZ = mDepth * 0.5f;
-
-    mRoot = std::make_unique<TerrainNode>(centerX, centerZ, maxSize, 0);
-
-    mRoot->LocalAABB.Center = XMFLOAT3(centerX, mMaxHeight * 0.5f, centerZ);
-    mRoot->LocalAABB.Extents = XMFLOAT3(maxSize * 0.5f, mMaxHeight * 0.5f, maxSize * 0.5f);
-
-    BuildRecursive(mRoot.get());
+    mRootNode = std::make_unique<TerrainNode>(0.0f, 0.0f, width, 0, maxHeight);
+    BuildTree(mRootNode.get(), maxHeight, maxDepth);
 }
 
-void TerrainQuadTree::BuildRecursive(TerrainNode* node)
+void TerrainQuadTree::BuildTree(TerrainNode* node, float maxHeight, int maxDepth)
 {
-    if (node->Depth >= mMaxDepth)
-        return;
-
-    float quarterSize = node->Size * 0.25f;
-    float childSize = node->Size * 0.5f;
-    int nextDepth = node->Depth + 1;
-    float childY = mMaxHeight * 0.5f;
-    float childExtentsY = mMaxHeight * 0.5f;
-
-    node->Children[0] = std::make_unique<TerrainNode>(node->X - quarterSize, node->Z + quarterSize, childSize, nextDepth);
-    node->Children[1] = std::make_unique<TerrainNode>(node->X + quarterSize, node->Z + quarterSize, childSize, nextDepth);
-    node->Children[2] = std::make_unique<TerrainNode>(node->X - quarterSize, node->Z - quarterSize, childSize, nextDepth);
-    node->Children[3] = std::make_unique<TerrainNode>(node->X + quarterSize, node->Z - quarterSize, childSize, nextDepth);
-
-    for (auto& child : node->Children)
+    if (node->Depth < maxDepth)
     {
-        child->LocalAABB.Center = XMFLOAT3(child->X, childY, child->Z);
-        child->LocalAABB.Extents = XMFLOAT3(childSize * 0.5f, childExtentsY, childSize * 0.5f);
-        BuildRecursive(child.get());
+        float halfSize = node->Size * 0.5f;
+        int nextDepth = node->Depth + 1;
+
+        node->Children[0] = std::make_unique<TerrainNode>(node->X, node->Z, halfSize, nextDepth, maxHeight);
+        node->Children[1] = std::make_unique<TerrainNode>(node->X + halfSize, node->Z, halfSize, nextDepth, maxHeight);
+        node->Children[2] = std::make_unique<TerrainNode>(node->X, node->Z + halfSize, halfSize, nextDepth, maxHeight);
+        node->Children[3] = std::make_unique<TerrainNode>(node->X + halfSize, node->Z + halfSize, halfSize, nextDepth, maxHeight);
+
+        BuildTree(node->Children[0].get(), maxHeight, maxDepth);
+        BuildTree(node->Children[1].get(), maxHeight, maxDepth);
+        BuildTree(node->Children[2].get(), maxHeight, maxDepth);
+        BuildTree(node->Children[3].get(), maxHeight, maxDepth);
     }
 }
 
-void TerrainQuadTree::Update(XMFLOAT3 cameraWorldPos, const XMMATRIX& terrainWorldMatrix)
+void TerrainQuadTree::Update(CameraComponent* camera, FXMMATRIX terrainWorldMatrix)
 {
     mDrawList.clear();
 
-    XMVECTOR det = XMMatrixDeterminant(terrainWorldMatrix);
-    XMMATRIX invWorld = XMMatrixInverse(&det, terrainWorldMatrix);
+    const BoundingFrustum& frustum = camera->GetFrustumWS();
+    XMFLOAT3 camPos = camera->GetPosition();
 
-    XMVECTOR camPosVec = XMLoadFloat3(&cameraWorldPos);
-    XMVECTOR camLocalPosVec = XMVector3TransformCoord(camPosVec, invWorld);
-
-    XMFLOAT3 camLocalPos;
-    XMStoreFloat3(&camLocalPos, camLocalPosVec);
-
-    CullAndSelectLOD(mRoot.get(), camLocalPos);
+    if (mRootNode)
+    {
+        UpdateNode(mRootNode.get(), frustum, camPos, terrainWorldMatrix);
+    }
 }
 
-void TerrainQuadTree::CullAndSelectLOD(TerrainNode* node, XMFLOAT3 cameraLocalPos)
+void TerrainQuadTree::UpdateNode(TerrainNode* node, const BoundingFrustum& frustum, const XMFLOAT3& camPos, FXMMATRIX terrainWorldMatrix)
 {
-    float distSq = Vector3::DistanceSquared(cameraLocalPos, XMFLOAT3(node->X, 0.0f, node->Z));
+    BoundingBox worldBox;
+    node->LocalAABB.Transform(worldBox, terrainWorldMatrix);
 
-    float lodThreshold = node->Size * mLODDistanceRatio;
-    bool shouldSplit = (distSq < lodThreshold * lodThreshold) && (!node->IsLeaf());
+    if (frustum.Intersects(worldBox) == false)
+    {
+        return;
+    }
 
-    if (shouldSplit)
+    XMVECTOR nodeCenterWorld = XMVector3TransformCoord(XMLoadFloat3(&node->LocalAABB.Center), terrainWorldMatrix);
+    float dist = XMVectorGetX(XMVector3Length(nodeCenterWorld - XMLoadFloat3(&camPos)));
+
+    float splitDistance = node->Size * 2.0f;
+
+    if (dist < splitDistance && !node->IsLeaf())
     {
         for (auto& child : node->Children)
         {
-            CullAndSelectLOD(child.get(), cameraLocalPos);
+            UpdateNode(child.get(), frustum, camPos, terrainWorldMatrix);
         }
     }
     else
     {
-        TerrainInstanceData instance;
+        TerrainInstanceData data;
 
-        float halfSize = node->Size * 0.5f;
-        instance.LocalOffset = XMFLOAT3(node->X - halfSize, 0.0f, node->Z - halfSize);
-        instance.Scale = node->Size;
+        data.InstancePos = XMFLOAT2(node->X, node->Z);
+        data.Scale = node->Size;
+        data.LOD = static_cast<float>(node->Depth);
 
-        instance.UVOffset.x = (instance.LocalOffset.x) / mWidth;
-        instance.UVOffset.y = (instance.LocalOffset.z) / mDepth;
-        instance.UVScale.x = node->Size / mWidth;
-        instance.UVScale.y = node->Size / mDepth;
-
-        mDrawList.push_back(instance);
+        mDrawList.push_back(data);
     }
 }

@@ -274,6 +274,17 @@ void Scene::Update_Late()
 			cp->Update();
 	}
 	
+	if (auto main_camera = activeCamera.lock())
+	{
+		for (auto& terrain : mTerrains)
+		{
+			if (terrain->GetActive())
+			{
+				terrain->UpdateLOD(main_camera.get());
+			}
+		}
+	}
+
 
 	for (auto lightComponent : light_list)
 	{
@@ -336,6 +347,15 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 	}
 	break;
 
+	case Component_Type::Terrain:
+	{
+		if(auto terrain = std::dynamic_pointer_cast<TerrainComponent>(comp))
+		{
+			mTerrains.push_back(terrain.get());
+		}
+		break;
+	}
+
 	default:
 		break;
 	}
@@ -380,6 +400,14 @@ void Scene::UnregisterAllComponents(Object* pObject)
 				camera_list.erase(it, camera_list.end());
 				break;
 			}
+			case Component_Type::Terrain:
+			{
+				auto it = std::remove_if(mTerrains.begin(), mTerrains.end(),
+					[&](const TerrainComponent* terrain) {return terrain == comp.get(); });
+				mTerrains.erase(it, mTerrains.end());
+				break;
+			}
+
 			default:
 				break;
 			}
@@ -449,7 +477,6 @@ std::vector<LightComponent*> Scene::GetLightList() const
 	}
 	return list;
 }
-
 
 void Scene::RegisterCamera(std::weak_ptr<CameraComponent> cam)
 {
