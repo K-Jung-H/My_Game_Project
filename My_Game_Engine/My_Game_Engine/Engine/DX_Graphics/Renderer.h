@@ -64,8 +64,6 @@ struct LightResource
     UINT ClusterBuffer_UAV_Index;
 
     ComPtr<ID3D12Resource> LightBuffer;
-    //ComPtr<ID3D12Resource> LightUploadBuffer;
-    //GPULight* MappedLightUploadBuffer = nullptr;
     UINT LightBuffer_SRV_Index;
 
     ComPtr<ID3D12Resource> ClusterLightMetaBuffer;
@@ -94,9 +92,6 @@ struct LightResource
     std::vector<UINT> CsmShadow_DSVs;
     std::vector<UINT> PointShadow_DSVs;
 
-    //ComPtr<ID3D12Resource> ShadowMatrixBuffer;
-    //ShadowMatrixData* MappedShadowMatrixBuffer = nullptr;
-    //UINT ShadowMatrixBuffer_SRV_Index = UINT_MAX;
     D3D12_GPU_VIRTUAL_ADDRESS CurrentShadowMatrixGPUAddress = 0;
 
     std::unordered_map<LightComponent*, UINT> mLightShadowIndexMap;
@@ -172,6 +167,7 @@ struct RendererContext
     DescriptorManager* resourceHeap;
 };
 
+class TerrainComponent;
 class RenderData;
 class DrawItem;
 

@@ -4,6 +4,7 @@ enum class InputLayoutPreset
     PosNormTex,
     PosColor,
     PosOnly,
+    Terrain,
     None,
 };
 

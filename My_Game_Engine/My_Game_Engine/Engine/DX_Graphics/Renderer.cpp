@@ -6,6 +6,7 @@
 #include "Resource/Mesh.h"
 #include "Resource/Material.h"
 #include "Components/RigidbodyComponent.h"
+#include "Components/TerrainComponent.h"
 #include <stdexcept>
 
 // =================================================================
@@ -249,7 +250,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     CullObjectsForRender(mainCam);
 
     SkinningPass();
-//    GeometryTerrainPass(mainCam, terrainData_list);
+    GeometryTerrainPass(mainCam, terrainData_list);
     GeometryPass(mainCam);
 
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -676,27 +677,58 @@ bool DX12_Renderer::Create_Shader()
     };
     pso_manager.RegisterShader("Geometry", RootSignature_Type::Default, geometry_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 
-    // Geometry_Terrain Shader
-    ShaderSetting geometry_terrain_ss;
-    geometry_terrain_ss.vs.file = L"Shaders/Geometry_Terrain_Shader.hlsl";
-    geometry_terrain_ss.vs.entry = "Default_VS";
-    geometry_terrain_ss.vs.target = "vs_5_1";
-    geometry_terrain_ss.ps.file = L"Shaders/Geometry_Terrain_Shader.hlsl";
-    geometry_terrain_ss.ps.entry = "Default_PS";
-    geometry_terrain_ss.ps.target = "ps_5_1";
+    // Terrain Shader
+    ShaderSetting terrain_geometry_ss;
+    terrain_geometry_ss.vs.file = L"Shaders/Terrain_Shader.hlsl";
+    terrain_geometry_ss.vs.entry = "Default_VS";
+    terrain_geometry_ss.vs.target = "vs_5_1";
 
-    PipelinePreset geometry_terrain_pp;
-    geometry_terrain_pp.inputlayout = InputLayoutPreset::Default;
-    geometry_terrain_pp.rasterizer = RasterizerPreset::Default;
-    geometry_terrain_pp.blend = BlendPreset::AlphaBlend;
-    geometry_terrain_pp.depth = DepthPreset::Default;
-    geometry_terrain_pp.RenderTarget = RenderTargetPreset::MRT;
+	terrain_geometry_ss.hs.file = L"Shaders/Terrain_Shader.hlsl";
+	terrain_geometry_ss.hs.entry = "Default_HS";
+    terrain_geometry_ss.hs.target = "hs_5_1";
 
-    std::vector<VariantConfig> geometry_terrain_configs = {
-        { ShaderVariant::Default, geometry_terrain_ss, geometry_terrain_pp },
-        { ShaderVariant::Shadow, geometry_terrain_ss, geometry_terrain_pp }
+	terrain_geometry_ss.ds.file = L"Shaders/Terrain_Shader.hlsl";
+	terrain_geometry_ss.ds.entry = "Default_DS";
+    terrain_geometry_ss.ds.target = "ds_5_1";
+
+    terrain_geometry_ss.ps.file = L"Shaders/Terrain_Shader.hlsl";
+    terrain_geometry_ss.ps.entry = "Default_PS";
+    terrain_geometry_ss.ps.target = "ps_5_1";
+
+    ShaderSetting terrain_shadow_ss;
+    terrain_shadow_ss.vs.file = L"Shaders/Terrain_Shader.hlsl";
+    terrain_shadow_ss.vs.entry = "Default_VS";
+    terrain_shadow_ss.vs.target = "vs_5_1";
+
+    terrain_shadow_ss.hs.file = L"Shaders/Terrain_Shader.hlsl";
+    terrain_shadow_ss.hs.entry = "HS_Shadow";
+    terrain_shadow_ss.hs.target = "hs_5_1";
+
+    terrain_shadow_ss.ds.file = L"Shaders/Terrain_Shader.hlsl";
+    terrain_shadow_ss.ds.entry = "DS_Shadow";
+    terrain_shadow_ss.ds.target = "ds_5_1";
+
+
+
+    PipelinePreset terrain_geometry_pp;
+    terrain_geometry_pp.inputlayout = InputLayoutPreset::Terrain;
+    terrain_geometry_pp.rasterizer = RasterizerPreset::Default;
+    terrain_geometry_pp.blend = BlendPreset::AlphaBlend;
+    terrain_geometry_pp.depth = DepthPreset::Default;
+    terrain_geometry_pp.RenderTarget = RenderTargetPreset::MRT;
+
+    PipelinePreset terrain_shadow_pp;
+    terrain_shadow_pp.inputlayout = InputLayoutPreset::Terrain;
+    terrain_shadow_pp.rasterizer = RasterizerPreset::Shadow;
+    terrain_shadow_pp.blend = BlendPreset::Opaque;
+    terrain_shadow_pp.depth = DepthPreset::Default;
+    terrain_shadow_pp.RenderTarget = RenderTargetPreset::ShadowMap;
+
+    std::vector<VariantConfig> terrain_configs = {
+        { ShaderVariant::Default, terrain_geometry_ss, terrain_geometry_pp },
+        { ShaderVariant::Shadow, terrain_shadow_ss, terrain_shadow_pp }
     };
-//    pso_manager.RegisterShader("Geometry_Terrain", RootSignature_Type::Default, geometry_terrain_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+    pso_manager.RegisterShader("Geometry_Terrain", RootSignature_Type::Terrain, terrain_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH);
 
 
     // Skinning Shader
@@ -1018,17 +1050,32 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
 
 void DX12_Renderer::GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera, const std::vector<TerrainComponent*>& terrains)
 {
+    if (terrains.empty()) return;
+
     FrameResource& fr = mFrameResources[mFrameIndex];
 
-    ID3D12RootSignature* default_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Default);
-    mCommandList->SetGraphicsRootSignature(default_rootsignature);
+    ID3D12RootSignature* terrain_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Terrain);
+    mCommandList->SetGraphicsRootSignature(terrain_rootsignature);
+
     PSO_Manager::Instance().BindShader(mCommandList, "Geometry_Terrain", ShaderVariant::Default);
+
+    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Terrain::SceneCBV);
+    render_camera->Graphics_Bind(mCommandList, RootParameter_Terrain::CameraCBV);
 
     Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Default::SceneCBV);
     render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
 
+    auto globalTextureHandle = mResource_Heap_Manager->GetGpuHandle(0);
+    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Terrain::TextureTable, globalTextureHandle);
+
     for (const auto& terrainComponent : terrains)
     {
+        UINT heightMapID = terrainComponent->GetHeightMapID();
+        if (heightMapID != Engine::INVALID_ID)
+        {
+            auto heightMap_handle = mResource_Heap_Manager->GetGpuHandle(heightMapID);
+            mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Terrain::HeightMap, heightMap_handle);
+        }
     }
 }
 

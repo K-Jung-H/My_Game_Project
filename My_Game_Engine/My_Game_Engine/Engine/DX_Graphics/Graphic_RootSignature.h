@@ -32,6 +32,19 @@ namespace RootParameter_Default
     };
 }
 
+namespace RootParameter_Terrain
+{
+    enum Slot : UINT
+    {
+        SceneCBV = 0,
+        CameraCBV = 1,
+        ObjectCBV = 2,
+        HeightMap = 3,
+        TextureTable = 4,
+        Count
+    };
+}
+
 namespace RootParameter_Shadow
 {
     enum Slot : UINT
