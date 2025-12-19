@@ -41,3 +41,16 @@ struct DrawItem
 
     SkinnedMeshRendererComponent* skinnedComp = nullptr;
 };
+
+struct TerrainRenderItem
+{
+    TerrainPatchMesh* Mesh = nullptr;
+
+    D3D12_GPU_VIRTUAL_ADDRESS ObjectCBAddress;
+    D3D12_GPU_VIRTUAL_ADDRESS InstanceBufferAddress;
+
+    UINT PatchVertexCount = 0;
+    UINT IndexCount = 0;
+
+    D3D12_GPU_DESCRIPTOR_HANDLE HeightMapHandle;
+};
