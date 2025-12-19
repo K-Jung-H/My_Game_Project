@@ -34,9 +34,10 @@ struct DrawItem
 {
     Mesh* mesh = nullptr;
     Mesh::Submesh sub;
-
-    UINT cbIndex = 0;
     UINT materialId = 0;
+
+    XMFLOAT4X4 World;
+    D3D12_GPU_VIRTUAL_ADDRESS ObjectCBAddress;
 
     SkinnedMeshRendererComponent* skinnedComp = nullptr;
 };

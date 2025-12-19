@@ -249,7 +249,7 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     CullObjectsForRender(mainCam);
 
     SkinningPass();
-    GeometryTerrainPass(mainCam, terrainData_list);
+//    GeometryTerrainPass(mainCam, terrainData_list);
     GeometryPass(mainCam);
 
     UpdateLightAndShadowData(mainCam, light_comp_list);
@@ -269,6 +269,11 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     TransitionBackBufferToPresent();
     mCommandList->Close();
     PresentFrame();
+}
+
+Allocation DX12_Renderer::AllocateDynamicBuffer(size_t sizeInBytes, size_t alignment)
+{
+    return mFrameResources[mFrameIndex].DynamicAllocator->Allocate(sizeInBytes, alignment);
 }
 
 // =================================================================
@@ -336,10 +341,9 @@ bool DX12_Renderer::CreatePerFrameBuffers()
     {
         FrameResource& fr = mFrameResources[i];
         success &= CreateCommandAllocator(fr);
-        success &= CreateObjectCB(fr, 5000);
+        success &= CreateDynamicBufferAllocator(fr);
         success &= Create_LightResources(fr, 500);
         success &= Create_ShadowResources(fr);
-        success &= CreateShadowMatrixBuffer(fr);
     }
     return success;
 }
@@ -350,19 +354,11 @@ void DX12_Renderer::DestroyPerFrameBuffers()
     {
         FrameResource& fr = mFrameResources[i];
 
-        if (fr.ObjectCB.MappedObjectCB)
+        if (fr.DynamicAllocator)
         {
-            fr.ObjectCB.Buffer->Unmap(0, nullptr);
-            fr.ObjectCB.MappedObjectCB = nullptr;
+            fr.DynamicAllocator.reset();
         }
-        fr.ObjectCB.Buffer.Reset();
 
-        if (fr.light_resource.MappedLightUploadBuffer)
-        {
-            fr.light_resource.LightUploadBuffer->Unmap(0, nullptr);
-            fr.light_resource.MappedLightUploadBuffer = nullptr;
-        }
-        fr.light_resource.LightUploadBuffer.Reset();
         fr.light_resource.LightBuffer.Reset();
 
         fr.light_resource.ClusterBuffer.Reset();
@@ -427,19 +423,6 @@ void DX12_Renderer::DestroyPerFrameBuffers()
         {
             mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_ShadowMap_Point, fr.light_resource.PointShadowCubeArray_SRV);
             fr.light_resource.PointShadowCubeArray_SRV = UINT_MAX;
-        }
-
-        if (fr.light_resource.MappedShadowMatrixBuffer)
-        {
-            fr.light_resource.ShadowMatrixBuffer->Unmap(0, nullptr);
-            fr.light_resource.MappedShadowMatrixBuffer = nullptr;
-        }
-        fr.light_resource.ShadowMatrixBuffer.Reset();
-
-        if (fr.light_resource.ShadowMatrixBuffer_SRV_Index != UINT_MAX)
-        {
-            mResource_Heap_Manager->FreeDeferred(HeapRegion::SRV_Frame, fr.light_resource.ShadowMatrixBuffer_SRV_Index);
-            fr.light_resource.ShadowMatrixBuffer_SRV_Index = UINT_MAX;
         }
 
         for (UINT dsvIndex : fr.light_resource.SpotShadow_DSVs)
@@ -713,7 +696,7 @@ bool DX12_Renderer::Create_Shader()
         { ShaderVariant::Default, geometry_terrain_ss, geometry_terrain_pp },
         { ShaderVariant::Shadow, geometry_terrain_ss, geometry_terrain_pp }
     };
-    pso_manager.RegisterShader("Geometry_Terrain", RootSignature_Type::Default, geometry_terrain_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+//    pso_manager.RegisterShader("Geometry_Terrain", RootSignature_Type::Default, geometry_terrain_configs, D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 
 
     // Skinning Shader
@@ -837,6 +820,7 @@ void DX12_Renderer::PrepareCommandList()
 {
     mFrameIndex = mSwapChain->GetCurrentBackBufferIndex();
     FrameResource& fr = GetCurrentFrameResource();
+    fr.DynamicAllocator->Reset();
     fr.CommandAllocator->Reset();
     mCommandList->Reset(fr.CommandAllocator.Get(), nullptr);
 }
@@ -1133,7 +1117,8 @@ void DX12_Renderer::ShadowPass()
     ID3D12RootSignature* shadow_rs = RootSignatureFactory::Get(RootSignature_Type::ShadowPass);
     mCommandList->SetGraphicsRootSignature(shadow_rs);
     PSO_Manager::Instance().BindShader(mCommandList, "ShadowMap_Pass", ShaderVariant::Shadow);
-    mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Shadow::ShadowMatrix_SRV, mResource_Heap_Manager->GetGpuHandle(lr.ShadowMatrixBuffer_SRV_Index));
+
+    mCommandList->SetGraphicsRootShaderResourceView(RootParameter_Shadow::ShadowMatrix_SRV, lr.CurrentShadowMatrixGPUAddress);
 
     // A. Point (Cube)
     D3D12_VIEWPORT pointViewport = LightComponent::Get_ShadowMapViewport(Light_Type::Point);
@@ -1256,8 +1241,8 @@ void DX12_Renderer::CompositePass(std::shared_ptr<CameraComponent> render_camera
     }
 
     {
-        auto ShadowMatrixSrv = mResource_Heap_Manager->GetGpuHandle(lr.ShadowMatrixBuffer_SRV_Index);
-        mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMatrix_SRV, ShadowMatrixSrv);
+  
+        mCommandList->SetGraphicsRootShaderResourceView(RootParameter_PostFX::ShadowMatrix_SRV, lr.CurrentShadowMatrixGPUAddress);
 
         auto csmSrv = mResource_Heap_Manager->GetGpuHandle(lr.CsmShadowArray_SRV);
         mCommandList->SetGraphicsRootDescriptorTable(RootParameter_PostFX::ShadowMapCSMTable, csmSrv);
@@ -1381,8 +1366,8 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UI
     for (const auto& di : drawList)
     {
         if (!di.mesh) continue;
-        D3D12_GPU_VIRTUAL_ADDRESS gpuAddr = fr.ObjectCB.Buffer->GetGPUVirtualAddress() + di.cbIndex * sizeof(ObjectCBData);
-        cmdList->SetGraphicsRootConstantBufferView(objectCBVRootParamIndex, gpuAddr);
+
+        cmdList->SetGraphicsRootConstantBufferView(objectCBVRootParamIndex, di.ObjectCBAddress);
 
         if (di.skinnedComp)
         {
@@ -1397,20 +1382,19 @@ void DX12_Renderer::Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UI
         {
             di.mesh->Bind(cmdList);
         }
+
         cmdList->DrawIndexedInstanced(di.sub.indexCount, 1, di.sub.startIndexLocation, di.sub.baseVertexLocation, 0);
     }
 }
 
 void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
 {
-    FrameResource& fr = mFrameResources[mFrameIndex];
-    fr.ObjectCB.HeadOffset = 0;
     mDrawItems.clear();
 
     ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
     Material defaultMaterial = Material::Get_Default();
 
-    for (auto& rd : renderables)
+    for (const auto& rd : renderables)
     {
         auto transform = rd.transform.lock();
         auto renderer = rd.meshRenderer.lock();
@@ -1421,17 +1405,19 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
         if (!mesh) continue;
 
         XMFLOAT4X4 worldT = Matrix4x4::Transpose(transform->GetWorldMatrix());
+
         const size_t submeshCount = mesh->submeshes.size();
         for (size_t i = 0; i < submeshCount; ++i)
         {
             UINT matId = renderer->GetMaterial(i);
             if (matId == Engine::INVALID_ID)
                 matId = mesh->submeshes[i].materialId;
+
             auto material = rsm->GetById<Material>(matId);
             const Material* matToUse = material ? material.get() : &defaultMaterial;
 
             ObjectCBData cb{};
-            cb.World = worldT;
+            cb.World = worldT; 
             cb.Albedo = XMFLOAT4(matToUse->albedoColor.x, matToUse->albedoColor.y, matToUse->albedoColor.z, 1.0f);
             cb.Roughness = matToUse->roughness;
             cb.Metallic = matToUse->metallic;
@@ -1443,13 +1429,16 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             cb.RoughnessTexIdx = toIdx(matToUse->roughnessTexSlot);
             cb.MetallicTexIdx = toIdx(matToUse->metallicTexSlot);
 
-            const UINT cbIndex = fr.ObjectCB.HeadOffset++;
-            fr.ObjectCB.MappedObjectCB[cbIndex] = cb;
+            Allocation alloc = AllocateDynamicBuffer(sizeof(ObjectCBData), 256);
+
+            memcpy(alloc.CpuAddress, &cb, sizeof(ObjectCBData));
 
             DrawItem di{};
             di.mesh = mesh.get();
             di.sub = mesh->submeshes[i];
-            di.cbIndex = cbIndex;
+            di.ObjectCBAddress = alloc.GpuAddress;
+            di.World = worldT;
+
             di.materialId = (material) ? matId : Engine::INVALID_ID;
             if (skinnedComp) di.skinnedComp = skinnedComp.get();
 
@@ -1484,6 +1473,8 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
     std::vector<GPULight> view_space_lights;
     view_space_lights.reserve(light_comp_list.size());
 
+    std::vector<ShadowMatrixData> shadowMatrixDataList(MAX_SHADOW_VIEWS);
+
     for (const auto& world_light : light_comp_list)
     {
         XMVECTOR world_pos = XMLoadFloat3(&world_light->GetPosition());
@@ -1509,7 +1500,8 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
                 {
                     lr.mFrameShadowCastingPoint.push_back(world_light);
                     for (UINT i = 0; i < 6; ++i)
-                        lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(nullptr, i);
+                        shadowMatrixDataList[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(nullptr, i);
+
                     world_light->ClearStaticBakeFlag(currentFrameIndex);
                 }
             }
@@ -1525,11 +1517,9 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
                     lr.mFrameShadowCastingCSM.push_back(world_light);
                     if (world_light->GetDirectionalShadowMode() == DirectionalShadowMode::CSM)
                         for (UINT i = 0; i < NUM_CSM_CASCADES; ++i)
-                            lr.MappedShadowMatrixBuffer[baseIndex + i].ViewProj =
-                            world_light->UpdateShadowViewProj(render_camera, i);
+                            shadowMatrixDataList[baseIndex + i].ViewProj = world_light->UpdateShadowViewProj(render_camera, i);
                     else
-                        lr.MappedShadowMatrixBuffer[baseIndex].ViewProj =
-                        world_light->UpdateShadowViewProj(nullptr, 0);
+                        shadowMatrixDataList[baseIndex].ViewProj = world_light->UpdateShadowViewProj(nullptr, 0);
                     world_light->ClearStaticBakeFlag(currentFrameIndex);
                 }
             }
@@ -1543,7 +1533,7 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
                 if (world_light->NeedsShadowUpdate(currentFrameIndex))
                 {
                     lr.mFrameShadowCastingSpot.push_back(world_light);
-                    lr.MappedShadowMatrixBuffer[baseIndex].ViewProj = world_light->UpdateShadowViewProj(nullptr, 0);
+                    shadowMatrixDataList[baseIndex].ViewProj = world_light->UpdateShadowViewProj(nullptr, 0);
                     world_light->ClearStaticBakeFlag(currentFrameIndex);
                 }
             }
@@ -1564,17 +1554,36 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
         view_space_lights.push_back(view_light);
     }
 
-    memcpy(lr.MappedLightUploadBuffer, view_space_lights.data(), sizeof(GPULight) * view_space_lights.size());
-    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
-    mCommandList->CopyBufferRegion(lr.LightBuffer.Get(), 0, lr.LightUploadBuffer.Get(), 0, sizeof(GPULight) * view_space_lights.size());
-    fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
-}
+    {
+        size_t matrixBufferSize = sizeof(ShadowMatrixData) * MAX_SHADOW_VIEWS;
+        Allocation alloc = AllocateDynamicBuffer(matrixBufferSize, 256);
+        memcpy(alloc.CpuAddress, shadowMatrixDataList.data(), matrixBufferSize);
 
+        lr.CurrentShadowMatrixGPUAddress = alloc.GpuAddress;
+    }
+
+    if (!view_space_lights.empty())
+    {
+        size_t lightDataSize = sizeof(GPULight) * view_space_lights.size();
+
+        Allocation alloc = AllocateDynamicBuffer(lightDataSize, 256);
+        memcpy(alloc.CpuAddress, view_space_lights.data(), lightDataSize);
+
+        fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST);
+
+        mCommandList->CopyBufferRegion(
+            lr.LightBuffer.Get(), 0,
+            alloc.Buffer, alloc.Offset,
+            lightDataSize
+        );
+
+        fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
+    }
+}
 void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
 {
     mVisibleItems.clear();
-    FrameResource& fr = mFrameResources[mFrameIndex];
-    ObjectCBData* objCBArray = fr.ObjectCB.MappedObjectCB;
+
     const Light_Type lightType = light->GetLightType();
     const BoundingBox clipAABB(XMFLOAT3(0, 0, 0), XMFLOAT3(1, 1, 1));
 
@@ -1587,8 +1596,9 @@ void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
         for (const auto& di : mDrawItems)
         {
             if (!di.mesh) continue;
-            const ObjectCBData& objData = objCBArray[di.cbIndex];
-            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&di.World));
+
             BoundingBox worldAABB;
             di.sub.localAABB.Transform(worldAABB, world);
             BoundingBox lightAABB;
@@ -1605,8 +1615,9 @@ void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
         for (const auto& di : mDrawItems)
         {
             if (!di.mesh) continue;
-            const ObjectCBData& objData = objCBArray[di.cbIndex];
-            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&di.World));
+
             BoundingBox worldAABB;
             di.sub.localAABB.Transform(worldAABB, world);
             if (worldAABB.Intersects(lightSphere)) mVisibleItems.push_back(di);
@@ -1634,8 +1645,9 @@ void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
         for (const auto& di : mDrawItems)
         {
             if (!di.mesh) continue;
-            const ObjectCBData& objData = objCBArray[di.cbIndex];
-            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+            XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&di.World));
+
             BoundingBox worldAABB;
             di.sub.localAABB.Transform(worldAABB, world);
             if (frSpot.Intersects(worldAABB)) mVisibleItems.push_back(di);
@@ -1647,17 +1659,18 @@ void DX12_Renderer::CullObjectsForRender(std::shared_ptr<CameraComponent> camera
 {
     mVisibleItems.clear();
     const BoundingFrustum& frustum = camera->GetFrustumWS();
-    FrameResource& fr = mFrameResources[mFrameIndex];
-    const ObjectCBData* objCBArray = fr.ObjectCB.MappedObjectCB;
 
     for (const auto& di : mDrawItems)
     {
         if (!di.mesh) continue;
-        const ObjectCBData& objData = objCBArray[di.cbIndex];
-        XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&objData.World));
+
+        XMMATRIX world = XMMatrixTranspose(XMLoadFloat4x4(&di.World));
+
         BoundingBox worldAABB;
         di.sub.localAABB.Transform(worldAABB, world);
-        if (frustum.Intersects(worldAABB)) mVisibleItems.push_back(di);
+
+        if (frustum.Intersects(worldAABB))
+            mVisibleItems.push_back(di);
     }
 }
 
@@ -1698,6 +1711,13 @@ bool DX12_Renderer::CreateCommandAllocator(FrameResource& fr)
     return SUCCEEDED(mDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&fr.CommandAllocator)));
 }
 
+bool DX12_Renderer::CreateDynamicBufferAllocator(FrameResource& fr)
+{
+    fr.DynamicAllocator = std::make_unique<DynamicBufferAllocator>(mDevice.Get());
+
+    return fr.DynamicAllocator.get();
+}
+
 bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
 {
     if (FAILED(mSwapChain->GetBuffer(frameIndex, IID_PPV_ARGS(&fr.RenderTarget))))
@@ -1710,28 +1730,10 @@ bool DX12_Renderer::CreateBackBufferRTV(UINT frameIndex, FrameResource& fr)
     return true;
 }
 
-bool DX12_Renderer::CreateObjectCB(FrameResource& fr, UINT maxObjects)
-{
-    fr.ObjectCB.MaxObjects = maxObjects;
-    size_t bufferSize = maxObjects * sizeof(ObjectCBData);
-    CD3DX12_HEAP_PROPERTIES heapProps(D3D12_HEAP_TYPE_UPLOAD);
-    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
-
-    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE,
-        &desc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&fr.ObjectCB.Buffer));
-
-    if (FAILED(hr)) throw std::runtime_error("Failed to create ObjectCB buffer");
-    hr = fr.ObjectCB.Buffer->Map(0, nullptr, reinterpret_cast<void**>(&fr.ObjectCB.MappedObjectCB));
-    if (FAILED(hr)) throw std::runtime_error("Failed to map ObjectCB buffer");
-    fr.ObjectCB.HeadOffset = 0;
-    return true;
-}
-
 bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
 {
     const RendererContext ctx = Get_UploadContext();
 
-    // Cluster Buffer
     {
         const UINT clusterBufferSize = sizeof(ClusterBound) * TOTAL_CLUSTER_COUNT;
         fr.light_resource.ClusterBuffer = ResourceUtils::CreateBufferResourceEmpty(
@@ -1765,6 +1767,7 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
     // Light Buffer
     {
         const UINT lightBufferSize = sizeof(GPULight) * maxLights;
+
         fr.light_resource.LightBuffer = ResourceUtils::CreateBufferResourceEmpty(
             ctx, lightBufferSize, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COMMON);
         if (!fr.light_resource.LightBuffer) return false;
@@ -1780,9 +1783,7 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
         mDevice->CreateShaderResourceView(fr.light_resource.LightBuffer.Get(), &lightSRVDesc, mResource_Heap_Manager->GetCpuHandle(lightSRVIndex));
 
         fr.light_resource.LightBuffer_SRV_Index = lightSRVIndex;
-        fr.light_resource.LightUploadBuffer = ResourceUtils::CreateBufferResourceEmpty(
-            ctx, lightBufferSize, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
-        fr.light_resource.LightUploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&fr.light_resource.MappedLightUploadBuffer));
+
 
         fr.StateTracker.Register(fr.light_resource.ClusterBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
         fr.StateTracker.Register(fr.light_resource.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
@@ -1820,7 +1821,7 @@ bool DX12_Renderer::Create_LightResources(FrameResource& fr, UINT maxLights)
         fr.StateTracker.Register(fr.light_resource.ClusterLightMetaBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
     }
 
-    // ClusterLightIndicesBuffer
+    // ClusterLightIndicesBuffer 
     {
         const UINT MAX_CLUSTER_INCLUDE_LIGHT = 3;
         const UINT totalIndices = TOTAL_CLUSTER_COUNT * MAX_CLUSTER_INCLUDE_LIGHT;
@@ -1981,34 +1982,6 @@ bool DX12_Renderer::Create_ShadowResources(FrameResource& fr)
             mDevice->CreateDepthStencilView(lr.SpotShadowArray.Get(), &dsvDesc, mDsvManager->GetCpuHandle(lr.SpotShadow_DSVs[i]));
         }
     }
-    return true;
-}
-
-bool DX12_Renderer::CreateShadowMatrixBuffer(FrameResource& fr)
-{
-    LightResource& lr = fr.light_resource;
-    UINT bufferSize = (sizeof(ShadowMatrixData) * MAX_SHADOW_VIEWS);
-    bufferSize = (bufferSize + 255) & ~255;
-
-    auto heapProps = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
-
-    HRESULT hr = mDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufferDesc,
-        D3D12_RESOURCE_STATE_GENERIC_READ, nullptr, IID_PPV_ARGS(&lr.ShadowMatrixBuffer));
-
-    if (FAILED(hr)) return false;
-    hr = lr.ShadowMatrixBuffer->Map(0, nullptr, reinterpret_cast<void**>(&lr.MappedShadowMatrixBuffer));
-    if (FAILED(hr)) return false;
-
-    lr.ShadowMatrixBuffer_SRV_Index = mResource_Heap_Manager->Allocate(HeapRegion::SRV_Frame);
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.Buffer.FirstElement = 0;
-    srvDesc.Buffer.NumElements = MAX_SHADOW_VIEWS;
-    srvDesc.Buffer.StructureByteStride = sizeof(ShadowMatrixData);
-    mDevice->CreateShaderResourceView(lr.ShadowMatrixBuffer.Get(), &srvDesc, mResource_Heap_Manager->GetCpuHandle(lr.ShadowMatrixBuffer_SRV_Index));
     return true;
 }
 

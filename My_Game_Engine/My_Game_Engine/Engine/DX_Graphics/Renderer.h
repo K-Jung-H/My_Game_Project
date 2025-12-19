@@ -44,13 +44,6 @@ struct GBuffer
 // =================================================================
 // GPU Data Structures
 // =================================================================
-struct ObjectCBResource
-{
-    ComPtr<ID3D12Resource> Buffer;
-    ObjectCBData* MappedObjectCB = nullptr;
-    UINT HeadOffset = 0;
-    UINT MaxObjects = 0;
-};
 
 struct ClusterLightMeta
 {
@@ -71,8 +64,8 @@ struct LightResource
     UINT ClusterBuffer_UAV_Index;
 
     ComPtr<ID3D12Resource> LightBuffer;
-    ComPtr<ID3D12Resource> LightUploadBuffer;
-    GPULight* MappedLightUploadBuffer = nullptr;
+    //ComPtr<ID3D12Resource> LightUploadBuffer;
+    //GPULight* MappedLightUploadBuffer = nullptr;
     UINT LightBuffer_SRV_Index;
 
     ComPtr<ID3D12Resource> ClusterLightMetaBuffer;
@@ -101,9 +94,10 @@ struct LightResource
     std::vector<UINT> CsmShadow_DSVs;
     std::vector<UINT> PointShadow_DSVs;
 
-    ComPtr<ID3D12Resource> ShadowMatrixBuffer;
-    ShadowMatrixData* MappedShadowMatrixBuffer = nullptr;
-    UINT ShadowMatrixBuffer_SRV_Index = UINT_MAX;
+    //ComPtr<ID3D12Resource> ShadowMatrixBuffer;
+    //ShadowMatrixData* MappedShadowMatrixBuffer = nullptr;
+    //UINT ShadowMatrixBuffer_SRV_Index = UINT_MAX;
+    D3D12_GPU_VIRTUAL_ADDRESS CurrentShadowMatrixGPUAddress = 0;
 
     std::unordered_map<LightComponent*, UINT> mLightShadowIndexMap;
     std::vector<LightComponent*> mFrameShadowCastingCSM;
@@ -166,7 +160,7 @@ struct FrameResource
     UINT Merge_Base_Index = 0;
     UINT Merge_Target_Index = 1;
 
-    ObjectCBResource ObjectCB;
+    std::unique_ptr<DynamicBufferAllocator> DynamicAllocator;
     LightResource light_resource;
     ResourceStateTracker StateTracker;
 };
@@ -208,6 +202,7 @@ public:
     void Render(std::shared_ptr<Scene> render_scene);
 
     // --- Utility & Upload Context ---
+    Allocation AllocateDynamicBuffer(size_t sizeInBytes, size_t alignment = 256);
     RendererContext Get_RenderContext() const;
     RendererContext Get_UploadContext() const;
     void BeginUpload();
@@ -252,10 +247,9 @@ private:
     bool CreateBackBufferRTV(UINT frameIndex, FrameResource& fr);
 
     // Per-Frame Resources
-    bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
+    bool CreateDynamicBufferAllocator(FrameResource& fr);
     bool Create_LightResources(FrameResource& fr, UINT maxLights);
     bool Create_ShadowResources(FrameResource& fr);
-    bool CreateShadowMatrixBuffer(FrameResource& fr);
 
     // Resolution Dependent Resources
     bool CreateDSV(FrameResource& fr);
