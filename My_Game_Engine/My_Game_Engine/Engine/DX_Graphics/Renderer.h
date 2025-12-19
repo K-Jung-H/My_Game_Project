@@ -1,5 +1,6 @@
 #pragma once
 #include "DescriptorManager.h"
+#include "DynamicBufferAllocator.h"
 #include "Graphic_Shader.h"
 #include "Core/Scene.h"
 #include "Inspector_UI.h"
