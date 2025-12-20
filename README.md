@@ -77,40 +77,19 @@ Entity-Component-System (ECS) 아키텍처 기반.
 
 현재 개발 단계 진행 상황.
 
-구현 및 테스트 완료
-- Terrain System 구현
-	- TerrainResource: 지형맵 리소스
-		- TerrainHeightField: HeightMap CPU 데이터
-		- TerrainQuadTree: 트리 기반 공간 관리
-			- TerrainNode: 트리 노드
+Terrain 렌더링 구현 중
+- 타일 인스턴싱 구현 완료
+- LOD 기반 동적 테셀레이션 구현 완료
+-> 변위 매핑 구현 <- 진행중
 
-	- TerrainComponent: TerrainResource 관리
-	- TerrainPatchMesh: 패치 단위 인스턴싱 - 테셀레이션
+DS 에서 전달받은 하이트맵을 샘플링하여, 변위 매핑을 진행해야 함
 
--> raw 파일 Load 기능 테스트
--> CPU 저장 구조 테스트 결과 확인
+변위매핑이 안일어나고 있는 상태
 
-
-진행 예정
-- Terrain 관련 셰이더 코드 작성
-- **Terrain Mesh Rendering (GeometryTerrainPass) 구현**
-    - **UploadBuffer & DynamicBufferAllocator 시스템 도입**
-        - **구현 필요성:**
-            - Terrain System은 카메라 거리에 따라 LOD가 변하므로, 매 프레임 전송해야 할 인스턴스 데이터(`TerrainInstanceData`)의 개수가 가변적임.
-            - 기존의 정적 버퍼 방식이나 매 프레임 버퍼 생성(`CreateCommittedResource`) 방식은 메모리 할당 오버헤드로 인해 성능 저하 유발.
-        - **핵심 기능 구현 요소:**
-            - **`UploadBuffer`:**
-                - `ID3D12Resource` (Upload Heap)를 래핑하여 CPU-GPU 간 데이터 전송 통로 확보.
-                - **Linear Allocation:** 커서(Offset) 기반의 선형 할당을 통해 메모리 파편화 방지 및 고속 할당 지원.
-                - **Memory Mapping:** CPU 데이터 복사 주소와 GPU 바인딩 주소(Virtual Address)의 쌍(Pair)을 반환.
-            - **`DynamicBufferAllocator`:**
-                - 다수의 `UploadBuffer`를 **페이지(Page)** 단위로 관리하는 상위 할당자.
-                - **Page Growing Strategy:** 현재 페이지의 용량 부족 시, 자동으로 새로운 페이지를 생성 및 연결하여 메모리 오버플로우 방지.
-                - **Frame Lifecycle Management:** 프레임 종료 시 할당된 모든 페이지의 커서를 초기화(`Reset`)하여 재사용(Triple Buffering 지원).
-        - **적용 시 장점:**
-            - **Zero Allocation Overhead:** 미리 할당된 거대한 메모리 풀을 사용하여 런타임 할당 비용 제거.
-            - **Direct Memory Access:** `memcpy`를 통해 CPU의 `DrawList` 데이터를 GPU 메모리로 즉시 복사.
-            - **Batching & Scalability:** 지형 데이터뿐만 아니라 파티클, UI 등 엔진 내 모든 동적 데이터 처리에 통합 적용 가능한 유연한 구조 확보.
+예상 문제 원인:
+	- 텍스쳐에 정보가 저장되는 방식이 잘못된 경우 <- 유력함, 디버깅 중
+	- 샘플링 실패
+	- heightScale 배율 조정 실수
 
 
 ---
