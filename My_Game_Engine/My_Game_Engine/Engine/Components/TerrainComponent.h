@@ -25,6 +25,7 @@ public:
     virtual ~TerrainComponent();
 
     void SetTransform(std::weak_ptr<TransformComponent> tf);
+    std::shared_ptr<TransformComponent> GetTransform() { return mTransform.lock(); }
 
     void SetTerrain(UINT TerrainResourceID);
 
@@ -43,7 +44,7 @@ public:
 
     const std::vector<TerrainInstanceData>& GetDrawList() const;
     std::shared_ptr<Mesh> GetMesh() const { return mPatchMesh; }
-    UINT GetHeightMapID() const { return mTerrainRes ? mTerrainRes->GetHeightMapID() : Engine::INVALID_ID; }
+    UINT GetHeightMapTextureResourceID() const { return mTerrainRes ? mTerrainRes->GetHeightMapTextureResourceID() : Engine::INVALID_ID; }
     UINT GetMaterialID() const { return mMaterialID; }
     float GetHeight(XMFLOAT3 worldPos);
 

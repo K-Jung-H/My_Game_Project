@@ -54,6 +54,37 @@ float4 SampleIfValid(int texIdx, float2 uv)
     return gTextures[texIdx].Sample(gsamWrap, uv);
 }
 
+float3 GetRandomColor(uint seed)
+{
+    seed = (seed ^ 61) ^ (seed >> 16);
+    seed *= 9;
+    seed = seed ^ (seed >> 4);
+    seed *= 0x27d4eb2d;
+    seed = seed ^ (seed >> 15);
+    
+    float r = float(seed & 0xFF) / 255.0f;
+    float g = float((seed >> 8) & 0xFF) / 255.0f;
+    float b = float((seed >> 16) & 0xFF) / 255.0f;
+    
+    return normalize(float3(r, g, b) + 0.5f);
+}
+
+float3 HUEtoRGB(float H)
+{
+    float R = abs(H * 6.0f - 3.0f) - 1.0f;
+    float G = 2.0f - abs(H * 6.0f - 2.0f);
+    float B = 2.0f - abs(H * 6.0f - 4.0f);
+    return saturate(float3(R, G, B));
+}
+
+float3 LODToRainbowColor(float lod)
+{
+    float normalizedLOD = (lod - 1.0f) / 63.0f;
+    float h = lerp(0.66f, 0.0f, normalizedLOD);
+    
+    return HUEtoRGB(h);
+}
+
 struct VS_IN
 {
     float3 Pos : POSITION;
@@ -66,6 +97,8 @@ struct VS_IN
     float2 InstPos : INST_POS;
     float InstScale : INST_SCALE;
     float InstLOD : INST_LOD;
+    
+    uint InstanceID : SV_InstanceID;
 };
 
 struct VS_OUT
@@ -75,7 +108,8 @@ struct VS_OUT
     float3 TangentW : TANGENT;
     float2 UV : TEXCOORD0;
     float2 TexScale : TEXCOORD1;
-    float LOD : INST_LOD;
+    
+    nointerpolation float LOD : INST_LOD;
 };
 
 struct HS_TESS_FACTOR
@@ -91,6 +125,8 @@ struct HS_OUT
     float3 TangentW : TANGENT;
     float2 UV : TEXCOORD0;
     float2 TexScale : TEXCOORD1;
+    
+    nointerpolation float LOD : INST_LOD;
 };
 
 struct DS_OUT
@@ -100,6 +136,10 @@ struct DS_OUT
     float3 NormalW : NORMAL;
     float3 TangentW : TANGENT;
     float2 UV : TEXCOORD0;
+    
+    nointerpolation float3 LODColor : COLOR;
+    
+    nointerpolation float DebugH : TEXCOORD5;
 };
 
 struct PS_OUT
@@ -121,8 +161,9 @@ VS_OUT Default_VS(VS_IN vin)
     vout.TangentW = vin.Tangent;
     vout.UV = vin.UV0;
     vout.TexScale = float2(vin.InstScale, vin.InstScale);
-    vout.LOD = vin.InstLOD;
 
+    vout.LOD = vin.InstLOD;
+    
     return vout;
 }
 
@@ -130,8 +171,7 @@ HS_TESS_FACTOR CalcHSPatchConstants(InputPatch<VS_OUT, 4> patch)
 {
     HS_TESS_FACTOR pt;
 
-    float tessFactor = clamp(64.0f / (patch[0].LOD + 1.0f), 1.0f, 64.0f);
-
+    float tessFactor = clamp(patch[0].LOD, 1.0f, 64.0f);
     pt.EdgeTess[0] = tessFactor;
     pt.EdgeTess[1] = tessFactor;
     pt.EdgeTess[2] = tessFactor;
@@ -144,7 +184,7 @@ HS_TESS_FACTOR CalcHSPatchConstants(InputPatch<VS_OUT, 4> patch)
 
 [domain("quad")]
 [partitioning("integer")]
-[outputtopology("triangle_cw")]
+[outputtopology("triangle_ccw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("CalcHSPatchConstants")]
 [maxtessfactor(64.0f)]
@@ -156,6 +196,8 @@ HS_OUT Default_HS(InputPatch<VS_OUT, 4> patch, uint i : SV_OutputControlPointID)
     hout.TangentW = patch[i].TangentW;
     hout.UV = patch[i].UV;
     hout.TexScale = patch[i].TexScale;
+    hout.LOD = patch[i].LOD;
+    
     return hout;
 }
 
@@ -175,6 +217,7 @@ DS_OUT Default_DS(HS_TESS_FACTOR patchTess, float2 uv : SV_DomainLocation, const
     float h = gHeightMap.SampleLevel(gsamClamp, texUV, 0).r;
     
     float heightScale = length(float3(gWorld[0][1], gWorld[1][1], gWorld[2][1]));
+    
     if (heightScale == 0.0f)
         heightScale = 1.0f;
     
@@ -197,31 +240,37 @@ DS_OUT Default_DS(HS_TESS_FACTOR patchTess, float2 uv : SV_DomainLocation, const
     float3 t1 = lerp(quad[2].TangentW, quad[3].TangentW, uv.x);
     float3 tangent = normalize(lerp(t0, t1, uv.y));
     dout.TangentW = mul(tangent, (float3x3) gWorld);
-
+    
+    dout.LODColor = LODToRainbowColor(quad[0].LOD);
+    dout.DebugH = h;
     return dout;
 }
 
 PS_OUT Default_PS(DS_OUT pin)
 {
+    //PS_OUT pout;
+    
+    //float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo * float4(pin.LODColor, 1.0f);
+    //float3 normalT = SampleIfValid(NormalTexIdx, pin.UV).rgb;
+    //float roughness = SampleIfValid(RoughnessTexIdx, pin.UV).r * Roughness;
+    //float metallic = SampleIfValid(MetallicTexIdx, pin.UV).r * Metallic;
+
+    //normalT = normalT * 2.0f - 1.0f;
+
+    //float3 N = normalize(pin.NormalW);
+    //float3 T = normalize(pin.TangentW);
+    //float3 B = cross(N, T);
+    //float3x3 TBN = float3x3(T, B, N);
+    //float3 finalNormal = normalize(mul(normalT, TBN));
+
+    //pout.Albedo = albedo;
+    //pout.Normal = float4(finalNormal * 0.5f + 0.5f, 1.0f);
+    //pout.Material = float4(roughness, metallic, Emissive, 1.0f);
+
+    //return pout;
+    
     PS_OUT pout;
-
-    float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo;
-    float3 normalT = SampleIfValid(NormalTexIdx, pin.UV).rgb;
-    float roughness = SampleIfValid(RoughnessTexIdx, pin.UV).r * Roughness;
-    float metallic = SampleIfValid(MetallicTexIdx, pin.UV).r * Metallic;
-
-    normalT = normalT * 2.0f - 1.0f;
-
-    float3 N = normalize(pin.NormalW);
-    float3 T = normalize(pin.TangentW);
-    float3 B = cross(N, T);
-    float3x3 TBN = float3x3(T, B, N);
-    float3 finalNormal = normalize(mul(normalT, TBN));
-
-    pout.Albedo = albedo;
-    pout.Normal = float4(finalNormal * 0.5f + 0.5f, 1.0f);
-    pout.Material = float4(roughness, metallic, Emissive, 1.0f);
-
+    pout.Albedo = float4(pin.DebugH, pin.DebugH, pin.DebugH, 1.0f);
     return pout;
 }
 
@@ -238,13 +287,13 @@ VS_OUT VS_Shadow(VS_IN vin)
     vout.UV = vin.UV0;
     vout.TexScale = float2(vin.InstScale, vin.InstScale);
     vout.LOD = vin.InstLOD;
-
+    
     return vout;
 }
 
 [domain("quad")]
 [partitioning("integer")]
-[outputtopology("triangle_cw")]
+[outputtopology("triangle_ccw")]
 [outputcontrolpoints(4)]
 [patchconstantfunc("CalcHSPatchConstants")]
 [maxtessfactor(64.0f)]
@@ -256,6 +305,7 @@ HS_OUT HS_Shadow(InputPatch<VS_OUT, 4> patch, uint i : SV_OutputControlPointID)
     hout.TangentW = patch[i].TangentW;
     hout.UV = patch[i].UV;
     hout.TexScale = patch[i].TexScale;
+    hout.LOD = patch[i].LOD;
     return hout;
 }
 
@@ -286,6 +336,6 @@ DS_OUT DS_Shadow(HS_TESS_FACTOR patchTess, float2 uv : SV_DomainLocation, const 
     dout.UV = texUV;
     dout.NormalW = float3(0, 1, 0);
     dout.TangentW = float3(1, 0, 0);
-
+    dout.LODColor = float3(0, 0, 0);
     return dout;
 }

@@ -415,6 +415,8 @@ void TerrainPatchMesh::GeneratePatch()
     indices.clear();
     submeshes.clear();
 
+    PatchVertexCount = 4;
+
     positions = {
         { 0.0f, 0.0f, 0.0f },
         { 1.0f, 0.0f, 0.0f },
@@ -469,6 +471,38 @@ void TerrainPatchMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const
 
     if (coldView.BufferLocation && coldView.SizeInBytes)
         views[count++] = coldView;
+
+    if (count > 0)
+        cmdList->IASetVertexBuffers(0, count, views);
+
+    const D3D12_INDEX_BUFFER_VIEW& ibView = GetIBV();
+    if (ibView.BufferLocation && ibView.SizeInBytes)
+        cmdList->IASetIndexBuffer(&ibView);
+
+    cmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST);
+}
+
+void TerrainPatchMesh::Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, D3D12_GPU_VIRTUAL_ADDRESS instanceBufferAddr, UINT instanceCount, UINT instanceStride) const
+{
+    D3D12_VERTEX_BUFFER_VIEW views[3] = {};
+    UINT count = 0;
+
+    const D3D12_VERTEX_BUFFER_VIEW& hotView = GetHotVBV();
+    if (hotView.BufferLocation && hotView.SizeInBytes)
+        views[count++] = hotView;
+
+    const D3D12_VERTEX_BUFFER_VIEW& coldView = GetColdVBV();
+    if (coldView.BufferLocation && coldView.SizeInBytes)
+        views[count++] = coldView;
+
+    if (instanceBufferAddr != 0 && instanceCount > 0)
+    {
+        D3D12_VERTEX_BUFFER_VIEW instanceView = {};
+        instanceView.BufferLocation = instanceBufferAddr;
+        instanceView.SizeInBytes = instanceCount * instanceStride;
+        instanceView.StrideInBytes = instanceStride;
+        views[count++] = instanceView;
+    }
 
     if (count > 0)
         cmdList->IASetVertexBuffers(0, count, views);

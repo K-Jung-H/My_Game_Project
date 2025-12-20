@@ -86,7 +86,7 @@ bool TerrainResource::LoadFromFile(std::string rawPath, const RendererContext& c
 
     auto rc = GameEngine::Get().Get_UploadContext();
     ComPtr<ID3D12Resource> uploadBuffer;
-    ComPtr<ID3D12Resource> texResource = ResourceUtils::CreateTextureFromMemory(rc, normalizedData.data(), resolution, resolution, DXGI_FORMAT_R16_UNORM, 2, uploadBuffer);
+    ComPtr<ID3D12Resource> texResource = ResourceUtils::CreateTextureFromMemory(rc, normalizedData.data(), resolution, resolution, DXGI_FORMAT_R32_FLOAT, 2, uploadBuffer);
 
     if (texResource)
     {
@@ -99,7 +99,7 @@ bool TerrainResource::LoadFromFile(std::string rawPath, const RendererContext& c
         texture->SetPath(rawPath);
         texture->SetAlias(rawPath + "_HeightMap");
 
-        mHeightMapID = texture->GetId();
+        mHeightMapTextureResourceID = texture->GetId();
         return true;
     }
 

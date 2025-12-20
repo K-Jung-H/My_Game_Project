@@ -12,6 +12,10 @@ public:
 	void SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx);
 	ID3D12Resource* GetResource() const { return mTexture.Get(); }
 
+	D3D12_RESOURCE_STATES GetState() const { return mCurrentState; }
+	void SetState(D3D12_RESOURCE_STATES newState) { mCurrentState = newState; }
+
+
 	UINT GetWidth() { return texture_width; }
 	UINT GetHeight() { return texture_height; }
 
@@ -19,6 +23,8 @@ private:
 	ComPtr<ID3D12Resource> mTexture;
 	ComPtr<ID3D12Resource> mUploadBuffer;
 	D3D12_GPU_DESCRIPTOR_HANDLE mGpuHandle = {};
+
+	D3D12_RESOURCE_STATES mCurrentState = D3D12_RESOURCE_STATE_COMMON;
 
 	UINT texture_width = 0;
 	UINT texture_height = 0;

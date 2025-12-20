@@ -271,7 +271,7 @@ private:
     // Render Passes
     void SkinningPass();
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
-    void GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera, const std::vector<TerrainComponent*>& terrains);
+    void GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
     void ShadowPass();
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);
@@ -282,6 +282,8 @@ private:
     // Render Helpers
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList);
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
+    void UpdateTerrainCBs(std::vector<TerrainComponent*>& terrainComponents);
+
     void UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
     void CullObjectsForShadow(LightComponent* light, UINT cascadeIdx);
     void CullObjectsForRender(std::shared_ptr<CameraComponent> camera);
@@ -348,6 +350,8 @@ private:
     // Draw Items
     std::vector<DrawItem> mDrawItems;
     std::vector<DrawItem> mVisibleItems; // After Culling
+
+    std::vector<DrawItem_Terrain> mTerrainDrawItems;
 
     // UI System
     UIManager ui_manager;

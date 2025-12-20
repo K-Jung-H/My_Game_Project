@@ -62,6 +62,12 @@ void TerrainQuadTree::Update(CameraComponent* camera, FXMMATRIX terrainWorldMatr
 
 void TerrainQuadTree::UpdateNode(TerrainNode* node, const BoundingFrustum& frustum, const XMFLOAT3& camPos, FXMMATRIX terrainWorldMatrix)
 {
+    XMVECTOR scale, rot, trans;
+    XMMatrixDecompose(&scale, &rot, &trans, terrainWorldMatrix);
+
+    float worldScale = XMVectorGetX(scale);
+    float worldNodeSize = node->Size * worldScale;
+
     BoundingBox worldBox;
     node->LocalAABB.Transform(worldBox, terrainWorldMatrix);
 
@@ -70,10 +76,18 @@ void TerrainQuadTree::UpdateNode(TerrainNode* node, const BoundingFrustum& frust
         return;
     }
 
-    XMVECTOR nodeCenterWorld = XMVector3TransformCoord(XMLoadFloat3(&node->LocalAABB.Center), terrainWorldMatrix);
-    float dist = XMVectorGetX(XMVector3Length(nodeCenterWorld - XMLoadFloat3(&camPos)));
+    XMVECTOR camVec = XMLoadFloat3(&camPos);
+    XMVECTOR boxCenter = XMLoadFloat3(&worldBox.Center);
+    XMVECTOR boxExtents = XMLoadFloat3(&worldBox.Extents);
 
-    float splitDistance = node->Size * 2.0f;
+    XMVECTOR boxMin = boxCenter - boxExtents;
+    XMVECTOR boxMax = boxCenter + boxExtents;
+
+    XMVECTOR closestPoint = XMVectorClamp(camVec, boxMin, boxMax);
+    float dist = XMVectorGetX(XMVector3Length(camVec - closestPoint));
+
+
+    float splitDistance = worldNodeSize * 2.0f;
 
     if (dist < splitDistance && !node->IsLeaf())
     {
@@ -87,8 +101,18 @@ void TerrainQuadTree::UpdateNode(TerrainNode* node, const BoundingFrustum& frust
         TerrainInstanceData data;
 
         data.InstancePos = XMFLOAT2(node->X, node->Z);
-        data.Scale = node->Size;
-        data.LOD = static_cast<float>(node->Depth);
+        data.Scale = node->Size; 
+
+        const float detailScale = 100.0f;
+        const float falloffPower = 2.0f;
+
+        const float minTessFactor = 4.0f;
+        const float maxTessFactor = 64.0f;
+
+        float denominator = std::pow(dist + 1.0f, falloffPower);
+        float tessValue = (worldNodeSize * detailScale) / denominator;
+
+        data.LOD = std::clamp(tessValue, minTessFactor, maxTessFactor);
 
         mDrawList.push_back(data);
     }

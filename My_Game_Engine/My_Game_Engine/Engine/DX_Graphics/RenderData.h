@@ -5,7 +5,7 @@
 #include "Components/TransformComponent.h"
 #include "Terrain/TerrainCommon.h"
 #include "Resource/Mesh.h"
-
+#include "Resource/Texture.h"
 
 struct RenderData
 {
@@ -34,7 +34,6 @@ struct DrawItem
 {
     Mesh* mesh = nullptr;
     Mesh::Submesh sub;
-    UINT materialId = 0;
 
     XMFLOAT4X4 World;
     D3D12_GPU_VIRTUAL_ADDRESS ObjectCBAddress;
@@ -42,15 +41,18 @@ struct DrawItem
     SkinnedMeshRendererComponent* skinnedComp = nullptr;
 };
 
-struct TerrainRenderItem
+struct DrawItem_Terrain
 {
     TerrainPatchMesh* Mesh = nullptr;
-
-    D3D12_GPU_VIRTUAL_ADDRESS ObjectCBAddress;
-    D3D12_GPU_VIRTUAL_ADDRESS InstanceBufferAddress;
-
     UINT PatchVertexCount = 0;
     UINT IndexCount = 0;
 
+    Texture* HeightMapTexture = nullptr;
     D3D12_GPU_DESCRIPTOR_HANDLE HeightMapHandle;
+
+    UINT InstanceCount = 0;
+    XMFLOAT4X4 World;
+
+    D3D12_GPU_VIRTUAL_ADDRESS ObjectCBAddress;
+    D3D12_GPU_VIRTUAL_ADDRESS InstanceBufferAddress;
 };

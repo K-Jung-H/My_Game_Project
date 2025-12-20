@@ -129,9 +129,14 @@ public:
     virtual ~TerrainPatchMesh() = default;
 
     virtual void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList) const override;
+    void Bind(ComPtr<ID3D12GraphicsCommandList> cmdList, D3D12_GPU_VIRTUAL_ADDRESS instanceBufferAddr, UINT instanceCount, UINT instanceStride) const;
+
+	UINT GetPatchVertexCount() { return PatchVertexCount; }
 
 private:
     void GeneratePatch();
+
+	UINT PatchVertexCount = 0;
 };
 
 struct GPU_SkinData

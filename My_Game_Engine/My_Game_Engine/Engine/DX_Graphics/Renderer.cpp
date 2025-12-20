@@ -247,11 +247,12 @@ void DX12_Renderer::Render(std::shared_ptr<Scene> render_scene)
     mainCam->SetViewportsAndScissorRects(mCommandList);
 
     UpdateObjectCBs(renderData_list);
+	UpdateTerrainCBs(terrainData_list);
     CullObjectsForRender(mainCam);
 
     SkinningPass();
-    GeometryTerrainPass(mainCam, terrainData_list);
     GeometryPass(mainCam);
+    GeometryTerrainPass(mainCam);
 
     UpdateLightAndShadowData(mainCam, light_comp_list);
     LightPass(mainCam);
@@ -1048,33 +1049,56 @@ void DX12_Renderer::GeometryPass(std::shared_ptr<CameraComponent> render_camera)
     Render_Objects(mCommandList, RootParameter_Default::ObjectCBV, mVisibleItems);
 }
 
-void DX12_Renderer::GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera, const std::vector<TerrainComponent*>& terrains)
+void DX12_Renderer::GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera)
 {
-    if (terrains.empty()) return;
+    if (mTerrainDrawItems.empty()) return;
 
     FrameResource& fr = mFrameResources[mFrameIndex];
+    PrepareGBuffer_RTV();
 
     ID3D12RootSignature* terrain_rootsignature = RootSignatureFactory::Get(RootSignature_Type::Terrain);
     mCommandList->SetGraphicsRootSignature(terrain_rootsignature);
-
     PSO_Manager::Instance().BindShader(mCommandList, "Geometry_Terrain", ShaderVariant::Default);
+
+    std::vector<D3D12_RESOURCE_BARRIER> barriers;
+
+    const D3D12_RESOURCE_STATES targetState = D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE;
+
+    for (auto& item : mTerrainDrawItems)
+    {
+        if (item.HeightMapTexture)
+        {
+            D3D12_RESOURCE_STATES currentState = item.HeightMapTexture->GetState();
+
+            if ((currentState & targetState) == 0) 
+            {
+                D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(item.HeightMapTexture->GetResource(), currentState, targetState);
+                barriers.push_back(barrier);
+
+                item.HeightMapTexture->SetState(targetState);
+            }
+        }
+    }
+
+    if (!barriers.empty())
+        mCommandList->ResourceBarrier((UINT)barriers.size(), barriers.data());
 
     Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Terrain::SceneCBV);
     render_camera->Graphics_Bind(mCommandList, RootParameter_Terrain::CameraCBV);
 
-    Bind_SceneCBV(Shader_Type::Graphics, RootParameter_Default::SceneCBV);
-    render_camera->Graphics_Bind(mCommandList, RootParameter_Default::CameraCBV);
-
-    auto globalTextureHandle = mResource_Heap_Manager->GetGpuHandle(0);
+    auto globalTextureHandle = mResource_Heap_Manager->GetRegionStartHandle(HeapRegion::SRV_Static);
     mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Terrain::TextureTable, globalTextureHandle);
 
-    for (const auto& terrainComponent : terrains)
+
+    for (const auto& terrainDrawItem : mTerrainDrawItems)
     {
-        UINT heightMapID = terrainComponent->GetHeightMapID();
-        if (heightMapID != Engine::INVALID_ID)
+        if (terrainDrawItem.Mesh)
         {
-            auto heightMap_handle = mResource_Heap_Manager->GetGpuHandle(heightMapID);
-            mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Terrain::HeightMap, heightMap_handle);
+            mCommandList->SetGraphicsRootConstantBufferView(RootParameter_Terrain::ObjectCBV, terrainDrawItem.ObjectCBAddress);
+            mCommandList->SetGraphicsRootDescriptorTable(RootParameter_Terrain::HeightMap, terrainDrawItem.HeightMapHandle);
+
+            terrainDrawItem.Mesh->Bind(mCommandList, terrainDrawItem.InstanceBufferAddress, terrainDrawItem.InstanceCount, sizeof(TerrainInstanceData));
+            mCommandList->DrawIndexedInstanced(terrainDrawItem.IndexCount, terrainDrawItem.InstanceCount, 0, 0, 0);
         }
     }
 }
@@ -1486,13 +1510,87 @@ void DX12_Renderer::UpdateObjectCBs(const std::vector<RenderData>& renderables)
             di.ObjectCBAddress = alloc.GpuAddress;
             di.World = worldT;
 
-            di.materialId = (material) ? matId : Engine::INVALID_ID;
             if (skinnedComp) di.skinnedComp = skinnedComp.get();
 
             mDrawItems.emplace_back(std::move(di));
         }
     }
 }
+
+void DX12_Renderer::UpdateTerrainCBs(std::vector<TerrainComponent*>& terrainComponents)
+{
+    mTerrainDrawItems.clear();
+
+    ResourceSystem* rsm = GameEngine::Get().GetResourceSystem();
+    Material defaultMaterial = Material::Get_Default();
+
+    for (auto& terrainComponent : terrainComponents)
+    {
+        auto transform = terrainComponent->GetTransform();
+        if (!transform) continue;
+
+        auto mesh = terrainComponent->GetMesh();
+
+        auto patch_mesh = std::dynamic_pointer_cast<TerrainPatchMesh>(mesh);
+        if (!patch_mesh) continue;
+
+        const std::vector<TerrainInstanceData>& drawList = terrainComponent->GetDrawList();
+		UINT instanceCount = static_cast<UINT>(drawList.size());
+        if (!instanceCount) continue;
+
+        size_t instDataSize = sizeof(TerrainInstanceData) * drawList.size();
+        Allocation instAlloc = AllocateDynamicBuffer(instDataSize, sizeof(TerrainInstanceData));
+        memcpy(instAlloc.CpuAddress, drawList.data(), instDataSize);
+        
+
+        UINT HeightMapTextureResourceID = terrainComponent->GetHeightMapTextureResourceID();
+        
+        auto heightMapTexture = rsm->GetById<Texture>(HeightMapTextureResourceID);
+        auto heightMap_handle = mResource_Heap_Manager->GetGpuHandle(heightMapTexture->GetSlot());
+
+
+        Allocation alloc = AllocateDynamicBuffer(sizeof(ObjectCBData), 256);
+ 
+        XMFLOAT4X4 worldT = Matrix4x4::Transpose(transform->GetWorldMatrix());
+        UINT matId = terrainComponent->GetMaterialID();
+        auto material = rsm->GetById<Material>(matId);
+        const Material* matToUse = material ? material.get() : &defaultMaterial;
+
+        ObjectCBData cb{};
+        cb.World = worldT;
+        cb.Albedo = XMFLOAT4(matToUse->albedoColor.x, matToUse->albedoColor.y, matToUse->albedoColor.z, 1.0f);
+        cb.Roughness = matToUse->roughness;
+        cb.Metallic = matToUse->metallic;
+        cb.Emissive = 0.0f;
+
+        auto toIdx = [](UINT slot)->int { return (slot == UINT_MAX) ? -1 : static_cast<int>(slot); };
+        cb.DiffuseTexIdx = toIdx(matToUse->diffuseTexSlot);
+        cb.NormalTexIdx = toIdx(matToUse->normalTexSlot);
+        cb.RoughnessTexIdx = toIdx(matToUse->roughnessTexSlot);
+        cb.MetallicTexIdx = toIdx(matToUse->metallicTexSlot);
+        
+        memcpy(alloc.CpuAddress, &cb, sizeof(ObjectCBData));
+
+        DrawItem_Terrain di{};
+        di.Mesh = patch_mesh.get();
+        di.IndexCount = patch_mesh->GetIndexCount();
+        di.PatchVertexCount = patch_mesh->GetPatchVertexCount();
+
+        di.World = worldT;
+        di.InstanceCount = instanceCount;
+
+        di.HeightMapTexture = heightMapTexture.get();
+        di.HeightMapHandle = heightMap_handle;
+
+        di.ObjectCBAddress = alloc.GpuAddress;
+		di.InstanceBufferAddress = instAlloc.GpuAddress;   
+
+        mTerrainDrawItems.emplace_back(std::move(di));
+
+    }
+}
+
+
 
 void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list)
 {
@@ -1627,6 +1725,7 @@ void DX12_Renderer::UpdateLightAndShadowData(std::shared_ptr<CameraComponent> re
         fr.StateTracker.Transition(mCommandList.Get(), lr.LightBuffer.Get(), D3D12_RESOURCE_STATE_COMMON);
     }
 }
+
 void DX12_Renderer::CullObjectsForShadow(LightComponent* light, UINT cascadeIdx)
 {
     mVisibleItems.clear();
