@@ -9,7 +9,7 @@ public:
 	virtual bool LoadFromFile(std::string path, const RendererContext& ctx);
 	virtual bool SaveToFile(const std::string& outputPath) const { return false; }
 
-	void SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx);
+	void SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx, ComPtr<ID3D12Resource> uploadBuffer);
 	ID3D12Resource* GetResource() const { return mTexture.Get(); }
 
 	D3D12_RESOURCE_STATES GetState() const { return mCurrentState; }

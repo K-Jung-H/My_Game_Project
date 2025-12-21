@@ -98,6 +98,9 @@ struct VS_IN
     float InstScale : INST_SCALE;
     float InstLOD : INST_LOD;
     
+    float3 InstUVInfo : INST_UV;
+    float InstHeightScale : INST_HEIGHT_SCALE;
+
     uint InstanceID : SV_InstanceID;
 };
 
@@ -110,6 +113,8 @@ struct VS_OUT
     float2 TexScale : TEXCOORD1;
     
     nointerpolation float LOD : INST_LOD;
+    nointerpolation float3 UVInfo : INST_UV;
+    nointerpolation float HeightScale : INST_HEIGHT_SCALE;
 };
 
 struct HS_TESS_FACTOR
@@ -127,6 +132,8 @@ struct HS_OUT
     float2 TexScale : TEXCOORD1;
     
     nointerpolation float LOD : INST_LOD;
+    nointerpolation float3 UVInfo : INST_UV;
+    nointerpolation float HeightScale : INST_HEIGHT_SCALE;
 };
 
 struct DS_OUT
@@ -138,8 +145,6 @@ struct DS_OUT
     float2 UV : TEXCOORD0;
     
     nointerpolation float3 LODColor : COLOR;
-    
-    nointerpolation float DebugH : TEXCOORD5;
 };
 
 struct PS_OUT
@@ -163,6 +168,8 @@ VS_OUT Default_VS(VS_IN vin)
     vout.TexScale = float2(vin.InstScale, vin.InstScale);
 
     vout.LOD = vin.InstLOD;
+    vout.UVInfo = vin.InstUVInfo;
+    vout.HeightScale = vin.InstHeightScale;
     
     return vout;
 }
@@ -197,7 +204,8 @@ HS_OUT Default_HS(InputPatch<VS_OUT, 4> patch, uint i : SV_OutputControlPointID)
     hout.UV = patch[i].UV;
     hout.TexScale = patch[i].TexScale;
     hout.LOD = patch[i].LOD;
-    
+    hout.UVInfo = patch[i].UVInfo;
+    hout.HeightScale = patch[i].HeightScale;
     return hout;
 }
 
@@ -212,24 +220,26 @@ DS_OUT Default_DS(HS_TESS_FACTOR patchTess, float2 uv : SV_DomainLocation, const
 
     float2 uv0 = lerp(quad[0].UV, quad[1].UV, uv.x);
     float2 uv1 = lerp(quad[2].UV, quad[3].UV, uv.x);
-    float2 texUV = lerp(uv0, uv1, uv.y);
+    float2 localUV = lerp(uv0, uv1, uv.y);
 
-    float h = gHeightMap.SampleLevel(gsamClamp, texUV, 0).r;
+    float3 uvInfo = quad[0].UVInfo;
+    float2 globalUV = localUV * uvInfo.z + uvInfo.xy;
+
+    float h = gHeightMap.SampleLevel(gsamClamp, globalUV, 0).r;
     
-    float heightScale = length(float3(gWorld[0][1], gWorld[1][1], gWorld[2][1]));
+    float heightScale = quad[0].HeightScale;
     
     if (heightScale == 0.0f)
         heightScale = 1.0f;
     
     p.y += h * heightScale;
-    
     p = mul(float4(p, 1.0f), gWorld).xyz;
 
     dout.PosW = p;
     dout.PosH = mul(float4(p, 1.0f), mul(gView, gProj));
     
     float2 texScale = quad[0].TexScale;
-    dout.UV = texUV * texScale;
+    dout.UV = globalUV * texScale;
     
     float3 n0 = lerp(quad[0].NormalW, quad[1].NormalW, uv.x);
     float3 n1 = lerp(quad[2].NormalW, quad[3].NormalW, uv.x);
@@ -242,35 +252,31 @@ DS_OUT Default_DS(HS_TESS_FACTOR patchTess, float2 uv : SV_DomainLocation, const
     dout.TangentW = mul(tangent, (float3x3) gWorld);
     
     dout.LODColor = LODToRainbowColor(quad[0].LOD);
-    dout.DebugH = h;
+
     return dout;
 }
 
 PS_OUT Default_PS(DS_OUT pin)
 {
-    //PS_OUT pout;
-    
-    //float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo * float4(pin.LODColor, 1.0f);
-    //float3 normalT = SampleIfValid(NormalTexIdx, pin.UV).rgb;
-    //float roughness = SampleIfValid(RoughnessTexIdx, pin.UV).r * Roughness;
-    //float metallic = SampleIfValid(MetallicTexIdx, pin.UV).r * Metallic;
-
-    //normalT = normalT * 2.0f - 1.0f;
-
-    //float3 N = normalize(pin.NormalW);
-    //float3 T = normalize(pin.TangentW);
-    //float3 B = cross(N, T);
-    //float3x3 TBN = float3x3(T, B, N);
-    //float3 finalNormal = normalize(mul(normalT, TBN));
-
-    //pout.Albedo = albedo;
-    //pout.Normal = float4(finalNormal * 0.5f + 0.5f, 1.0f);
-    //pout.Material = float4(roughness, metallic, Emissive, 1.0f);
-
-    //return pout;
-    
     PS_OUT pout;
-    pout.Albedo = float4(pin.DebugH, pin.DebugH, pin.DebugH, 1.0f);
+    
+    float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo * float4(pin.LODColor, 1.0f);
+    float3 normalT = SampleIfValid(NormalTexIdx, pin.UV).rgb;
+    float roughness = SampleIfValid(RoughnessTexIdx, pin.UV).r * Roughness;
+    float metallic = SampleIfValid(MetallicTexIdx, pin.UV).r * Metallic;
+
+    normalT = normalT * 2.0f - 1.0f;
+
+    float3 N = normalize(pin.NormalW);
+    float3 T = normalize(pin.TangentW);
+    float3 B = cross(N, T);
+    float3x3 TBN = float3x3(T, B, N);
+    float3 finalNormal = normalize(mul(normalT, TBN));
+
+    pout.Albedo = albedo;
+    pout.Normal = float4(finalNormal * 0.5f + 0.5f, 1.0f);
+    pout.Material = float4(roughness, metallic, Emissive, 1.0f);
+
     return pout;
 }
 

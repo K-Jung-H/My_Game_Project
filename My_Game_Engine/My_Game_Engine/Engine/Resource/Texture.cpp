@@ -46,12 +46,12 @@ bool Texture::LoadFromFile(std::string path, const RendererContext& ctx)
     mGpuHandle = ctx.resourceHeap->GetGpuHandle(mSlot);
     return true;
 }
-
-void Texture::SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx)
+void Texture::SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx, ComPtr<ID3D12Resource> uploadBuffer)
 {
     if (!new_resource) return;
 
     mTexture = new_resource;
+    mUploadBuffer = uploadBuffer;
 
     auto desc = mTexture->GetDesc();
     texture_width = static_cast<UINT>(desc.Width);

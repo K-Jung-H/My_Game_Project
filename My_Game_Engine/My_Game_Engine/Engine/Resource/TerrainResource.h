@@ -17,4 +17,5 @@ public:
 private:
 	UINT mHeightMapTextureResourceID = Engine::INVALID_ID; // Height Map Texture Resource ID
     std::unique_ptr<TerrainHeightField> mHeightField;
+
 };

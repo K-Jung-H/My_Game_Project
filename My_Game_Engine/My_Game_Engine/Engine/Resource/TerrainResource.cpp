@@ -85,14 +85,16 @@ bool TerrainResource::LoadFromFile(std::string rawPath, const RendererContext& c
     mHeightField->BuildFromRawData(normalizedData, resolution);
 
     auto rc = GameEngine::Get().Get_UploadContext();
+
     ComPtr<ID3D12Resource> uploadBuffer;
-    ComPtr<ID3D12Resource> texResource = ResourceUtils::CreateTextureFromMemory(rc, normalizedData.data(), resolution, resolution, DXGI_FORMAT_R32_FLOAT, 2, uploadBuffer);
+    ComPtr<ID3D12Resource> texResource = ResourceUtils::CreateTextureFromMemory(rc, normalizedData.data(), resolution, resolution, DXGI_FORMAT_R16_UNORM, 2, uploadBuffer);
+
 
     if (texResource)
     {
         auto texture = std::make_shared<Texture>();
-        texture->SetResource(texResource, rc);
-
+        texture->SetResource(texResource, rc, uploadBuffer);
+        texture->SetState(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
         auto rsc = GameEngine::Get().GetResourceSystem();
         rsc->RegisterResource(texture);
 
