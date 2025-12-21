@@ -184,6 +184,7 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     case ResourceType::ModelAvatar:   mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
     case ResourceType::AnimationClip: mAnimationClips.push_back(std::dynamic_pointer_cast<AnimationClip>(res)); break;
     case ResourceType::AvatarMask:    mAvatarMasks.push_back(std::dynamic_pointer_cast<AvatarMask>(res)); break;
+	case ResourceType::TerrainData:    mTerrains.push_back(std::dynamic_pointer_cast<TerrainResource>(res)); break;
     default: break;
     }
 
@@ -256,9 +257,6 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         break;
     }
 
-    // ----------------------------------------------
-    // 머티리얼 파일
-    // ----------------------------------------------
     case FileCategory::Material:
     {
         auto mat = LoadOrReuse<Material>(normalized_path, std::string(alias), ctx,
@@ -274,9 +272,6 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         break;
     }
 
-    // ----------------------------------------------
-    // 텍스처 파일
-    // ----------------------------------------------
     case FileCategory::Texture:
     {
         auto tex = std::make_shared<Texture>();

@@ -713,7 +713,7 @@ bool DX12_Renderer::Create_Shader()
 
     PipelinePreset terrain_geometry_pp;
     terrain_geometry_pp.inputlayout = InputLayoutPreset::Terrain;
-    terrain_geometry_pp.rasterizer = RasterizerPreset::Wireframe;
+    terrain_geometry_pp.rasterizer = RasterizerPreset::Default;
     terrain_geometry_pp.blend = BlendPreset::AlphaBlend;
     terrain_geometry_pp.depth = DepthPreset::Default;
     terrain_geometry_pp.RenderTarget = RenderTargetPreset::MRT;
@@ -1544,7 +1544,8 @@ void DX12_Renderer::UpdateTerrainCBs(std::vector<TerrainComponent*>& terrainComp
         
 
         UINT HeightMapTextureResourceID = terrainComponent->GetHeightMapTextureResourceID();
-        
+        if (HeightMapTextureResourceID == Engine::INVALID_ID) continue;
+
         auto heightMapTexture = rsm->GetById<Texture>(HeightMapTextureResourceID);
         auto heightMap_handle = mResource_Heap_Manager->GetGpuHandle(heightMapTexture->GetSlot());
 

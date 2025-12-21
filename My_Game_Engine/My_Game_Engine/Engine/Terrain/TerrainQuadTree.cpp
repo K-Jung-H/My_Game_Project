@@ -115,7 +115,11 @@ void TerrainQuadTree::UpdateNode(TerrainNode* node, const BoundingFrustum& frust
         data.LOD = std::clamp(tessValue, minTessFactor, maxTessFactor);
 
         float totalSize = mRootNode->Size;
-        data.UVInfo = XMFLOAT3(node->X / totalSize, node->Z / totalSize, node->Size / totalSize);
+        float uvOffsetX = node->X / totalSize;
+        float uvOffsetY = node->Z / totalSize;
+        float uvScale = node->Size / totalSize;
+
+        data.UVInfo = XMFLOAT3(uvOffsetX, uvOffsetY, uvScale);
         data.HeightScale = mMaxHeight;
 
         mDrawList.push_back(data);

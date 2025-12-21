@@ -226,31 +226,36 @@ DS_OUT Default_DS(HS_TESS_FACTOR patchTess, float2 uv : SV_DomainLocation, const
     float2 globalUV = localUV * uvInfo.z + uvInfo.xy;
 
     float h = gHeightMap.SampleLevel(gsamClamp, globalUV, 0).r;
-    
     float heightScale = quad[0].HeightScale;
-    
-    if (heightScale == 0.0f)
-        heightScale = 1.0f;
-    
+
     p.y += h * heightScale;
     p = mul(float4(p, 1.0f), gWorld).xyz;
 
     dout.PosW = p;
     dout.PosH = mul(float4(p, 1.0f), mul(gView, gProj));
-    
-    float2 texScale = quad[0].TexScale;
-    dout.UV = globalUV * texScale;
-    
-    float3 n0 = lerp(quad[0].NormalW, quad[1].NormalW, uv.x);
-    float3 n1 = lerp(quad[2].NormalW, quad[3].NormalW, uv.x);
-    float3 normal = normalize(lerp(n0, n1, uv.y));
-    dout.NormalW = mul(normal, (float3x3) gWorld);
+    dout.UV = globalUV;
+
+    uint texWidth, texHeight;
+    gHeightMap.GetDimensions(texWidth, texHeight);
+    float2 texelSize = float2(1.0f / texWidth, 1.0f / texHeight);
+
+    float hL = gHeightMap.SampleLevel(gsamClamp, globalUV + float2(-texelSize.x, 0), 0).r * heightScale;
+    float hR = gHeightMap.SampleLevel(gsamClamp, globalUV + float2(texelSize.x, 0), 0).r * heightScale;
+    float hD = gHeightMap.SampleLevel(gsamClamp, globalUV + float2(0, texelSize.y), 0).r * heightScale;
+    float hU = gHeightMap.SampleLevel(gsamClamp, globalUV + float2(0, -texelSize.y), 0).r * heightScale;
+
+    float3 newNormal;
+    newNormal.x = hL - hR;
+    newNormal.y = 2.0f;
+    newNormal.z = hU - hD;
+    newNormal = normalize(newNormal);
+
+    dout.NormalW = mul(newNormal, (float3x3) gWorld);
 
     float3 t0 = lerp(quad[0].TangentW, quad[1].TangentW, uv.x);
     float3 t1 = lerp(quad[2].TangentW, quad[3].TangentW, uv.x);
-    float3 tangent = normalize(lerp(t0, t1, uv.y));
-    dout.TangentW = mul(tangent, (float3x3) gWorld);
-    
+    dout.TangentW = normalize(lerp(t0, t1, uv.y));
+
     dout.LODColor = LODToRainbowColor(quad[0].LOD);
 
     return dout;
@@ -260,7 +265,9 @@ PS_OUT Default_PS(DS_OUT pin)
 {
     PS_OUT pout;
     
-    float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo * float4(pin.LODColor, 1.0f);
+//    LOD coloring for debugging 
+//    float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo * float4(pin.LODColor, 1.0f);
+    float4 albedo = SampleIfValid(DiffuseTexIdx, pin.UV) * Albedo;
     float3 normalT = SampleIfValid(NormalTexIdx, pin.UV).rgb;
     float roughness = SampleIfValid(RoughnessTexIdx, pin.UV).r * Roughness;
     float metallic = SampleIfValid(MetallicTexIdx, pin.UV).r * Metallic;

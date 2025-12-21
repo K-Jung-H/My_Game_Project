@@ -43,17 +43,17 @@ void Scene::Build()
 	//	light_component->SetTransform(sub_light_obj->GetTransform());
 	//}
 
-	//{
-	//	std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
-	//	plane_mesh->SetAlias("Plane_Mesh");
-	//	rsm->RegisterResource(plane_mesh);
-	//	UINT plane_id = plane_mesh->GetId();
+	{
+		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
+		plane_mesh->SetAlias("Plane_Mesh");
+		rsm->RegisterResource(plane_mesh);
+		UINT plane_id = plane_mesh->GetId();
 
-	//	Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
-	//	plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
-	//	auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
-	//	mesh_component->SetMesh(plane_id);
-	//}
+		Object* plane_obj = m_pObjectManager->CreateObject("Plane_Object");
+		plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
+		auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
+		mesh_component->SetMesh(plane_id);
+	}
 
 	{
 		//Create Terrain Test
