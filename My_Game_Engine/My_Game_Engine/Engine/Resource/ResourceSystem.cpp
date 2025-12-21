@@ -184,6 +184,7 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
     case ResourceType::ModelAvatar:   mAvatars.push_back(std::dynamic_pointer_cast<Model_Avatar>(res)); break;
     case ResourceType::AnimationClip: mAnimationClips.push_back(std::dynamic_pointer_cast<AnimationClip>(res)); break;
     case ResourceType::AvatarMask:    mAvatarMasks.push_back(std::dynamic_pointer_cast<AvatarMask>(res)); break;
+	case ResourceType::TerrainData:    mTerrains.push_back(std::dynamic_pointer_cast<TerrainResource>(res)); break;
     default: break;
     }
 
@@ -195,7 +196,6 @@ void ResourceSystem::RegisterResource(const std::shared_ptr<Game_Resource>& res)
 
 void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadResult& result)
 {
-    const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
     std::string normalized_path = NormalizeFilePath(path);
     FileCategory category = DetectFileCategory(normalized_path);
 
@@ -215,18 +215,23 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
             return;
         }
     }
+    const RendererContext& ctx = GameEngine::Get().Get_UploadContext();
+    auto renderer = GameEngine::Get().GetRenderer();
+    bool bManagedByExternal = renderer->IsUploadOpen(); 
 
+    if (!bManagedByExternal)
+        renderer->BeginUpload();
 
     switch (category)
     {
     case FileCategory::FBX:
     {
-        //ModelLoader_FBX fbxLoader;
-        //if (fbxLoader.Load(normalized_path, alias, result))
-        //{
-        //    OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
-        //    return;
-        //}
+        ModelLoader_FBX fbxLoader;
+        if (fbxLoader.Load(normalized_path, alias, result))
+        {
+            OutputDebugStringA(("[FBX SDK] Loaded model: " + normalized_path + "\n").c_str());
+            return;
+        }
 
         ModelLoader_Assimp assimpLoader;
         if (assimpLoader.Load(normalized_path, alias, result))
@@ -252,9 +257,6 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         break;
     }
 
-    // ----------------------------------------------
-    // 머티리얼 파일
-    // ----------------------------------------------
     case FileCategory::Material:
     {
         auto mat = LoadOrReuse<Material>(normalized_path, std::string(alias), ctx,
@@ -270,9 +272,6 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         break;
     }
 
-    // ----------------------------------------------
-    // 텍스처 파일
-    // ----------------------------------------------
     case FileCategory::Texture:
     {
         auto tex = std::make_shared<Texture>();
@@ -339,10 +338,26 @@ void ResourceSystem::Load(const std::string& path, std::string_view alias, LoadR
         break;
     }
 
+	case FileCategory::RawData:
+    {
+        auto terrain = LoadOrReuse<TerrainResource>(normalized_path, std::string(alias), ctx,
+            [&]() -> std::shared_ptr<TerrainResource> {
+                return std::make_shared<TerrainResource>();
+            }
+		);
+
+        if (terrain)
+			result.terrainID = terrain->GetId();
+        break;
+    }
+
     default:
         OutputDebugStringA(("[ResourceSystem] Unknown resource type: " + normalized_path + "\n").c_str());
         break;
     }
+
+    if (!bManagedByExternal)
+		renderer->EndUpload();
 }
 
 

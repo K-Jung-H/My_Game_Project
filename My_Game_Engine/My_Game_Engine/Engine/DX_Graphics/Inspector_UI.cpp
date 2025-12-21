@@ -2,6 +2,7 @@
 #include "GameEngine.h"
 #include "Core/Object.h"
 #include "Components/RigidbodyComponent.h"
+#include "Components/TerrainComponent.h"
 #include "Resource/Mesh.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -220,7 +221,7 @@ void UIManager::DrawResourceWindow()
         ImGui::BeginChild("ResourceList", ImVec2(listWidth, 0), true);
         {
             static int filterIdx = 0;
-            const char* filters[] = { "All", "Mesh", "Material", "Texture", "Model", "Animation" };
+            const char* filters[] = { "All", "Mesh", "Material", "Texture", "Model", "Animation", "Terrain" }; 
 
             ImGui::AlignTextToFramePadding();
             ImGui::Text("Filter");
@@ -245,6 +246,9 @@ void UIManager::DrawResourceWindow()
                 DrawTypedList<AnimationClip>("Animation Clips", "Clip", PAYLOAD_CLIP);
                 DrawTypedList<AvatarMask>("Avatar Masks", "Mask", PAYLOAD_MASK);
             }
+
+            if (showAll || filterIdx == 6) DrawTypedList<TerrainResource>("Terrains", "Terrain", PAYLOAD_TERRAIN);
+
         }
         ImGui::EndChild();
 
@@ -507,6 +511,10 @@ void UIManager::DrawComponentInspector(Component* comp)
     else if (auto rb = dynamic_cast<RigidbodyComponent*>(comp))
     {
         DrawRigidbodyInspector(rb);
+    }
+    else if (auto terrain = dynamic_cast<TerrainComponent*>(comp))
+    {
+        DrawTerrainInspector(terrain);
     }
     else
     {
@@ -1217,6 +1225,106 @@ void UIManager::DrawRigidbodyInspector(Component* comp)
         if (ImGui::Checkbox("Use Gravity", &useGravity)) rb->SetUseGravity(useGravity);
     }
 }
+
+void UIManager::DrawTerrainInspector(Component* comp)
+{
+    auto terrain = static_cast<TerrainComponent*>(comp);
+    ResourceSystem* rs = GameEngine::Get().GetResourceSystem();
+
+    if (ImGui::CollapsingHeader("Terrain Component", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::TextColored(ImVec4(0.4f, 1.0f, 0.4f, 1.0f), "Terrain Source");
+
+        auto currentTerrainRes = terrain->GetTerrainResource();
+        auto terrainList = rs->GetAllResources<TerrainResource>();
+
+        DrawResourcePickUI<TerrainResource>(
+            "##TerrainSelect",
+            currentTerrainRes.get(),
+            terrainList,
+            PAYLOAD_TERRAIN,
+            [terrain](TerrainResource* newRes) {
+                if (newRes) terrain->SetTerrain(newRes->GetId());
+                else terrain->SetTerrain(Engine::INVALID_ID);
+            }
+        );
+
+        ImGui::Spacing();
+
+        ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.4f, 1.0f), "Material");
+
+        auto currentMatID = terrain->GetMaterialID();
+        auto currentMat = rs->GetById<Material>(currentMatID);
+        auto matList = rs->GetMaterials();
+
+        DrawResourcePickUI<Material>(
+            "##TerrainMatSelect",
+            currentMat.get(),
+            matList,
+            PAYLOAD_MATERIAL,
+            [terrain](Material* newMat) {
+                if (newMat) terrain->SetMaterialID(newMat->GetId());
+                else terrain->SetMaterialID(Engine::INVALID_ID);
+            }
+        );
+
+        ImGui::Separator();
+
+        ImGui::Text("Settings");
+        ImGui::Spacing();
+
+        bool settingsChanged = false;
+        float width = terrain->GetWidth();
+        float depth = terrain->GetDepth();
+        float maxHeight = terrain->GetMaxHeight();
+        int treeDepth = terrain->GetTreeDepth();
+
+        if (ImGui::DragFloat("Width", &width, 1.0f, 1.0f, 10000.0f))
+        {
+            terrain->SetTerrain_Width(width);
+        }
+        if (ImGui::DragFloat("Depth", &depth, 1.0f, 1.0f, 10000.0f))
+        {
+            terrain->SetTerrain_Depth(depth);
+        }
+        if (ImGui::DragFloat("Max Height", &maxHeight, 0.5f, 0.1f, 2000.0f))
+        {
+            terrain->SetTerrain_MaxHeight(maxHeight);
+        }
+        if (ImGui::SliderInt("Tree Depth", &treeDepth, 1, 10))
+        {
+            terrain->SetTerrain_TreeDepth(treeDepth);
+        }
+
+        ImGui::Separator();
+
+        if (ImGui::TreeNodeEx("Terrain Info", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ImGui::BulletText("QuadTree Depth: %d", treeDepth);
+
+            if (currentTerrainRes && currentTerrainRes->GetHeightField())
+            {
+                const auto* heightField = currentTerrainRes->GetHeightField();
+
+                ImGui::Spacing();
+                ImGui::TextColored(ImVec4(0.5f, 0.8f, 1.0f, 1.0f), "[HeightMap Data]");
+                ImGui::BulletText("Source Width : %u px", heightField->GetWidthCount());
+                ImGui::BulletText("Source Height: %u px", heightField->GetHeightCount());
+
+                float cellX = terrain->GetWidth() / (float)(heightField->GetWidthCount() - 1);
+                float cellZ = terrain->GetDepth() / (float)(heightField->GetHeightCount() - 1);
+                ImGui::BulletText("Cell Spacing : %.2f x %.2f", cellX, cellZ);
+            }
+            else
+            {
+                ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "No HeightMap Loaded");
+            }
+
+            ImGui::TreePop();
+        }
+    }
+}
+
 
 void UIManager::UpdateResourceWindow()
 {

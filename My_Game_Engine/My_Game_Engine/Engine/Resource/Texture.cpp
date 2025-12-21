@@ -46,3 +46,31 @@ bool Texture::LoadFromFile(std::string path, const RendererContext& ctx)
     mGpuHandle = ctx.resourceHeap->GetGpuHandle(mSlot);
     return true;
 }
+void Texture::SetResource(ComPtr<ID3D12Resource> new_resource, const RendererContext& ctx, ComPtr<ID3D12Resource> uploadBuffer)
+{
+    if (!new_resource) return;
+
+    mTexture = new_resource;
+    mUploadBuffer = uploadBuffer;
+
+    auto desc = mTexture->GetDesc();
+    texture_width = static_cast<UINT>(desc.Width);
+    texture_height = desc.Height;
+
+    if (mSlot == Engine::INVALID_ID) 
+    {
+        mSlot = ctx.resourceHeap->Allocate(HeapRegion::SRV_Static);
+    }
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Format = desc.Format;
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = desc.MipLevels;
+
+    auto cpuHandle = ctx.resourceHeap->GetCpuHandle(mSlot);
+    ctx.device->CreateShaderResourceView(mTexture.Get(), &srvDesc, cpuHandle);
+
+    mGpuHandle = ctx.resourceHeap->GetGpuHandle(mSlot);
+
+}

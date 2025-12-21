@@ -143,8 +143,6 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateTextureCubeArray(const RendererConte
 	return CreateTextureResource(ctx, nullptr, 0, width, height, numCubes * 6, 1, flags, format, D3D12_HEAP_TYPE_DEFAULT, initialState, dummyUpload);
 }
 
-
-
 ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx, void* pData, UINT64 nBytes, D3D12_RESOURCE_DIMENSION dimension, UINT width, UINT height, UINT depthOrArraySize, UINT mipLevels,
     D3D12_RESOURCE_FLAGS flags, DXGI_FORMAT format, D3D12_HEAP_TYPE heapType, D3D12_RESOURCE_STATES finalState, ComPtr<ID3D12Resource>& uploadBuffer)
 {
@@ -287,4 +285,48 @@ ComPtr<ID3D12Resource> ResourceUtils::CreateResource(const RendererContext& ctx,
     }
 
     return resource;
+}
+
+ComPtr<ID3D12Resource> ResourceUtils::CreateTextureFromMemory(const RendererContext& ctx, const void* pData, UINT width, UINT height, DXGI_FORMAT format, UINT pixelByteSize, ComPtr<ID3D12Resource>& uploadBuffer)
+{
+    ComPtr<ID3D12Resource> textureResource = CreateResource(ctx, nullptr, 0, D3D12_RESOURCE_DIMENSION_TEXTURE2D, width, height, 1, 1, 
+        D3D12_RESOURCE_FLAG_NONE, format, D3D12_HEAP_TYPE_DEFAULT, D3D12_RESOURCE_STATE_COPY_DEST, uploadBuffer);
+
+    if (!textureResource) return nullptr;
+
+    UINT64 uploadBufferSize = 0;
+    D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint;
+    UINT numRows;
+    UINT64 rowSizeInBytes;
+
+    auto desc = textureResource->GetDesc();
+    ctx.device->GetCopyableFootprints(&desc, 0, 1, 0, &footprint, &numRows, &rowSizeInBytes, &uploadBufferSize);
+
+    uploadBuffer = CreateResource(ctx, nullptr, uploadBufferSize, D3D12_RESOURCE_DIMENSION_BUFFER, uploadBufferSize, 1, 1, 1, 
+        D3D12_RESOURCE_FLAG_NONE, DXGI_FORMAT_UNKNOWN, D3D12_HEAP_TYPE_UPLOAD, D3D12_RESOURCE_STATE_GENERIC_READ, uploadBuffer);
+
+    if (!uploadBuffer) return nullptr;
+
+    UINT8* pMappedData = nullptr;
+    uploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&pMappedData));
+
+    const UINT8* pSrcData = reinterpret_cast<const UINT8*>(pData);
+    UINT64 srcRowPitch = static_cast<UINT64>(width) * pixelByteSize;
+
+    for (UINT i = 0; i < numRows; ++i)
+    {
+        memcpy(pMappedData + footprint.Offset + i * footprint.Footprint.RowPitch, pSrcData + i * srcRowPitch, srcRowPitch);
+    }
+    uploadBuffer->Unmap(0, nullptr);
+
+    CD3DX12_TEXTURE_COPY_LOCATION dst(textureResource.Get(), 0);
+    CD3DX12_TEXTURE_COPY_LOCATION src(uploadBuffer.Get(), footprint);
+
+    ctx.cmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+    D3D12_RESOURCE_BARRIER barrier = CD3DX12_RESOURCE_BARRIER::Transition(textureResource.Get(), 
+        D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    ctx.cmdList->ResourceBarrier(1, &barrier);
+
+    return textureResource;
 }

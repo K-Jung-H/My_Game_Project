@@ -4,7 +4,7 @@
 
 class SceneManager;
 class Object;
-
+class TerrainComponent;
 
 class Scene : public std::enable_shared_from_this<Scene>
 {
@@ -27,6 +27,7 @@ public:
     
     std::vector<Object*> GetRootObjectList() const;
     std::vector<RenderData> GetRenderable() const;
+    const std::vector<TerrainComponent*>& GetTerrains() const { return mTerrains; }
     std::vector<LightComponent*> GetLightList() const;
 
     void RegisterCamera(std::weak_ptr<CameraComponent> cam);
@@ -57,10 +58,12 @@ private:
     std::unique_ptr<ObjectManager> m_pObjectManager;
 
     std::vector<RenderData> renderData_list;
+
     std::vector<std::weak_ptr<LightComponent>> light_list;
 	std::vector<std::shared_ptr<AnimationControllerComponent>> animation_controller_list;
 
     std::vector<std::weak_ptr<CameraComponent>> camera_list;
     std::weak_ptr<CameraComponent> activeCamera;
 
+    std::vector<TerrainComponent*> mTerrains;
 };

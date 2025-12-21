@@ -2,6 +2,7 @@
 #include "GameEngine.h"
 #include "Object.h"
 #include "Components/RigidbodyComponent.h"
+#include "Components/TerrainComponent.h"
 
 Scene::Scene() 
 { 
@@ -41,6 +42,7 @@ void Scene::Build()
 	//	auto light_component = sub_light_obj->AddComponent<LightComponent>();
 	//	light_component->SetTransform(sub_light_obj->GetTransform());
 	//}
+
 	{
 		std::shared_ptr<Plane_Mesh> plane_mesh = std::make_shared<Plane_Mesh>(1000.0f, 1000.0f);
 		plane_mesh->SetAlias("Plane_Mesh");
@@ -51,6 +53,24 @@ void Scene::Build()
 		plane_obj->GetTransform()->SetPosition({ 0.0f, 0.0f, 0.0f });
 		auto mesh_component = plane_obj->AddComponent<MeshRendererComponent>();
 		mesh_component->SetMesh(plane_id);
+	}
+
+	{
+		//Create Terrain Test
+		LoadResult terrain_result;
+		rsm->Load("Assets/Terrain/HeightMap.raw", "Terrain", terrain_result);
+
+		// load test
+		auto terrain_resource = rsm->GetById<TerrainResource>(terrain_result.terrainID);
+
+
+		Object* terrain_obj = m_pObjectManager->CreateObject("Main_Terrain");
+		terrain_obj->GetTransform()->SetPosition({ -500.0f, 0.0f, -500.0f });
+
+		auto terrain_component = terrain_obj->AddComponent<TerrainComponent>();
+		terrain_component->SetTransform(terrain_obj->GetTransform());
+		terrain_component->SetTerrain(terrain_result.terrainID);
+		terrain_component->SetTerrain_Size(1000, 1000, 500);
 	}
 	
 	//--------------------------------------------------------------------------------
@@ -254,6 +274,17 @@ void Scene::Update_Late()
 			cp->Update();
 	}
 	
+	if (auto main_camera = activeCamera.lock())
+	{
+		for (auto& terrain : mTerrains)
+		{
+			if (terrain->GetActive())
+			{
+				terrain->UpdateLOD(main_camera.get());
+			}
+		}
+	}
+
 
 	for (auto lightComponent : light_list)
 	{
@@ -316,6 +347,15 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 	}
 	break;
 
+	case Component_Type::Terrain:
+	{
+		if(auto terrain = std::dynamic_pointer_cast<TerrainComponent>(comp))
+		{
+			mTerrains.push_back(terrain.get());
+		}
+		break;
+	}
+
 	default:
 		break;
 	}
@@ -360,6 +400,14 @@ void Scene::UnregisterAllComponents(Object* pObject)
 				camera_list.erase(it, camera_list.end());
 				break;
 			}
+			case Component_Type::Terrain:
+			{
+				auto it = std::remove_if(mTerrains.begin(), mTerrains.end(),
+					[&](const TerrainComponent* terrain) {return terrain == comp.get(); });
+				mTerrains.erase(it, mTerrains.end());
+				break;
+			}
+
 			default:
 				break;
 			}
@@ -429,7 +477,6 @@ std::vector<LightComponent*> Scene::GetLightList() const
 	}
 	return list;
 }
-
 
 void Scene::RegisterCamera(std::weak_ptr<CameraComponent> cam)
 {

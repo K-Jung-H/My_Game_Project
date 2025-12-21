@@ -1,5 +1,6 @@
 #pragma once
 #include "DescriptorManager.h"
+#include "DynamicBufferAllocator.h"
 #include "Graphic_Shader.h"
 #include "Core/Scene.h"
 #include "Inspector_UI.h"
@@ -43,13 +44,6 @@ struct GBuffer
 // =================================================================
 // GPU Data Structures
 // =================================================================
-struct ObjectCBResource
-{
-    ComPtr<ID3D12Resource> Buffer;
-    ObjectCBData* MappedObjectCB = nullptr;
-    UINT HeadOffset = 0;
-    UINT MaxObjects = 0;
-};
 
 struct ClusterLightMeta
 {
@@ -70,8 +64,6 @@ struct LightResource
     UINT ClusterBuffer_UAV_Index;
 
     ComPtr<ID3D12Resource> LightBuffer;
-    ComPtr<ID3D12Resource> LightUploadBuffer;
-    GPULight* MappedLightUploadBuffer = nullptr;
     UINT LightBuffer_SRV_Index;
 
     ComPtr<ID3D12Resource> ClusterLightMetaBuffer;
@@ -100,9 +92,7 @@ struct LightResource
     std::vector<UINT> CsmShadow_DSVs;
     std::vector<UINT> PointShadow_DSVs;
 
-    ComPtr<ID3D12Resource> ShadowMatrixBuffer;
-    ShadowMatrixData* MappedShadowMatrixBuffer = nullptr;
-    UINT ShadowMatrixBuffer_SRV_Index = UINT_MAX;
+    D3D12_GPU_VIRTUAL_ADDRESS CurrentShadowMatrixGPUAddress = 0;
 
     std::unordered_map<LightComponent*, UINT> mLightShadowIndexMap;
     std::vector<LightComponent*> mFrameShadowCastingCSM;
@@ -165,7 +155,7 @@ struct FrameResource
     UINT Merge_Base_Index = 0;
     UINT Merge_Target_Index = 1;
 
-    ObjectCBResource ObjectCB;
+    std::unique_ptr<DynamicBufferAllocator> DynamicAllocator;
     LightResource light_resource;
     ResourceStateTracker StateTracker;
 };
@@ -177,6 +167,7 @@ struct RendererContext
     DescriptorManager* resourceHeap;
 };
 
+class TerrainComponent;
 class RenderData;
 class DrawItem;
 
@@ -207,10 +198,12 @@ public:
     void Render(std::shared_ptr<Scene> render_scene);
 
     // --- Utility & Upload Context ---
+    Allocation AllocateDynamicBuffer(size_t sizeInBytes, size_t alignment = 256);
     RendererContext Get_RenderContext() const;
     RendererContext Get_UploadContext() const;
     void BeginUpload();
     void EndUpload();
+    bool IsUploadOpen() const { return !mUploadClosed; }
 
     bool test_value = false;
 
@@ -250,10 +243,9 @@ private:
     bool CreateBackBufferRTV(UINT frameIndex, FrameResource& fr);
 
     // Per-Frame Resources
-    bool CreateObjectCB(FrameResource& fr, UINT maxObjects);
+    bool CreateDynamicBufferAllocator(FrameResource& fr);
     bool Create_LightResources(FrameResource& fr, UINT maxLights);
     bool Create_ShadowResources(FrameResource& fr);
-    bool CreateShadowMatrixBuffer(FrameResource& fr);
 
     // Resolution Dependent Resources
     bool CreateDSV(FrameResource& fr);
@@ -279,6 +271,7 @@ private:
     // Render Passes
     void SkinningPass();
     void GeometryPass(std::shared_ptr<CameraComponent> render_camera);
+    void GeometryTerrainPass(std::shared_ptr<CameraComponent> render_camera);
     void LightPass(std::shared_ptr<CameraComponent> render_camera);
     void ShadowPass();
     void CompositePass(std::shared_ptr<CameraComponent> render_camera);
@@ -289,6 +282,8 @@ private:
     // Render Helpers
     void Render_Objects(ComPtr<ID3D12GraphicsCommandList> cmdList, UINT objectCBVRootParamIndex, const std::vector<DrawItem>& drawList);
     void UpdateObjectCBs(const std::vector<RenderData>& renderables);
+    void UpdateTerrainCBs(std::vector<TerrainComponent*>& terrainComponents);
+
     void UpdateLightAndShadowData(std::shared_ptr<CameraComponent> render_camera, const std::vector<LightComponent*>& light_comp_list);
     void CullObjectsForShadow(LightComponent* light, UINT cascadeIdx);
     void CullObjectsForRender(std::shared_ptr<CameraComponent> camera);
@@ -355,6 +350,8 @@ private:
     // Draw Items
     std::vector<DrawItem> mDrawItems;
     std::vector<DrawItem> mVisibleItems; // After Culling
+
+    std::vector<DrawItem_Terrain> mTerrainDrawItems;
 
     // UI System
     UIManager ui_manager;

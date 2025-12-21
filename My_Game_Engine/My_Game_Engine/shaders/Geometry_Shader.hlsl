@@ -46,10 +46,17 @@ cbuffer ObjectCB : register(b2)
     int MetallicTexIdx;
 };
 
-
-
 Texture2D gTextures[2000] : register(t0);
 SamplerState gLinearSampler : register(s0);
+
+
+float4 SampleIfValid(int texIdx, float2 uv)
+{
+    if (texIdx < 0)
+        return float4(1, 1, 1, 1);
+    return gTextures[texIdx].Sample(gLinearSampler, uv);
+}
+
 
 struct VS_IN
 {
@@ -86,13 +93,6 @@ struct PS_OUT
     float4 Normal : SV_Target1;
     float4 Material : SV_Target2;
 };
-
-float4 SampleIfValid(int texIdx, float2 uv)
-{
-    if (texIdx < 0)
-        return float4(1, 1, 1, 1);
-    return gTextures[texIdx].Sample(gLinearSampler, uv);
-}
 
 PS_OUT Default_PS(VS_OUT i)
 {

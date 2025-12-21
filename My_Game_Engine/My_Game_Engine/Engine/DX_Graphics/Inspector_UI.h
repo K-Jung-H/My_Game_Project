@@ -9,6 +9,7 @@
 #define PAYLOAD_SKELETON    "DRAG_RES_SKELETON"
 #define PAYLOAD_CLIP        "DRAG_RES_ANIMCLIP"
 #define PAYLOAD_MASK        "DRAG_RES_MASK"
+#define PAYLOAD_TERRAIN "PAYLOAD_TERRAIN"
 
 enum class ResourceType;
 class ResourceSystem;
@@ -88,6 +89,7 @@ private:
     void DrawCameraInspector(Component* comp);
     void DrawLightInspector(Component* comp);
     void DrawRigidbodyInspector(Component* comp);
+    void DrawTerrainInspector(Component* comp);
 
     // ------------------------------------------------------
     // Resource Browser & Details
