@@ -114,11 +114,13 @@ const std::vector<TerrainInstanceData>& TerrainComponent::GetDrawList() const
 
 float TerrainComponent::GetHeight(XMFLOAT3 worldPos)
 {
-    if (!mTerrainRes || !mTerrainRes->GetHeightField()) return 0.0f;
-    if (!mTransform.lock()) return 0.0f;
-
+    if (!mTerrainRes || !mTerrainRes->GetHeightField()) return -FLT_MAX;
     std::shared_ptr<TransformComponent> tr = mTransform.lock();
-    XMMATRIX worldInv = XMMatrixInverse(nullptr, XMLoadFloat4x4(&tr->GetWorldMatrix()));
+    if (!tr) return -FLT_MAX;
+
+    const auto& worldMat = tr->GetWorldMatrix();
+
+    XMMATRIX worldInv = XMMatrixInverse(nullptr, XMLoadFloat4x4(&worldMat));
     XMVECTOR localPosVec = XMVector3TransformCoord(XMLoadFloat3(&worldPos), worldInv);
     XMFLOAT3 localPos;
     XMStoreFloat3(&localPos, localPosVec);
@@ -126,7 +128,13 @@ float TerrainComponent::GetHeight(XMFLOAT3 worldPos)
     float u = localPos.x / mWidth;
     float v = localPos.z / mDepth;
 
-    float normalizedHeight = mTerrainRes->GetHeightField()->GetHeight(u, v);
+    if (u < 0.0f || u > 1.0f || v < 0.0f || v > 1.0f) return -FLT_MAX;
 
-    return normalizedHeight * mMaxHeight;
+    float normalizedHeight = mTerrainRes->GetHeightField()->GetHeight(u, v);
+    float localHeight = normalizedHeight * mMaxHeight;
+
+    XMFLOAT3 surfaceLocal = { localPos.x, localHeight, localPos.z };
+    XMVECTOR surfaceWorldVec = XMVector3TransformCoord(XMLoadFloat3(&surfaceLocal), XMLoadFloat4x4(&worldMat));
+
+    return XMVectorGetY(surfaceWorldVec);
 }

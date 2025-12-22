@@ -2,6 +2,7 @@
 #include "GameEngine.h"
 #include "Core/Object.h"
 #include "Components/RigidbodyComponent.h"
+#include "Components/ColliderComponent.h"
 #include "Components/TerrainComponent.h"
 #include "Resource/Mesh.h"
 
@@ -472,6 +473,12 @@ void UIManager::DrawObjectNode(Object* obj)
             ImGui::CloseCurrentPopup();
         }
 
+        if (ImGui::MenuItem("Collider"))
+        {
+            obj->AddComponent<ColliderComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
         if (ImGui::MenuItem("Animation Controller"))
         {
             obj->AddComponent<AnimationControllerComponent>();
@@ -511,6 +518,10 @@ void UIManager::DrawComponentInspector(Component* comp)
     else if (auto rb = dynamic_cast<RigidbodyComponent*>(comp))
     {
         DrawRigidbodyInspector(rb);
+    }
+    else if (auto col = dynamic_cast<ColliderComponent*>(comp))
+    {
+        DrawColliderInspector(col);
     }
     else if (auto terrain = dynamic_cast<TerrainComponent*>(comp))
     {
@@ -1216,13 +1227,131 @@ void UIManager::DrawLightInspector(Component* comp)
 void UIManager::DrawRigidbodyInspector(Component* comp)
 {
     auto rb = static_cast<RigidbodyComponent*>(comp);
+
     if (ImGui::CollapsingHeader("Rigidbody", ImGuiTreeNodeFlags_DefaultOpen))
     {
         float mass = rb->GetMass();
-        bool useGravity = rb->GetUseGravity();
+        float linearDamping = rb->GetLinearDamping();
+        float angularDamping = rb->GetAngularDamping();
 
-        if (ImGui::DragFloat("Mass", &mass, 0.1f, 0.0f, 1000.0f)) rb->SetMass(mass);
-        if (ImGui::Checkbox("Use Gravity", &useGravity)) rb->SetUseGravity(useGravity);
+        if (ImGui::DragFloat("Mass", &mass, 0.1f, 0.0f, 10000.0f))
+            rb->SetMass(mass);
+
+        if (ImGui::DragFloat("Linear Damping", &linearDamping, 0.01f, 0.0f, 1.0f))
+            rb->SetLinearDamping(linearDamping);
+
+        if (ImGui::DragFloat("Angular Damping", &angularDamping, 0.01f, 0.0f, 1.0f))
+            rb->SetAngularDamping(angularDamping);
+
+        ImGui::Separator();
+
+        bool useGravity = rb->GetUseGravity();
+        bool isKinematic = rb->IsKinematic();
+        XMFLOAT3 gravityVec = rb->GetGravity();
+        float gravityArr[3] = { gravityVec.x, gravityVec.y, gravityVec.z };
+
+        if (ImGui::Checkbox("Use Gravity", &useGravity))
+            rb->SetUseGravity(useGravity);
+
+        if (useGravity)
+        {
+            if (ImGui::DragFloat3("Gravity Dir", gravityArr, 0.1f))
+                rb->SetGravity(XMFLOAT3(gravityArr));
+        }
+
+        if (ImGui::Checkbox("Is Kinematic", &isKinematic))
+            rb->SetKinematic(isKinematic);
+
+        ImGui::Separator();
+        ImGui::Text("Runtime Debug Info");
+
+        XMFLOAT3 velocity = rb->GetVelocity();
+        float velArr[3] = { velocity.x, velocity.y, velocity.z };
+
+        if (ImGui::DragFloat3("Velocity", velArr, 0.1f))
+            rb->SetVelocity(XMFLOAT3(velArr));
+
+        XMFLOAT3 angularVel = rb->GetAngularVelocity();
+        float angVelArr[3] = { angularVel.x, angularVel.y, angularVel.z };
+
+        if (ImGui::DragFloat3("Angular Vel", angVelArr, 0.1f))
+            rb->SetAngularVelocity(XMFLOAT3(angVelArr));
+
+        XMFLOAT3 acceleration = rb->GetAcceleration();
+        float accArr[3] = { acceleration.x, acceleration.y, acceleration.z };
+
+        if (ImGui::DragFloat3("Acceleration", accArr, 0.1f))
+            rb->SetAcceleration(XMFLOAT3(accArr));
+    }
+}
+
+void UIManager::DrawColliderInspector(Component* comp)
+{
+    auto col = static_cast<ColliderComponent*>(comp);
+
+    if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        Collider_Type currentType = col->GetColliderType();
+        const char* typeNames[] = { "Sphere", "Box", "Capsule", "Mesh", "Terrain", "Etc" };
+        int currentTypeIdx = static_cast<int>(currentType);
+
+        if (ImGui::Combo("Type", &currentTypeIdx, typeNames, IM_ARRAYSIZE(typeNames)))
+        {
+            col->SetColliderType(static_cast<Collider_Type>(currentTypeIdx));
+        }
+
+        ImGui::Separator();
+
+        XMFLOAT3 center = col->GetCenter();
+        if (ImGui::DragFloat3("Center", &center.x, 0.01f))
+        {
+            col->SetCenter(center);
+        }
+
+        switch (col->GetColliderType())
+        {
+        case Collider_Type::Sphere:
+        {
+            float radius = col->GetRadius();
+            if (ImGui::DragFloat("Radius", &radius, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetRadius(radius);
+            }
+            break;
+        }
+        case Collider_Type::Box:
+        {
+            XMFLOAT3 size = col->GetSize();
+            if (ImGui::DragFloat3("Size", &size.x, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetSize(size);
+            }
+            break;
+        }
+        case Collider_Type::Capsule:
+        {
+            float radius = col->GetRadius();
+            if (ImGui::DragFloat("Radius", &radius, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetRadius(radius);
+            }
+
+            float height = col->GetHeight();
+            if (ImGui::DragFloat("Height", &height, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetHeight(height);
+            }
+            break;
+        }
+        case Collider_Type::Mesh:
+        case Collider_Type::Terrain:
+        {
+            ImGui::TextDisabled("Auto-Calculated from Mesh/Terrain Data");
+            break;
+        }
+        default:
+            break;
+        }
     }
 }
 
@@ -1324,7 +1453,6 @@ void UIManager::DrawTerrainInspector(Component* comp)
         }
     }
 }
-
 
 void UIManager::UpdateResourceWindow()
 {

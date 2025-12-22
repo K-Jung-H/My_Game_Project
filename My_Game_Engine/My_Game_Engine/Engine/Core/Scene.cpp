@@ -65,7 +65,7 @@ void Scene::Build()
 
 
 		Object* terrain_obj = m_pObjectManager->CreateObject("Main_Terrain");
-		terrain_obj->GetTransform()->SetPosition({ -500.0f, 0.0f, -500.0f });
+		terrain_obj->GetTransform()->SetPosition({ -500.0f, -100.0f, -500.0f });
 
 		auto terrain_component = terrain_obj->AddComponent<TerrainComponent>();
 		terrain_component->SetTransform(terrain_obj->GetTransform());
@@ -120,7 +120,7 @@ void Scene::Build()
 		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
 		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-		rb->SetUseGravity(false);
+		rb->SetUseGravity(true);
 
 		animController->SetModelAvatar(model_0_avatar);
 		animController->SetSkeleton(model_0_skeleton);
@@ -139,7 +139,7 @@ void Scene::Build()
 			auto animController = test_obj->AddComponent<AnimationControllerComponent>();
 			auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-			rb->SetUseGravity(false);
+			rb->SetUseGravity(true);
 
 
 			animController->SetModelAvatar(model_1_avatar);
@@ -352,6 +352,9 @@ void Scene::OnComponentRegistered(std::shared_ptr<Component> comp)
 		if(auto terrain = std::dynamic_pointer_cast<TerrainComponent>(comp))
 		{
 			mTerrains.push_back(terrain.get());
+
+			GameEngine::Get().GetPhysicsSystem()->RegisterTerrain(scene_id, terrain.get());
+
 		}
 		break;
 	}
