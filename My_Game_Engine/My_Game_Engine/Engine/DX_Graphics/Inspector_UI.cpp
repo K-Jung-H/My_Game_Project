@@ -2,6 +2,7 @@
 #include "GameEngine.h"
 #include "Core/Object.h"
 #include "Components/RigidbodyComponent.h"
+#include "Components/ColliderComponent.h"
 #include "Components/TerrainComponent.h"
 #include "Resource/Mesh.h"
 
@@ -472,6 +473,12 @@ void UIManager::DrawObjectNode(Object* obj)
             ImGui::CloseCurrentPopup();
         }
 
+        if (ImGui::MenuItem("Collider"))
+        {
+            obj->AddComponent<ColliderComponent>();
+            ImGui::CloseCurrentPopup();
+        }
+
         if (ImGui::MenuItem("Animation Controller"))
         {
             obj->AddComponent<AnimationControllerComponent>();
@@ -511,6 +518,10 @@ void UIManager::DrawComponentInspector(Component* comp)
     else if (auto rb = dynamic_cast<RigidbodyComponent*>(comp))
     {
         DrawRigidbodyInspector(rb);
+    }
+    else if (auto col = dynamic_cast<ColliderComponent*>(comp))
+    {
+        DrawColliderInspector(col);
     }
     else if (auto terrain = dynamic_cast<TerrainComponent*>(comp))
     {
@@ -1274,6 +1285,76 @@ void UIManager::DrawRigidbodyInspector(Component* comp)
     }
 }
 
+void UIManager::DrawColliderInspector(Component* comp)
+{
+    auto col = static_cast<ColliderComponent*>(comp);
+
+    if (ImGui::CollapsingHeader("Collider", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        Collider_Type currentType = col->GetColliderType();
+        const char* typeNames[] = { "Sphere", "Box", "Capsule", "Mesh", "Terrain", "Etc" };
+        int currentTypeIdx = static_cast<int>(currentType);
+
+        if (ImGui::Combo("Type", &currentTypeIdx, typeNames, IM_ARRAYSIZE(typeNames)))
+        {
+            col->SetColliderType(static_cast<Collider_Type>(currentTypeIdx));
+        }
+
+        ImGui::Separator();
+
+        XMFLOAT3 center = col->GetCenter();
+        if (ImGui::DragFloat3("Center", &center.x, 0.01f))
+        {
+            col->SetCenter(center);
+        }
+
+        switch (col->GetColliderType())
+        {
+        case Collider_Type::Sphere:
+        {
+            float radius = col->GetRadius();
+            if (ImGui::DragFloat("Radius", &radius, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetRadius(radius);
+            }
+            break;
+        }
+        case Collider_Type::Box:
+        {
+            XMFLOAT3 size = col->GetSize();
+            if (ImGui::DragFloat3("Size", &size.x, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetSize(size);
+            }
+            break;
+        }
+        case Collider_Type::Capsule:
+        {
+            float radius = col->GetRadius();
+            if (ImGui::DragFloat("Radius", &radius, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetRadius(radius);
+            }
+
+            float height = col->GetHeight();
+            if (ImGui::DragFloat("Height", &height, 0.01f, 0.0f, 1000.0f))
+            {
+                col->SetHeight(height);
+            }
+            break;
+        }
+        case Collider_Type::Mesh:
+        case Collider_Type::Terrain:
+        {
+            ImGui::TextDisabled("Auto-Calculated from Mesh/Terrain Data");
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
 void UIManager::DrawTerrainInspector(Component* comp)
 {
     auto terrain = static_cast<TerrainComponent*>(comp);
@@ -1372,7 +1453,6 @@ void UIManager::DrawTerrainInspector(Component* comp)
         }
     }
 }
-
 
 void UIManager::UpdateResourceWindow()
 {

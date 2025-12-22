@@ -89,6 +89,7 @@ private:
     void DrawCameraInspector(Component* comp);
     void DrawLightInspector(Component* comp);
     void DrawRigidbodyInspector(Component* comp);
+    void DrawColliderInspector(Component* comp);
     void DrawTerrainInspector(Component* comp);
 
     // ------------------------------------------------------

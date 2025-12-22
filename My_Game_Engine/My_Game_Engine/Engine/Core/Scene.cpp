@@ -65,7 +65,7 @@ void Scene::Build()
 
 
 		Object* terrain_obj = m_pObjectManager->CreateObject("Main_Terrain");
-		terrain_obj->GetTransform()->SetPosition({ -500.0f, 0.0f, -500.0f });
+		terrain_obj->GetTransform()->SetPosition({ -500.0f, -100.0f, -500.0f });
 
 		auto terrain_component = terrain_obj->AddComponent<TerrainComponent>();
 		terrain_component->SetTransform(terrain_obj->GetTransform());
