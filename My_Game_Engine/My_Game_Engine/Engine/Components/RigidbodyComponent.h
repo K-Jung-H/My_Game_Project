@@ -45,6 +45,9 @@ public:
     void SetLinearDamping(float d) { mLinearDamping = d; }
     void SetAngularDamping(float d) { mAngularDamping = d; }
 
+    float GetLinearDamping() const { return mLinearDamping; }
+    float GetAngularDamping() const { return mAngularDamping; }
+
 private:
     XMFLOAT3 mVelocity { 0,0,0 };
     XMFLOAT3 mAcceleration { 0,0,0 };
@@ -53,7 +56,7 @@ private:
     XMFLOAT3 mForceAccum { 0,0,0 };
     XMFLOAT3 mTorqueAccum { 0,0,0 };
 
-    XMFLOAT3 mGravity { 0,0,0 };
+    XMFLOAT3 mGravity{ 0, -9.8f, 0 };
 
     float mMass = 1.0f;
     float mLinearDamping = 0.98f;
