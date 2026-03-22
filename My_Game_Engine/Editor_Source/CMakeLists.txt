@@ -19,3 +19,11 @@ target_precompile_headers(Editor PRIVATE
 )
 
 target_compile_definitions(Editor PRIVATE IMGUI_DEFINE_MATH_OPERATORS)
+
+target_include_directories(Editor PUBLIC
+    "${CMAKE_SOURCE_DIR}/My_Game_Engine/My_Game_Engine/Engine/External"
+)
+
+target_link_libraries(Editor PUBLIC
+    Engine
+)

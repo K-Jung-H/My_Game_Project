@@ -40,3 +40,9 @@ source_group("Shaders" FILES ${SHADER_FILES})
 # 엔진 타겟에 포함 (빌드 제외)
 set_source_files_properties(${SHADER_FILES} PROPERTIES HEADER_FILE_ONLY ON)
 target_sources(Engine PRIVATE ${SHADER_FILES})
+
+target_include_directories(Engine PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/External")
+
+find_package(assimp CONFIG REQUIRED)
+
+target_link_libraries(Engine PUBLIC assimp::assimp)
