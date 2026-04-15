@@ -667,7 +667,7 @@ bool DX12_Renderer::Create_Shader()
 
     PipelinePreset geometry_pp;
     geometry_pp.inputlayout = InputLayoutPreset::Default;
-    geometry_pp.rasterizer = RasterizerPreset::Wireframe;
+    geometry_pp.rasterizer = RasterizerPreset::Default;
     geometry_pp.blend = BlendPreset::AlphaBlend;
     geometry_pp.depth = DepthPreset::Default;
     geometry_pp.RenderTarget = RenderTargetPreset::MRT;
@@ -713,7 +713,7 @@ bool DX12_Renderer::Create_Shader()
 
     PipelinePreset terrain_geometry_pp;
     terrain_geometry_pp.inputlayout = InputLayoutPreset::Terrain;
-    terrain_geometry_pp.rasterizer = RasterizerPreset::Wireframe;
+    terrain_geometry_pp.rasterizer = RasterizerPreset::Default;
     terrain_geometry_pp.blend = BlendPreset::AlphaBlend;
     terrain_geometry_pp.depth = DepthPreset::Default;
     terrain_geometry_pp.RenderTarget = RenderTargetPreset::MRT;
