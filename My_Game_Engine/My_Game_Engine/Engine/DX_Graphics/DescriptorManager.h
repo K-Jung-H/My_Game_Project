@@ -10,10 +10,10 @@ constexpr UINT MAX_UI_SRV = 256;
 
 enum class HeapRegion
 {
-    SRV_Static,   // 일반 텍스처 
-    SRV_Frame,     // 프레임 버퍼 리소스
+    SRV_Static,
+    SRV_Frame,
 
-	UI, // IMGUI 관련 리소스
+	UI,
 
     SRV_ShadowMap_CSM,
     SRV_ShadowMap_Point,
