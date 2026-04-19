@@ -15,6 +15,14 @@ void ResourceSystem::Initialize(const std::string& assetRoot)
 void ResourceSystem::LoadAllMeta(const std::string& assetRoot)
 {
     namespace fs = std::filesystem;
+
+    if (!fs::exists(assetRoot) || !fs::is_directory(assetRoot))
+    {
+        std::string errorMsg = "[ResourceSystem] Error: Asset root directory not found at " + assetRoot + "\n";
+        OutputDebugStringA(errorMsg.c_str());
+        return; 
+    }
+
     for (auto& p : fs::recursive_directory_iterator(assetRoot))
     {
         if (p.path().extension() == ".meta")

@@ -55,23 +55,23 @@ void Scene::Build()
 		mesh_component->SetMesh(plane_id);
 	}
 
-	{
-		//Create Terrain Test
-		LoadResult terrain_result;
-		rsm->Load("Assets/Terrain/HeightMap.raw", "Terrain", terrain_result);
+	// {
+	// 	//Create Terrain Test
+	// 	LoadResult terrain_result;
+	// 	rsm->Load("Assets/Terrain/HeightMap.raw", "Terrain", terrain_result);
 
-		// load test
-		auto terrain_resource = rsm->GetById<TerrainResource>(terrain_result.terrainID);
+	// 	// load test
+	// 	auto terrain_resource = rsm->GetById<TerrainResource>(terrain_result.terrainID);
 
 
-		Object* terrain_obj = m_pObjectManager->CreateObject("Main_Terrain");
-		terrain_obj->GetTransform()->SetPosition({ -500.0f, -100.0f, -500.0f });
+	// 	Object* terrain_obj = m_pObjectManager->CreateObject("Main_Terrain");
+	// 	terrain_obj->GetTransform()->SetPosition({ -5000.0f, -100.0f, -5000.0f });
 
-		auto terrain_component = terrain_obj->AddComponent<TerrainComponent>();
-		terrain_component->SetTransform(terrain_obj->GetTransform());
-		terrain_component->SetTerrain(terrain_result.terrainID);
-		terrain_component->SetTerrain_Size(1000, 1000, 500);
-	}
+	// 	auto terrain_component = terrain_obj->AddComponent<TerrainComponent>();
+	// 	terrain_component->SetTransform(terrain_obj->GetTransform());
+	// 	terrain_component->SetTerrain(terrain_result.terrainID);
+	// 	terrain_component->SetTerrain_Size(10000, 10000, 500);
+	// }
 	
 	//--------------------------------------------------------------------------------
 	
@@ -113,14 +113,14 @@ void Scene::Build()
 	{
 		Object* test_obj = m_pObjectManager->CreateFromModel(model_0_ptr);
 		m_pObjectManager->SetObjectName(test_obj, "Test_Object_0");
-		test_obj->GetTransform()->SetScale({ 5, 5, 5 });
+		test_obj->GetTransform()->SetScale({ 100, 100, 100 });
 		test_obj->GetTransform()->SetPosition({ 0, 0, 0 });
 
-		auto rb = test_obj->AddComponent<RigidbodyComponent>();
+		//auto rb = test_obj->AddComponent<RigidbodyComponent>();
 		auto animController = test_obj->AddComponent<AnimationControllerComponent>();
 		auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-		rb->SetUseGravity(true);
+		//rb->SetUseGravity(true);
 
 		animController->SetModelAvatar(model_0_avatar);
 		animController->SetSkeleton(model_0_skeleton);
@@ -132,14 +132,14 @@ void Scene::Build()
 		{
 			Object* test_obj = m_pObjectManager->CreateFromModel(model_1_ptr);
 			m_pObjectManager->SetObjectName(test_obj, "Test_Object_" + std::to_string(1 + i));
-			test_obj->GetTransform()->SetScale({ 5, 5, 5 });
-			test_obj->GetTransform()->SetPosition({ 10.0f * (i + 1), 0, 0 });
+			test_obj->GetTransform()->SetScale({ 100, 100, 100});
+			test_obj->GetTransform()->SetPosition({ 100.0f * (i + 1), 0, 0 });
 
-			auto rb = test_obj->AddComponent<RigidbodyComponent>();
+			//auto rb = test_obj->AddComponent<RigidbodyComponent>();
 			auto animController = test_obj->AddComponent<AnimationControllerComponent>();
 			auto skinnedRenderers = test_obj->GetComponentsInChildren<SkinnedMeshRendererComponent>();
 
-			rb->SetUseGravity(true);
+			//rb->SetUseGravity(true);
 
 
 			animController->SetModelAvatar(model_1_avatar);

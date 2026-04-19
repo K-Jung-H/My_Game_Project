@@ -1,3 +1,5 @@
+#pragma once
+
 enum class InputLayoutPreset
 {
 	Default, // Hot/Cold
@@ -35,7 +37,6 @@ enum class RenderTargetPreset
     MRT,
     ShadowMap
 };
-
 
 struct RenderTargetDesc
 {

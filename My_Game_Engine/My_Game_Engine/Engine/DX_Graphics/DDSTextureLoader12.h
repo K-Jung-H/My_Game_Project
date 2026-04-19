@@ -18,10 +18,13 @@
 // http://go.microsoft.com/fwlink/?LinkID=615561
 //--------------------------------------------------------------------------------------
 
-#pragma once
+
+#include <d3d12.h>
 #include <assert.h>
 #include <algorithm>
 #include <memory>
+#include <stdint.h>
+#include <vector>
 #include <wrl.h>
 
 

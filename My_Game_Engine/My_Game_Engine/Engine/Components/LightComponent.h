@@ -22,8 +22,8 @@ enum class ShadowMode : UINT
 
 enum class DirectionalShadowMode : UINT
 {
-    Default = 0, // Ä«¸Þ¶ó ºñÀÇÁ¸ÀûÀÎ ´ÜÀÏ ¼¨µµ¿ì
-    CSM = 1      // Ä«¸Þ¶ó ÀÇÁ¸ÀûÀÎ 4-Cascade ¼¨µµ¿ì
+    Default = 0, // Ä«ï¿½Þ¶ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+    CSM = 1      // Ä«ï¿½Þ¶ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ 4-Cascade ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 };
 
 enum class Light_Type
