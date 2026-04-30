@@ -35,8 +35,8 @@ Entity-Component-System (ECS) 아키텍처 기반.
 * **Editor (ImGui):**
     * 씬 그래프 및 인스펙터.
     * **Node-based Graph Editor:**
-        * 노드/링크 편집, Zoom & Pan, 미니맵(Minimap) 지원.
-        * 다중 선택(Quad Selection) 및 곡선(Bezier)/직선 링크 시각화.
+        * 노드/링크 편집, Zoom & Pan, 지원.
+        * 리소스 드래그 앤 드롭을 통한 컴포넌트 상호작용 기능.
     * 애니메이션 레이어 실시간 제어 및 블렌딩 상태 시각화.
 
 ### GUI & Resource File Importer
